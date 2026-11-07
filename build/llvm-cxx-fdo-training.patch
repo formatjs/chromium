@@ -1,0 +1,184 @@
+diff --git a/toolchain/bootstrap/fdo_profile.bzl b/toolchain/bootstrap/fdo_profile.bzl
+--- a/toolchain/bootstrap/fdo_profile.bzl
++++ b/toolchain/bootstrap/fdo_profile.bzl
+@@ -109,6 +109,17 @@
+         compile_flags = _COMMON_COMPILE_FLAGS + _FREESTANDING_COMPILE_FLAGS
+         link_flags = []
+ 
++    action_name = ACTION_NAMES.c_compile
++    sources = _c_sources(ctx.files.srcs)
++    if ctx.attr.language == "c++":
++        if ctx.attr.workload_kind != "hosted":
++            fail("C++ training currently requires a hosted workload")
++        action_name = ACTION_NAMES.cpp_compile
++        sources = [file for file in ctx.files.srcs if file.extension in ["cc", "cpp", "cxx"]]
++        compile_flags = ["-x", "c++"] + _COMMON_COMPILE_FLAGS[2:] + ["-std=c++20", "-flto=thin", "-pthread"]
++    if not sources:
++        fail("No training sources for " + ctx.attr.language)
++
+     include_dirs = {}
+     for file in ctx.files.srcs:
+         include_dirs[file.dirname] = None
+@@ -121,11 +132,11 @@
+     )
+     compile_executable = cc_common.get_tool_for_action(
+         feature_configuration = feature_configuration,
+-        action_name = ACTION_NAMES.c_compile,
++        action_name = action_name,
+     )
+     profraws = []
+     objects = []
+-    for index, source in enumerate(_c_sources(ctx.files.srcs)):
++    for index, source in enumerate(sources):
+         object_file = ctx.actions.declare_file("%s.%s.o" % (ctx.label.name, index))
+         profraw = ctx.actions.declare_file("%s.%s.profraw" % (ctx.label.name, index))
+         compile_variables = cc_common.create_compile_variables(
+@@ -141,10 +152,10 @@
+             executable = compile_executable,
+             arguments = cc_common.get_memory_inefficient_command_line(
+                 feature_configuration = feature_configuration,
+-                action_name = ACTION_NAMES.c_compile,
++                action_name = action_name,
+                 variables = compile_variables,
+             ),
+-            env = _profile_environment(feature_configuration, ACTION_NAMES.c_compile, compile_variables, profraw),
++            env = _profile_environment(feature_configuration, action_name, compile_variables, profraw),
+             inputs = depset(
+                 [source],
+                 transitive = [ctx.attr.srcs[DefaultInfo].files],
+@@ -217,9 +228,14 @@
+     implementation = _llvm_fdo_profile_workload_impl,
+     attrs = {
+         "srcs": attr.label(
+-            allow_files = [".c", ".h"],
++            allow_files = [".c", ".h", ".cc", ".cpp", ".cxx", ".hpp"],
+             mandatory = True,
+             doc = "Training sources compiled for target_platform.",
++        ),
++        "language": attr.string(
++            default = "c",
++            values = ["c", "c++"],
++            doc = "Compiler frontend exercised by the training sources.",
+         ),
+         "target_platform": attr.label(
+             mandatory = True,
+diff --git a/toolchain/bootstrap/stage3/BUILD.bazel b/toolchain/bootstrap/stage3/BUILD.bazel
+--- a/toolchain/bootstrap/stage3/BUILD.bazel
++++ b/toolchain/bootstrap/stage3/BUILD.bazel
+@@ -41,12 +41,28 @@
+ ]
+ 
+ [
++    llvm_fdo_profile_workload(
++        name = "llvm_cxx_fdo_profile_workload_" + executor,
++        srcs = ":fdo_cxx.cpp",
++        exec_compatible_with = [
++            "@platforms//cpu:" + executor_config["cpu"],
++            "@platforms//os:linux",
++        ],
++        exec_properties = {"Arch": executor_config["buildbuddy_arch"]},
++        language = "c++",
++        target_platform = "//platforms:linux_" + executor_config["cpu"],
++        workload_kind = "hosted",
++    )
++    for executor, executor_config in _LLVM_FDO_EXECUTORS.items()
++]
++
++[
+     llvm_fdo_profile_data(
+         name = "llvm_fdo_profdata_linux_" + executor_cpu,
+         profiles = [
+             "llvm_fdo_profile_workload_linux_%s_to_%s_%s" % (executor_cpu, target_os, target_cpu)
+             for target_os, target_cpu in SUPPORTED_TARGETS
+-        ],
++        ] + ["llvm_cxx_fdo_profile_workload_linux_" + executor_cpu],
+         visibility = ["//visibility:public"],
+     )
+     for executor_cpu in [
+diff --git a/toolchain/bootstrap/stage3/fdo_cxx.cpp b/toolchain/bootstrap/stage3/fdo_cxx.cpp
+new file mode 100644
+--- /dev/null
++++ b/toolchain/bootstrap/stage3/fdo_cxx.cpp
+@@ -0,0 +1,82 @@
++// SPDX-License-Identifier: MIT
++// Exercise standard-library parsing and template instantiation during training.
++#include <algorithm>
++#include <array>
++#include <concepts>
++#include <functional>
++#include <map>
++#include <memory>
++#include <numeric>
++#include <optional>
++#include <ranges>
++#include <string>
++#include <tuple>
++#include <type_traits>
++#include <unordered_map>
++#include <utility>
++#include <variant>
++#include <vector>
++
++using Value = std::variant<int, double, std::string, std::vector<int>>;
++
++struct Record {
++  std::string name;
++  Value value;
++  std::optional<std::array<int, 4>> samples;
++  std::map<std::string, std::unique_ptr<Record>> children;
++};
++
++template <class T>
++concept Named = requires(const T& value) {
++  { value.name } -> std::convertible_to<std::string>;
++};
++
++template <class T>
++double summarize(const T& value) {
++  if constexpr (std::is_arithmetic_v<T>) {
++    return static_cast<double>(value);
++  } else if constexpr (std::ranges::range<T>) {
++    return std::accumulate(value.begin(), value.end(), 0.0);
++  }
++}
++
++template <Named T>
++std::tuple<std::string, double> describe(const T& record) {
++  double total = std::visit([](const auto& value) { return summarize(value); }, record.value);
++  if (record.samples) total += summarize(*record.samples);
++  for (const auto& [name, child] : record.children)
++    total += std::get<1>(describe(*child)) + name.size();
++  return {record.name, total};
++}
++
++template <std::size_t... I>
++auto coefficients(std::index_sequence<I...>) {
++  return std::tuple{std::array<double, I + 1>{}...};
++}
++
++int main() {
++  auto tables = coefficients(std::make_index_sequence<32>{});
++  std::vector<Record> records;
++  for (int index = 0; index < 64; ++index) {
++    Record record{std::to_string(index), index, std::array<int, 4>{index, 1, 2, 3}, {}};
++    if (index % 3 == 0) record.value = std::vector<int>{index, index + 1};
++    if (index % 5 == 0) record.value = std::string("template training");
++    if (index % 7 == 0) record.value = 0.5 * index;
++    records.push_back(std::move(record));
++  }
++  std::ranges::sort(records, {}, &Record::name);
++  std::unordered_map<std::string, std::pair<std::size_t, double>> groups;
++  std::function<double(const Record&)> score = [](const Record& record) {
++    return std::get<1>(describe(record));
++  };
++  for (const auto& record : records) {
++    auto& group = groups[record.name.substr(0, 1)];
++    ++group.first;
++    group.second += score(record);
++  }
++  double result = std::apply([](const auto&... values) {
++    return (0.0 + ... + static_cast<double>(values.size()));
++  }, tables);
++  for (const auto& [name, group] : groups) result += group.second / group.first + name.size();
++  return static_cast<int>(result) & 255;
++}

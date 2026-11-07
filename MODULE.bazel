@@ -37,6 +37,7 @@ single_version_override(
         "//build:llvm-msvc-delay-load.patch",
         "//build:llvm-msvc-crtversion.patch",
         "//build:llvm-header-inputs.patch",
+        "//build:llvm-cxx-fdo-training.patch",
     ],
 )
 

@@ -15,6 +15,7 @@ exports_files([
     "llvm-msvc-delay-load.patch",
     "llvm-msvc-crtversion.patch",
     "llvm-header-inputs.patch",
+    "llvm-cxx-fdo-training.patch",
     "spirv-tools-generator-input.patch",
     "spirv-headers-generator-inputs.patch",
     "windows_debuggers.BUILD.bazel",
