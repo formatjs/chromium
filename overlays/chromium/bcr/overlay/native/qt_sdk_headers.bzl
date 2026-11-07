@@ -6,7 +6,11 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 
 def _qt_sdk_headers_impl(ctx):
     toolchain = find_cpp_toolchain(ctx)
-    resources = [file for file in toolchain.all_files.to_list() if "/lib/clang/" in file.path and "/" not in file.path.split("/lib/clang/", 1)[1]]
+    resources = {}
+    for file in toolchain.all_files.to_list():
+        if "/lib/clang/" in file.path:
+            prefix, suffix = file.path.split("/lib/clang/", 1)
+            resources[prefix + "/lib/clang/" + suffix.split("/", 1)[0]] = True
     if len(resources) != 1:
         fail("Qt SDK profile needs one Clang resource directory from the selected toolchain")
     headers = ctx.attr.sdk[CcInfo].compilation_context.headers
@@ -21,7 +25,7 @@ def _qt_sdk_headers_impl(ctx):
             includes = depset([
                 root + "/usr/include/c++/10",
                 multiarch + "/c++/10",
-                resources[0].path + "/include",
+                resources.keys()[0] + "/include",
                 multiarch,
                 root + "/usr/include",
             ], order = "preorder"),
