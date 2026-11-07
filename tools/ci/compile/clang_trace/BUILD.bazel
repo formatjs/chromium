@@ -1,0 +1,39 @@
+load("@chromium//native:browser_v8_sources.bzl", "LIBRARIES")
+load("//tools/ci:browser_targets.bzl", "linux_amd64_browser")
+load("//tools/ci/compile:probe.bzl", "native_compile_probe")
+
+package(default_visibility = ["//visibility:public"])
+
+native_compile_probe(
+    name = "base",
+    library = LIBRARIES["//v8:v8_base_without_compiler"],
+    sources = ["@chromium_v8//:v8/src/" + source for source in [
+        "ic/ic.cc",
+        "runtime/runtime-function.cc",
+    ]],
+)
+
+native_compile_probe(
+    name = "compiler",
+    library = LIBRARIES["//v8:v8_compiler"],
+    sources = ["@chromium_v8//:v8/src/compiler/" + source for source in [
+        "turboshaft/loop-unrolling-phase.cc",
+        "turboshaft/store-store-elimination-phase.cc",
+        "backend/x64/instruction-selector-x64.cc",
+    ]],
+)
+
+native_compile_probe(
+    name = "initializers",
+    library = LIBRARIES["//v8:v8_initializers"],
+    sources = ["@chromium_v8//:v8/src/builtins/builtins-array-gen.cc"],
+)
+
+linux_amd64_browser(
+    name = "v8-linux-amd64",
+    srcs = [
+        ":base",
+        ":compiler",
+        ":initializers",
+    ],
+)
