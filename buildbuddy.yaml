@@ -1,5 +1,24 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium strict cold build linux-amd64
+    container_image: ubuntu-24.04
+    user: buildbuddy
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 6h
+    resource_requests:
+      cpu: 32
+      memory: 64GB
+      disk: 300GB
+    triggers:
+      push:
+        branches: ["perf/bb-strict-cold"]
+    steps:
+      - run: |
+          python3 -m tools.ci.bb_cold \
+            --revision "$(git rev-parse HEAD)" \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-amd64"
+
   - name: Chromium linux-amd64
     container_image: ubuntu-24.04
     allow_concurrent_runs: false

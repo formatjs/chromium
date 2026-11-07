@@ -76,6 +76,31 @@ analysis, compilation, linking, packaging and artifact copying. A successful
 archive still needs ABI, rendering and payload comparison before accepting
 the optimization. Each new cold trial needs a new directory.
 
+## Strict BuildBuddy cold target
+
+Target: complete Linux AMD64 archive under one hour on a BuildBuddy workflow
+runner. `perf/bb-strict-cold` requests 32 CPUs, 64GiB RAM and 300GiB disk;
+the report records actual CPU and memory limits. This is a separate hardware
+comparison from the 16-CPU local baseline. Other triples are not measured yet.
+
+`tools.ci.bb_cold` runs the local protocol with a verified direct Bazel binary,
+fresh checkout, install/output roots and auxiliary caches. RBE, action caches,
+disk caches and extracted repository caches are disabled. Only fetched archives
+can persist between trials. A private 16GiB tmpfs holds sandbox bookkeeping;
+outputs and extracted sources stay on disk. Runner VM snapshots and OS page
+cache remain uncontrolled; no claim of physically cold RAM or storage.
+
+The outer timer includes Bazel download, private sandbox setup, fresh source
+checkout, fetch/extraction, analysis, generation, compilation, linking, packaging
+and copying artifacts into the BB handoff directory. The workflow service's
+initial repository fetch/queue time is outside this timer, matching the existing
+local protocol's use of fetched Git objects. Profile summarization and runner
+cleanup happen afterward. Publish cache-policy proof and a sanitized profile;
+accept only after the exact archive passes native ABI and rendering checks.
+
+No strict BB result is recorded yet. Prior RBE results below do not prove this
+target. Hosted timeout limits can terminate a run before the configured 6h.
+
 ## BuildBuddy execution target
 
 Target: under one hour per supported triple on BuildBuddy, including artifact

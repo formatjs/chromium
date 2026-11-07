@@ -65,7 +65,7 @@ class BuildBuddyArtifactsTest(unittest.TestCase):
                 artifacts.artifact_uris(response, REVISION, TARGET)
 
     def test_cold_browser_keeps_provenance_checks_and_cannot_impersonate_regular_build(self):
-        for prefix in ('Chromium cold build ', 'Chromium clean cold build '):
+        for prefix in ('Chromium cold build ', 'Chromium clean cold build ', 'Chromium strict cold build '):
             with self.subTest(prefix=prefix):
                 self.check_cold_browser_provenance(prefix)
 
