@@ -11,6 +11,22 @@ RUNNER = (Path(__file__).resolve().parents[1] /
 
 
 class ChromiumPythonActionTest(unittest.TestCase):
+    def test_execroot_scratch_is_private_and_removed_after_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / 'generator.py').write_text(
+                'import pathlib\npathlib.Path("result.txt").write_text(str(pathlib.Path.cwd()))\n')
+            manifest = {'inputs': [['generator.py', 'scripts/generator.py']],
+                        'outputs': [['result.txt', 'result.txt']], 'build_dir': 'out/import',
+                        'script': 'scripts/generator.py', 'args': [], 'response_file_contents': [],
+                        'scratch_in_execroot': True}
+            (root / 'manifest.json').write_text(json.dumps(manifest))
+            result = subprocess.run([sys.executable, str(RUNNER), 'manifest.json'],
+                                    cwd=root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(Path((root / 'result.txt').read_text()).is_relative_to(root))
+            self.assertEqual(list(root.glob('chromium-action-*')), [])
+
     def test_generated_provenance_is_stable_across_execution_roots(self):
         with tempfile.TemporaryDirectory() as directory:
             outputs = []
@@ -24,6 +40,7 @@ class ChromiumPythonActionTest(unittest.TestCase):
                     '"// Response " + sys.argv[1] + "\\n" + '
                     'pathlib.Path(sys.argv[1]).read_text())\n')
                 manifest = {
+                    'scratch_in_execroot': attempt == 'two',
                     'inputs': [['generator.py', 'tools/flags/generator.py']],
                     'outputs': [['result.cc', 'gen/result.cc']],
                     'build_dir': 'out/import', 'script': 'tools/flags/generator.py',

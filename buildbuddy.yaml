@@ -1,5 +1,25 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium generator scratch experiment
+    container_image: ubuntu-24.04
+    user: buildbuddy
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/generator-scratch"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.private_ram --size-gib 8 -- \
+            python3 -m tools.ci.generator_scratch \
+            --sandbox-base '{sandbox}' \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/generator-scratch"
+
   - name: Chromium strict cold build linux-amd64
     container_image: ubuntu-24.04
     user: buildbuddy

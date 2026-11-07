@@ -80,6 +80,8 @@ def _python_action_impl(ctx):
     executables = _executables(ctx.attr.deps)
     if executables:
         description["executable_inputs"] = [logical for _, logical in executables]
+    if ctx.var.get("CHROMIUM_GENERATOR_SCRATCH") == "execroot":
+        description["scratch_in_execroot"] = True
     ctx.actions.write(manifest, json.encode(description))
     ctx.actions.run(
         executable = ctx.attr._python[platform_common.ToolchainInfo].py3_runtime.interpreter,

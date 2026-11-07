@@ -20,7 +20,8 @@ def logical_path(root, value):
 
 def run(manifest):
     execution_root = Path.cwd()
-    with tempfile.TemporaryDirectory(prefix='chromium-action-') as directory:
+    scratch_parent = execution_root if manifest.get('scratch_in_execroot') else None
+    with tempfile.TemporaryDirectory(prefix='chromium-action-', dir=scratch_parent) as directory:
         root = Path(directory)
         staged = set()
         for actual, logical in manifest['inputs']:
