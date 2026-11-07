@@ -1,19 +1,21 @@
 diff --git a/directory.bzl b/directory.bzl
 --- a/directory.bzl
 +++ b/directory.bzl
-@@ -2,9 +2,8 @@
+@@ -2,10 +2,9 @@
  load("@bazel_skylib//rules/directory:providers.bzl", "DirectoryInfo", "create_directory_info")
  load("@bazel_skylib//rules/directory:subdirectory.bzl", "subdirectory")
  
 -# We want to put a source directory into the DefaultInfo but still propagate
 -# the DirectoryInfo for header inclusion checking and the toolchain's module
 -# map.
-+# Declare individual headers for include scanning. Whole-tree consumers use
-+# the explicit source_directory target.
- def headers_directory(name, path, visibility = None):
+-def headers_directory(name, path, visibility = None):
++# Compiler header sets can expose files for include scanning. SDK consumers
++# retain the single-directory contract unless they opt in.
++def headers_directory(name, path, visibility = None, individual_headers = False):
      if path == ".":
          directory(
-@@ -26,6 +25,7 @@
+             name = name + "_directory",
+@@ -26,12 +25,14 @@
      native.filegroup(
          name = name + "_source_directory",
          srcs = [path],
@@ -21,15 +23,30 @@ diff --git a/directory.bzl b/directory.bzl
      )
  
      _headers_directory(
-@@ -39,7 +39,7 @@
+         name = name,
+         directory = name + "_directory",
+         source_directory = name + "_source_directory",
++        individual_headers = individual_headers,
+         visibility = visibility,
+     )
+ 
+@@ -39,7 +40,7 @@
      return [
          ctx.attr.directory[DirectoryInfo],
          DefaultInfo(
 -            files = ctx.attr.source_directory[DefaultInfo].files,
-+            files = ctx.attr.directory[DirectoryInfo].transitive_files,
++            files = ctx.attr.directory[DirectoryInfo].transitive_files if ctx.attr.individual_headers else ctx.attr.source_directory[DefaultInfo].files,
          ),
      ]
  
+@@ -48,6 +49,7 @@
+     attrs = {
+         "directory": attr.label(mandatory = True),
+         "source_directory": attr.label(mandatory = True),
++        "individual_headers": attr.bool(default = False),
+     },
+     cfg = config.none(),
+ )
 diff --git a/toolchain/selects.bzl b/toolchain/selects.bzl
 --- a/toolchain/selects.bzl
 +++ b/toolchain/selects.bzl
@@ -63,6 +80,25 @@ diff --git a/toolchain/declare_toolchains.bzl b/toolchain/declare_toolchains.bzl
              srcs = ["@llvm//runtimes:resource_directory"],
          )
          resource_directory_args(
+diff --git a/toolchain/llvm/llvm.bzl b/toolchain/llvm/llvm.bzl
+--- a/toolchain/llvm/llvm.bzl
++++ b/toolchain/llvm/llvm.bzl
+@@ -21,6 +21,7 @@
+     # Model the resource directory already installed beside this archive's
+     # compiler binaries. This is never the LLVM source tree being compiled.
+     headers_directory(
++        individual_headers = True,
+         name = "builtin_resource_dir",
+         # Grab whichever version-specific dir is there.
+         path = native.glob(["lib/clang/*"], exclude_directories = 0)[0],
+@@ -28,6 +29,7 @@
+     )
+ 
+     headers_directory(
++        individual_headers = True,
+         name = "builtin_resource_include_dir",
+         path = native.glob(["lib/clang/*/include"], exclude_directories = 0)[0],
+         visibility = ["//visibility:public"],
 diff --git a/runtimes/glibc/extension/glibc-headers.BUILD.bazel b/runtimes/glibc/extension/glibc-headers.BUILD.bazel
 --- a/runtimes/glibc/extension/glibc-headers.BUILD.bazel
 +++ b/runtimes/glibc/extension/glibc-headers.BUILD.bazel
@@ -75,6 +111,14 @@ diff --git a/runtimes/glibc/extension/glibc-headers.BUILD.bazel b/runtimes/glibc
      # Stage 0 runtime libraries consume this CcInfo directly rather than the
      # final toolchain's glibc_headers_include_search_paths argument set.
      defines = select({
+@@ -23,6 +23,7 @@
+ 
+ headers_directory(
+     name = "glibc_headers_directory",
++    individual_headers = True,
+     path = "include",
+     visibility = ["//visibility:public"],
+ )
 diff --git a/kernel/extension/kernel-headers.BUILD.bazel b/kernel/extension/kernel-headers.BUILD.bazel
 --- a/kernel/extension/kernel-headers.BUILD.bazel
 +++ b/kernel/extension/kernel-headers.BUILD.bazel
@@ -87,3 +131,11 @@ diff --git a/kernel/extension/kernel-headers.BUILD.bazel b/kernel/extension/kern
      # Any code should always get passed linux UAPI headers as -isystem
      features = ["system_include_paths"],
      includes = ["include"],
+@@ -12,6 +12,7 @@
+ 
+ headers_directory(
+     name = "kernel_headers_directory",
++    individual_headers = True,
+     path = "include",
+     visibility = ["//visibility:public"],
+ )

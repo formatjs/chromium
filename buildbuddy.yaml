@@ -11,7 +11,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main, "perf/compile-cross-platform", "perf/native-blink-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
+        branches: [main, "perf/compile-cross-platform", "perf/native-blink-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout", "perf/local-cold"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -32,7 +32,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main, "perf/compile-cross-platform", "perf/host-blink-rollout", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
+        branches: [main, "perf/compile-cross-platform", "perf/host-blink-rollout", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout", "perf/local-cold"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -53,7 +53,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
+        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout", "perf/local-cold"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -74,7 +74,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
+        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout", "perf/local-cold"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -95,7 +95,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
+        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout", "perf/local-cold"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
