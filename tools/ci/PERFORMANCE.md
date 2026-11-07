@@ -4,6 +4,76 @@ Optimize measured compiler work first. Keep compiler flags, target ABIs, and
 artifact smoke coverage intact. Compare the same workload and cache state;
 registered actions are not executed compiles.
 
+## Local cold-build target
+
+Target: complete local Chromium archive under one hour, reusing only fetched
+dependency archives. Each proof run needs fresh output, install, extracted
+repository and auxiliary tool state; no action cache or remote execution.
+Keep hermetic toolchains, sandboxing, compiler semantics and artifact checks.
+Start with Linux AMD64; report other triples separately.
+
+Current host has a 16-CPU quota, 48GiB RAM and EBS-backed ext4 storage. Changing
+hardware starts a separate comparison. OS page cache and upstream HTTP caches
+remain uncontrolled. Checkout/setup, analysis, generators, compilation, linking
+and packaging count toward elapsed time.
+
+The first uncached local baseline was cancelled at 86m08s after the new one-hour
+goal was set. It executed 23,987 C++ actions with zero cache hits and no RBE.
+It did not produce an archive; this is a failed target, not a completed build
+time. The sampled bottleneck was storage: roughly 73% I/O full stall, low CPU
+use, and compiler/Bazel threads waiting on ext4 journal operations. Short spans
+were coalesced in its profile; BEP metrics give actual executed action counts.
+
+Local compiler probes compare unchanged captured contexts in repeated
+baseline/scanner/scanner/baseline order after warmups. Every selected compiler
+must execute locally, archives must match, and compact logs must cover every
+input comparison. Supporting setup stays warm; these probes are not cold-build
+proof. Raw logs stay local.
+
+```sh
+python3 -m tools.ci.compile.local \
+  --directory /tmp/chromium-local-inputs \
+  --repository-cache /path/to/download-cache \
+  --bazel /path/to/bazel-9.2.0 \
+  --bb /path/to/bb
+```
+
+An independent `--comparison=inmemory-sandboxes` trial measures Bazel's
+[in-memory sandbox bookkeeping](https://github.com/bazelbuild/bazel/blob/9.2.0/src/main/java/com/google/devtools/build/lib/sandbox/SandboxOptions.java#L292).
+It must preserve compiler inputs and archive bytes. No production change or
+speedup is claimed before measurements pass.
+
+The 16-source include-scanning probe completes in 61/57 seconds without scanning
+and 20/21 seconds with scanning. Each comparison removes 514,492 input paths;
+all three archives match, including the unpatched-toolchain reference. LLVM's
+header providers must expose individual files while preserving separate source
+directories for resource copying. Otherwise discovered headers collide with
+directory inputs in local sandboxes. Compiler versions and flags stay unchanged.
+
+A separate RAM-sandbox probe takes 61/75 seconds on ext4 and 20/19 seconds on
+tmpfs. Both input comparisons contain zero changes; every archive matches.
+These are isolated compiler probes, not complete cold-build timings. The tmpfs
+is empty, private, bounded to 16GiB and removed on namespace exit. Builds retain
+their UID and run without setup capabilities. Source extraction and final
+outputs remain on ext4; sandbox contents consume the same 48GiB memory budget.
+
+Run the complete benchmark from a committed candidate:
+
+```sh
+python3 -m tools.ci.compile.private_ram --size-gib 16 -- \
+  python3 -m tools.ci.local_cold \
+  --directory /tmp/chromium-local-cold-new \
+  --repository-cache /path/to/download-cache \
+  --revision FULL_COMMIT_SHA --bazel /path/to/bazel-9.2.0 \
+  --sandbox-base '{sandbox}' --max-seconds 0
+```
+
+The report verifies fresh Bazel roots, explicit cache disabling and real local
+sandbox execution. Its timer includes private sandbox setup, checkout, fetch,
+analysis, compilation, linking, packaging and artifact copying. A successful
+archive still needs ABI, rendering and payload comparison before accepting
+the optimization. Each new cold trial needs a new directory.
+
 ## Cold-build target
 
 Target: under one hour per supported triple on BuildBuddy, including artifact

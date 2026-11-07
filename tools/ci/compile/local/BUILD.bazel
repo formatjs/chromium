@@ -1,0 +1,58 @@
+load("@chromium//native:blink_platform_sources.bzl", BLINK = "LIBRARIES")
+load("@chromium//native:ml_sources.bzl", ML = "LIBRARIES")
+load("//tools/ci:browser_targets.bzl", "linux_amd64_browser")
+load("//tools/ci/compile:probe.bzl", "native_compile_probe")
+
+package(default_visibility = ["//visibility:public"])
+
+native_compile_probe(
+    name = "ml_transpose",
+    library = ML["//third_party/tflite:tflite_kernels"],
+    sources = ["@chromium_tflite//:tensorflow/lite/kernels/transpose.cc"],
+)
+
+native_compile_probe(
+    name = "ml",
+    library = ML["//third_party/tflite:tflite_kernels"],
+    sources = ["@chromium_tflite//:tensorflow/lite/kernels/" + source for source in [
+        "activations.cc",
+        "add.cc",
+        "conv.cc",
+        "fully_connected.cc",
+        "quantize.cc",
+        "reduce.cc",
+        "dequantize.cc",
+        "transpose.cc",
+    ]],
+)
+
+native_compile_probe(
+    name = "gin",
+    library = BLINK["//gin:gin"],
+    sources = ["//:gin/" + source for source in [
+        "arguments.cc",
+        "array_buffer.cc",
+        "context_holder.cc",
+        "converter.cc",
+    ]],
+)
+
+native_compile_probe(
+    name = "proto",
+    library = BLINK["//components/optimization_guide/proto:optimization_guide_proto"],
+    sources = [":gen/components/optimization_guide/proto/" + source for source in [
+        "autocomplete_scoring_model_metadata.pb.cc",
+        "autofill_field_classification_model_metadata.pb.cc",
+        "client_side_phishing_model_metadata.pb.cc",
+        "common_types.pb.cc",
+    ]],
+)
+
+linux_amd64_browser(
+    name = "local-inputs-linux-amd64",
+    srcs = [
+        ":gin",
+        ":ml",
+        ":proto",
+    ],
+)

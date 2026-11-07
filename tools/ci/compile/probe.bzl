@@ -45,6 +45,29 @@ def _blink_library_probe(name, library, repository, sources, forwarders = "blink
         tags = ["manual"],
     )
 
+def native_compile_probe(name, library, sources):
+    """Compare scanning with the owner's unchanged compilation context."""
+    if any([source not in library["srcs"] for source in sources]):
+        fail("Probe source is not compiled by " + library["name"])
+    _compilation_headers(
+        name = name + "_headers",
+        library = "@chromium//native:" + library["name"],
+    )
+    cc_library(
+        name = name,
+        srcs = ["@chromium//native" + p if p.startswith(":") else "@chromium" + p if p.startswith("//") else p for p in sources],
+        copts = library["copts"],
+        local_defines = library["defines"],
+        linkstatic = True,
+        deps = [":" + name + "_headers"],
+        features = select({
+            "//tools/ci/compile:scan_disabled": [],
+            "//conditions:default": ["cc_include_scanning"],
+        }),
+        additional_compiler_inputs = ["@chromium//:base/component_export.h"],
+        tags = ["manual"],
+    )
+
 def blink_compile_probe(name, libraries, repository = "@chromium", batch = False):
     """Reuse each source's real context without requesting its owner's objects."""
     sources = BATCH_SOURCES if batch else [

@@ -1,0 +1,89 @@
+diff --git a/directory.bzl b/directory.bzl
+--- a/directory.bzl
++++ b/directory.bzl
+@@ -2,9 +2,8 @@
+ load("@bazel_skylib//rules/directory:providers.bzl", "DirectoryInfo", "create_directory_info")
+ load("@bazel_skylib//rules/directory:subdirectory.bzl", "subdirectory")
+ 
+-# We want to put a source directory into the DefaultInfo but still propagate
+-# the DirectoryInfo for header inclusion checking and the toolchain's module
+-# map.
++# Declare individual headers for include scanning. Whole-tree consumers use
++# the explicit source_directory target.
+ def headers_directory(name, path, visibility = None):
+     if path == ".":
+         directory(
+@@ -26,6 +25,7 @@
+     native.filegroup(
+         name = name + "_source_directory",
+         srcs = [path],
++        visibility = visibility,
+     )
+ 
+     _headers_directory(
+@@ -39,7 +39,7 @@
+     return [
+         ctx.attr.directory[DirectoryInfo],
+         DefaultInfo(
+-            files = ctx.attr.source_directory[DefaultInfo].files,
++            files = ctx.attr.directory[DirectoryInfo].transitive_files,
+         ),
+     ]
+ 
+diff --git a/toolchain/selects.bzl b/toolchain/selects.bzl
+--- a/toolchain/selects.bzl
++++ b/toolchain/selects.bzl
+@@ -49,6 +49,9 @@
+ def platform_resource_dir(exec_os, exec_cpu):
+     return Label(_tool_repo(exec_os, exec_cpu) + ":builtin_resource_dir")
+ 
++def platform_resource_source_dir(exec_os, exec_cpu):
++    return Label(_tool_repo(exec_os, exec_cpu) + ":builtin_resource_dir_source_directory")
++
+ def platform_cc_tool_map(exec_os, exec_cpu):
+     tool_repo = _tool_repo(exec_os, exec_cpu)
+ 
+diff --git a/toolchain/declare_toolchains.bzl b/toolchain/declare_toolchains.bzl
+--- a/toolchain/declare_toolchains.bzl
++++ b/toolchain/declare_toolchains.bzl
+@@ -1,6 +1,6 @@
+ load("//platforms:common.bzl", "MSVC_TARGET_STAGE0_SUPPORTED_EXECS", "SUPPORTED_EXECS", "SUPPORTED_TARGETS")
+ load("//toolchain:merged_resource_directory.bzl", "merged_resource_directory")
+-load("//toolchain:selects.bzl", "platform_cc_tool_map", "platform_module_map", "platform_resource_dir")
++load("//toolchain:selects.bzl", "platform_cc_tool_map", "platform_module_map", "platform_resource_dir", "platform_resource_source_dir")
+ load("//toolchain/args:resource_directory_args.bzl", "resource_directory_args")
+ load(":cc_toolchain.bzl", "cc_toolchain")
+ 
+@@ -19,7 +19,7 @@
+         # transition can select a different compiler installation.
+         merged_resource_directory(
+             name = cc_toolchain_name + "_resource_directory",
+-            parent = platform_resource_dir(exec_os, exec_cpu),
++            parent = platform_resource_source_dir(exec_os, exec_cpu),
+             srcs = ["@llvm//runtimes:resource_directory"],
+         )
+         resource_directory_args(
+diff --git a/runtimes/glibc/extension/glibc-headers.BUILD.bazel b/runtimes/glibc/extension/glibc-headers.BUILD.bazel
+--- a/runtimes/glibc/extension/glibc-headers.BUILD.bazel
++++ b/runtimes/glibc/extension/glibc-headers.BUILD.bazel
+@@ -3,7 +3,7 @@
+ 
+ cc_library(
+     name = "gnu_libc_headers",
+-    hdrs = ["include"],
++    hdrs = glob(["include/**"]),
+     # Stage 0 runtime libraries consume this CcInfo directly rather than the
+     # final toolchain's glibc_headers_include_search_paths argument set.
+     defines = select({
+diff --git a/kernel/extension/kernel-headers.BUILD.bazel b/kernel/extension/kernel-headers.BUILD.bazel
+--- a/kernel/extension/kernel-headers.BUILD.bazel
++++ b/kernel/extension/kernel-headers.BUILD.bazel
+@@ -3,7 +3,7 @@
+ 
+ cc_library(
+     name = "kernel_headers",
+-    hdrs = ["include"],
++    hdrs = glob(["include/**"]),
+     # Any code should always get passed linux UAPI headers as -isystem
+     features = ["system_include_paths"],
+     includes = ["include"],

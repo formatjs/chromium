@@ -36,6 +36,7 @@ single_version_override(
         "//build:llvm-aarch64-sme-runtime.patch",
         "//build:llvm-msvc-delay-load.patch",
         "//build:llvm-msvc-crtversion.patch",
+        "//build:llvm-header-inputs.patch",
     ],
 )
 
@@ -225,7 +226,7 @@ sources = use_extension("//build:dependencies.bzl", "chromium_dependencies")
 
 inject_repo(sources, "macos_sdk")
 
-use_repo(sources, "angle", "chromium", "chromium_angle", "chromium_anonymous_tokens", "chromium_breakpad", "chromium_catapult", "chromium_cdm_api", "chromium_cld3", "chromium_content_analysis_sdk", "chromium_crabbyavif", "chromium_cros_system_api", "chromium_darwin_arm64", "chromium_dawn", "chromium_devtools_esbuild", "chromium_devtools_frontend", "chromium_directx_headers", "chromium_google_toolbox_for_mac", "chromium_microsoft_webauthn", "chromium_angle_metal_shaders", "chromium_dom_distiller_js", "chromium_dxc", "chromium_egl_registry", "chromium_eigen3", "chromium_emoji_segmenter", "chromium_farmhash", "chromium_federated_compute", "chromium_ffmpeg", "chromium_fontconfig", "chromium_freetype", "chromium_gemmlowp", "chromium_harfbuzz", "chromium_icu", "chromium_ink", "chromium_ink_stroke_modeler", "chromium_jpeg", "chromium_kde_protocols", "chromium_leveldatabase", "chromium_libaddressinput", "chromium_libdrm", "chromium_libgav1", "chromium_libphonenumber", "chromium_libsrtp", "chromium_libsync", "chromium_libyuv", "chromium_linux_arm64", "chromium_material_color_utilities", "chromium_mig", "chromium_msvc_atl_libraries", "chromium_msvc_dia", "chromium_neon_2_sse", "chromium_opengl_registry", "chromium_openscreen", "chromium_ots", "chromium_pciutils", "chromium_pdfium", "chromium_platform_headers", "chromium_platform_headers_arm64", "chromium_platform_headers_cross", "chromium_platform_runtime", "chromium_platform_runtime_arm64", "chromium_protobuf_javascript", "chromium_pthreadpool", "chromium_quiche", "chromium_readability", "chromium_ruy", "chromium_search_engines_data", "chromium_skia", "chromium_smhasher", "chromium_sqlite", "chromium_swiftshader", "chromium_tflite", "chromium_v8", "chromium_vma", "chromium_vulkan_loader", "chromium_vulkan_tools", "chromium_vulkan_utility", "chromium_vulkan_validation", "chromium_wayland_protocols", "chromium_webp", "chromium_webrtc", "chromium_windows_amd64", "chromium_windows_arm64", "chromium_windows_debuggers", "chromium_windows_sdk_runtime", "chromium_wuffs", "chromium_xcomposite", "chromium_xdg_utils", "chromium_xnnpack", "chromium_xtst", "compact_enc_det", "dragonbox", "fp16", "ipcz", "linux-syscall-support", "nspr", "nss", "perfetto", "skia", "v8")
+use_repo(sources, "angle", "chromium", "chromium_angle", "chromium_angle_metal_shaders", "chromium_anonymous_tokens", "chromium_breakpad", "chromium_catapult", "chromium_cdm_api", "chromium_cld3", "chromium_content_analysis_sdk", "chromium_crabbyavif", "chromium_cros_system_api", "chromium_darwin_arm64", "chromium_dawn", "chromium_devtools_esbuild", "chromium_devtools_frontend", "chromium_directx_headers", "chromium_dom_distiller_js", "chromium_dxc", "chromium_egl_registry", "chromium_eigen3", "chromium_emoji_segmenter", "chromium_farmhash", "chromium_federated_compute", "chromium_ffmpeg", "chromium_fontconfig", "chromium_freetype", "chromium_gemmlowp", "chromium_google_toolbox_for_mac", "chromium_harfbuzz", "chromium_icu", "chromium_ink", "chromium_ink_stroke_modeler", "chromium_jpeg", "chromium_kde_protocols", "chromium_leveldatabase", "chromium_libaddressinput", "chromium_libdrm", "chromium_libgav1", "chromium_libphonenumber", "chromium_libsrtp", "chromium_libsync", "chromium_libyuv", "chromium_linux_arm64", "chromium_material_color_utilities", "chromium_microsoft_webauthn", "chromium_mig", "chromium_msvc_atl_libraries", "chromium_msvc_dia", "chromium_neon_2_sse", "chromium_opengl_registry", "chromium_openscreen", "chromium_ots", "chromium_pciutils", "chromium_pdfium", "chromium_platform_headers", "chromium_platform_headers_arm64", "chromium_platform_headers_cross", "chromium_platform_runtime", "chromium_platform_runtime_arm64", "chromium_protobuf_javascript", "chromium_pthreadpool", "chromium_quiche", "chromium_readability", "chromium_ruy", "chromium_search_engines_data", "chromium_skia", "chromium_smhasher", "chromium_sqlite", "chromium_swiftshader", "chromium_tflite", "chromium_v8", "chromium_vma", "chromium_vulkan_loader", "chromium_vulkan_tools", "chromium_vulkan_utility", "chromium_vulkan_validation", "chromium_wayland_protocols", "chromium_webp", "chromium_webrtc", "chromium_windows_amd64", "chromium_windows_arm64", "chromium_windows_debuggers", "chromium_windows_sdk_runtime", "chromium_wuffs", "chromium_xcomposite", "chromium_xdg_utils", "chromium_xnnpack", "chromium_xtst", "compact_enc_det", "dragonbox", "fp16", "ipcz", "linux-syscall-support", "nspr", "nss", "perfetto", "skia", "v8")
 
 register_toolchains("@llvm//toolchain:all")
 
@@ -344,7 +345,10 @@ archive_override(
     module_name = "dav1d",
     integrity = "sha256-aGYWt8aeuI1ERZORqyXKwTtmR6OyiINcV4TnHBUUpcU=",
     patch_strip = 1,
-    patches = ["//build:dav1d-simd.patch", "//build:dav1d-private-headers.patch"],
+    patches = [
+        "//build:dav1d-simd.patch",
+        "//build:dav1d-private-headers.patch",
+    ],
     strip_prefix = "dav1d-1.5.4",
     urls = ["https://deb.debian.org/debian/pool/main/d/dav1d/dav1d_1.5.4.orig.tar.xz"],
 )
@@ -380,7 +384,10 @@ single_version_override(
 single_version_override(
     module_name = "aom",
     patch_strip = 1,
-    patches = ["//build:aom-rate-control.patch", "//build:aom-clang-cl-simd.patch"],
+    patches = [
+        "//build:aom-rate-control.patch",
+        "//build:aom-clang-cl-simd.patch",
+    ],
     version = "3.13.3.bcr.1",
 )
 

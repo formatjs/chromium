@@ -14,6 +14,7 @@ exports_files([
     "llvm-aarch64-sme-runtime.patch",
     "llvm-msvc-delay-load.patch",
     "llvm-msvc-crtversion.patch",
+    "llvm-header-inputs.patch",
     "spirv-tools-generator-input.patch",
     "spirv-headers-generator-inputs.patch",
     "windows_debuggers.BUILD.bazel",
