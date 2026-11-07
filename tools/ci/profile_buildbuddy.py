@@ -202,6 +202,12 @@ def collect(identifier):
     elif len(pattern) == 1 and pattern[0].startswith('Chromium bindings budget '):
         report_key = 'bindings_experiment'
         report_path = 'bindings-budget/report.json'
+    elif pattern == ['Chromium Clang phase profile']:
+        report_key = 'clang_experiment'
+        report_path = 'clang-profile/report.json'
+    elif pattern in [['Chromium header include experiment'], ['Chromium private include experiment']]:
+        report_key = 'include_experiment'
+        report_path = 'private-includes/report.json'
     elif cold_prefix:
         report_key = 'cold_build'
         report_path = pattern[0].removeprefix(cold_prefix) + '/cold-build.json'

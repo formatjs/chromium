@@ -65,6 +65,9 @@ class BuildProfileTest(unittest.TestCase):
             ('Chromium clean cold build darwin-arm64', 'darwin-arm64/cold-build.json', 'cold_build'),
             ('Chromium compression benchmark windows-amd64', 'compression-experiment/report.json', 'compression_experiment'),
             ('Chromium bindings budget darwin-arm64', 'bindings-budget/report.json', 'bindings_experiment'),
+            ('Chromium Clang phase profile', 'clang-profile/report.json', 'clang_experiment'),
+            ('Chromium header include experiment', 'private-includes/report.json', 'include_experiment'),
+            ('Chromium private include experiment', 'private-includes/report.json', 'include_experiment'),
         ]:
             with self.subTest(pattern=pattern):
                 outer = {'pattern': [pattern]}
