@@ -29,12 +29,13 @@ class BuildProfileTest(unittest.TestCase):
                 self.assertFalse(profile_buildbuddy.strict_cold_timing_verified(outer, report | change))
 
     def test_strict_cold_profile_collects_published_summary_without_raw_trace(self):
-        report = {'cold_result_verified': True, 'elapsed_seconds': 3500}
+        report = {'cold_result_verified': True, 'local_execution_verified': True, 'elapsed_seconds': 3500}
         summary = {'trace_complete': True, 'event_count': 1200,
                    'compiler_work': {'v8': {'compile_spans': 90}}}
         report_uri = 'bytestream://formatjs.buildbuddy.io/cold-report'
         summary_uri = 'bytestream://formatjs.buildbuddy.io/trace-summary'
-        outer = {'pattern': ['Chromium strict cold build linux-amd64']}
+        outer = {'pattern': ['Chromium strict cold build linux-amd64'], 'success': True,
+                 'invocationStatus': 'COMPLETE_INVOCATION_STATUS', 'durationUsec': '3550000000'}
         artifacts = {'invocation': [{'artifacts': [
             {'name': 'command-0/linux-amd64/cold-build.json', 'uri': report_uri},
             {'name': 'command-0/linux-amd64/trace-summary.json', 'uri': summary_uri}]}]}
@@ -46,6 +47,7 @@ class BuildProfileTest(unittest.TestCase):
             result = profile_buildbuddy.collect('workflow')
         self.assertEqual(result['cold_build'], report)
         self.assertEqual(result['cold_profile'], summary)
+        self.assertTrue(result['strict_cold_timing_verified'])
         self.assertEqual(api.call_args_list, [
             mock.call('GetInvocation', {'selector': {'invocation_id': 'workflow'},
                                        'include_artifacts': True}, 'read-only-test-key'),
