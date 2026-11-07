@@ -66,6 +66,7 @@ class BuildProfileTest(unittest.TestCase):
             ('Chromium compression benchmark windows-amd64', 'compression-experiment/report.json', 'compression_experiment'),
             ('Chromium bindings budget darwin-arm64', 'bindings-budget/report.json', 'bindings_experiment'),
             ('Chromium Clang phase profile', 'clang-profile/report.json', 'clang_experiment'),
+            ('Chromium local compiler concurrency', 'local-throughput/report.json', 'local_throughput'),
             ('Chromium header include experiment', 'private-includes/report.json', 'include_experiment'),
             ('Chromium private include experiment', 'private-includes/report.json', 'include_experiment'),
         ]:

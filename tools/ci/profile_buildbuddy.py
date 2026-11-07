@@ -205,6 +205,9 @@ def collect(identifier):
     elif pattern == ['Chromium Clang phase profile']:
         report_key = 'clang_experiment'
         report_path = 'clang-profile/report.json'
+    elif pattern == ['Chromium local compiler concurrency']:
+        report_key = 'local_throughput'
+        report_path = 'local-throughput/report.json'
     elif pattern in [['Chromium header include experiment'], ['Chromium private include experiment']]:
         report_key = 'include_experiment'
         report_path = 'private-includes/report.json'
