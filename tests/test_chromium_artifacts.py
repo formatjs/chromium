@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 
 from tools.ci.compression_benchmark import benchmark, tar_digest
+from tools.ci import chromium as chromium_ci
 from tools.ci.chromium import PLATFORMS, ROOT, binary_platform, build, checksum, cold_build_report, package, package_payload, stamp_payload, unpack, artifact_outputs
 
 
@@ -25,6 +26,37 @@ def elf(machine=62):
 
 
 class ArtifactsTest(unittest.TestCase):
+    def test_cold_scratch_removes_abandoned_build_without_touching_other_files(self):
+        scratch = chromium_ci.prepare_cold_scratch(self.root)
+        abandoned = scratch / 'chromium-build-abandoned'
+        abandoned.mkdir()
+        (abandoned / 'large-output').write_bytes(b'old build')
+        preserved = self.root / 'keep'
+        preserved.write_bytes(b'not build state')
+        self.assertEqual(chromium_ci.prepare_cold_scratch(self.root), scratch)
+        self.assertFalse(abandoned.exists())
+        self.assertEqual(preserved.read_bytes(), b'not build state')
+
+    def test_cold_scratch_refuses_unowned_directory_or_symlink(self):
+        for kind in ('unmarked', 'symlink', 'unexpected-file'):
+            with self.subTest(kind=kind):
+                parent = self.root / kind
+                parent.mkdir()
+                scratch = parent / '.chromium-cold-build'
+                if kind == 'symlink':
+                    scratch.symlink_to(self.bundle, target_is_directory=True)
+                elif kind == 'unmarked':
+                    scratch.mkdir()
+                    (scratch / 'keep').write_bytes(b'not build state')
+                else:
+                    chromium_ci.prepare_cold_scratch(parent)
+                    (scratch / 'keep').write_bytes(b'not build state')
+                with self.assertRaisesRegex(ValueError, 'cold scratch'):
+                    chromium_ci.prepare_cold_scratch(parent)
+                self.assertTrue((self.bundle / 'chrome').exists())
+                if kind != 'symlink':
+                    self.assertEqual((scratch / 'keep').read_bytes(), b'not build state')
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
@@ -348,6 +380,7 @@ class ArtifactsTest(unittest.TestCase):
             raise RuntimeError('build failed')
 
         with mock.patch.dict(os.environ, environment, clear=True), \
+                mock.patch('tools.ci.chromium.ROOT', self.root / 'repo'), \
                 mock.patch('tools.ci.chromium.subprocess.run', side_effect=fail):
             for _ in range(2):
                 with self.assertRaisesRegex(RuntimeError, 'build failed'):
@@ -359,6 +392,11 @@ class ArtifactsTest(unittest.TestCase):
                 self.assertFalse((directory / 'cold-events.json').exists())
                 self.assertTrue((directory / 'cold-profile.json').exists())
                 self.assertEqual(report['cache_state']['execution_policy'], 'no-cache; no in-flight action merging')
+                for phase in ('before', 'after'):
+                    filesystem = report['client_filesystem'][phase]
+                    self.assertGreater(filesystem['total_bytes'], 0)
+                    self.assertGreaterEqual(filesystem['free_bytes'], 0)
+                    self.assertLessEqual(filesystem['free_bytes'], filesystem['total_bytes'])
         self.assertNotEqual(roots[0], roots[1])
 if __name__ == '__main__':
     unittest.main()

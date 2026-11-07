@@ -206,6 +206,34 @@ def cold_build_report(events, elapsed, success, *, expected_output_base=None, ou
     }
 
 
+def prepare_cold_scratch(parent):
+    """Discard only owned scratch state left by a killed hosted cold build."""
+    scratch = parent / '.chromium-cold-build'
+    marker = scratch / '.owner'
+    ownership = 'chromium-ci cold scratch\n'
+    if scratch.exists() or scratch.is_symlink():
+        if (scratch.is_symlink() or not scratch.is_dir() or marker.is_symlink()
+                or not marker.is_file() or marker.read_text() != ownership):
+            raise ValueError('Refusing to remove unowned cold scratch')
+        if any(child.name != marker.name and (
+                child.is_symlink() or not child.is_dir() or not child.name.startswith('chromium-build-'))
+               for child in scratch.iterdir()):
+            raise ValueError('Unexpected files in cold scratch')
+        for child in scratch.iterdir():
+            if child.name != marker.name:
+                shutil.rmtree(child)
+        return scratch
+    scratch.mkdir()
+    marker.write_text(ownership)
+    return scratch
+
+
+def filesystem_usage(path):
+    disk, stat = shutil.disk_usage(path), os.statvfs(path)
+    return {'total_bytes': disk.total, 'free_bytes': disk.free,
+            'total_inodes': stat.f_files, 'free_inodes': stat.f_favail}
+
+
 def build(target, destination, revision, hosted=False, cold=False):
     if cold and not hosted:
         raise ValueError('Cold benchmark requires a BuildBuddy workflow runner')
@@ -228,7 +256,9 @@ def build(target, destination, revision, hosted=False, cold=False):
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('Expected a full source commit SHA')
     label = '//tools/ci:' + target['id'] + '_archive'
-    with tempfile.TemporaryDirectory(prefix='chromium-build-') as temporary:
+    started = time.monotonic()
+    scratch = prepare_cold_scratch(ROOT.parent) if cold else None
+    with tempfile.TemporaryDirectory(prefix='chromium-build-', dir=scratch) as temporary:
         events = Path(temporary) / 'events.json'
         if cold:
             destination.mkdir(parents=True, exist_ok=True)
@@ -245,7 +275,9 @@ def build(target, destination, revision, hosted=False, cold=False):
                 '--repository_cache=' + str(Path(temporary) / 'repository-cache'),
                 '--modify_execution_info=.*=+no-cache',
             ])
-        started = time.monotonic()
+        filesystem_before = filesystem_usage(temporary) if cold else None
+        if cold:
+            print('Cold filesystem before build: ' + json.dumps(filesystem_before), flush=True)
         success = False
         try:
             subprocess.run([
@@ -264,6 +296,10 @@ def build(target, destination, revision, hosted=False, cold=False):
                                            expected_output_base=output_base,
                                            output_base_was_fresh=output_base_was_fresh)
                 report['cache_state']['execution_policy'] = 'no-cache; no in-flight action merging'
+                report['client_filesystem'] = {
+                    'before': filesystem_before, 'after': filesystem_usage(temporary),
+                }
+                print('Cold filesystem after build: ' + json.dumps(report['client_filesystem']['after']), flush=True)
                 destination.mkdir(parents=True, exist_ok=True)
                 (destination / 'cold-build.json').write_text(json.dumps(report, indent=2) + '\n')
         if cold and not report['cold_result_verified']:

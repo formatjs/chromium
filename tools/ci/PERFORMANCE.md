@@ -8,8 +8,7 @@ registered actions are not executed compiles.
 
 Target: under one hour per supported triple on BuildBuddy, including artifact
 packaging. Preserve hermetic toolchains, declared inputs, compiler options,
-target ABIs, and native rendering smoke coverage. No strict cold result has
-been established. The `24375b5` cohort finished in 35m56s–46m04s and passed native
+target ABIs, and native rendering smoke coverage. Four strict cold targets finish under one hour; Darwin remains unverified. The `24375b5` cohort finished in 35m56s–46m04s and passed native
 rendering, but retained BuildBuddy's managed output base. Those timings are
 uncached-action measurements, not fresh-output cold proof. The user's observed build effort, including retries, is about
 2.5 hours; the mixed-cache profile below is not a cold baseline.
@@ -34,7 +33,8 @@ canonical startup options. Windows AMD64 finishes in 39m40s, Linux AMD64 in
 fresh state and zero reused actions. Windows AMD64 also has 55,019 distinct,
 completed, unmerged compiler executions in RBE metadata. Both Windows payloads,
 including PDBs, match same-commit cached builds byte-for-byte after the provenance
-fix. Darwin remains blocked on the large Blink bindings producer.
+fix. Darwin did not finish. Later bounded-mode executions also repeat successfully,
+so a generator-pool failure is not established as the cause.
 
 The initial scanner candidate left a host gap: Linux ARM64's browser capture contains
 19 host Blink-core libraries with 2,733 source entries outside the dedicated
@@ -86,6 +86,48 @@ it is not yet a demonstrated full-build speedup. That 16-CPU run at `0248ef2`
 also hit the one-hour cap: 142,837/154,750 actions, no compiler errors, and no
 final cold report. The next matched trial compares 64 and 128 jobs with 16 client
 CPUs, scanning, retained trees, and fixed compiler options.
+
+## Latest strict cold results
+
+The `0046328` cohort uses fresh output bases verified against canonical Bazel
+startup options, fresh repository download caches, zero reused actions, and
+no in-flight action merging. Shared RBE CAS and worker caches remain uncleared.
+Times cover the complete BB workflow, including setup, fetching, analysis,
+linking, packaging, and artifact upload.
+
+| Target | Complete BB workflow | Executed C++ compiles | Executed Bazel actions |
+| --- | ---: | ---: | ---: |
+| [Windows MSVC AMD64](https://formatjs.buildbuddy.io/invocation/6202aeb6-2d75-4407-9e91-3ac80d9b1daa) | 39m20s | 55,019 | 122,379 |
+| [Windows MSVC ARM64](https://formatjs.buildbuddy.io/invocation/f7789787-5f26-447f-97bf-4d82cd13acf9) | 40m15s | 55,764 | 124,685 |
+| [Linux AMD64](https://formatjs.buildbuddy.io/invocation/84679466-4338-459f-acf9-522ecec5efdf) | 42m43s | 75,286 | 154,750 |
+| [Linux ARM64](https://formatjs.buildbuddy.io/invocation/14045122-03d4-4ab3-ab81-6eabbd0c2a7d) | 47m36s | 77,537 | 161,470 |
+
+All four exact cold artifacts pass native ABI and rendering smoke. Windows
+payloads, including PDBs, match same-commit normal builds byte-for-byte. Linux
+comparisons verify the existing randomized NSS signatures while covering all
+remaining tar bytes. Independent RBE metadata confirms 263,606 distinct,
+completed, unmerged C++ outputs with no failed or incomplete compile records.
+
+Darwin's `0046328` run repeatedly executes the same bindings action. Eight
+executions complete successfully in roughly 3m30s each; this is not evidence of
+a stuck generator or an OOM. The bounded upstream mode preserves output bytes,
+but does not resolve this repeated work. An isolated `41b2719` trial uses Bazel
+9.3.0 and enables input-recovery messages. Its full Darwin analysis passes, but the build then reports no space left on
+device. The trial does not establish a rewinding fix. Both 200GB and 400GB disk
+requests expose the same 93GiB filesystem; /tmp and workspace share that device.
+Moving paths alone cannot resolve the capacity issue. A separate 03d46f1 trial
+uses a fresh runner namespace with Bazel 9.2: 87GiB free and no managed output
+base at startup. Cold completion and payload/native validation remain pending. Bazel 9.3 includes
+[upstream rewinding fixes](https://github.com/bazelbuild/bazel/releases/tag/9.3.0);
+a connection to this failure remains a hypothesis until the trial completes.
+
+Cold jobs now use distinct clean-runner namespaces. Retry state lives in an
+owned scratch directory outside the checkout; a later run removes abandoned
+build directories after verifying ownership. Unmarked directories, symlinks,
+and unexpected files are rejected. Each build still gets a unique output base
+and repository cache, with canonical startup and zero-reuse checks. Reports
+include actual filesystem bytes and inodes before and after the build, not a
+peak estimate. The 200GB YAML request does not imply 200GB was provisioned.
 
 ## Baseline
 
@@ -493,4 +535,6 @@ at `340cdb9` runs upstream `--single_process` and compares all 5,574 output hash
 with the cached parallel producer. Every file matches. Use that supported mode
 for binding generation, keeping upstream code and output coverage intact. The
 production action query confirms exactly one flag and the complete output set.
-Final fresh-state trials validate the bounded producer across all five targets.
+Four fresh-state targets pass. Darwin repeatedly completes the bounded producer;
+runner state remains under investigation. Serial mode bounds resource use and
+preserves outputs, but has not established a fix for Darwin's repeated work.

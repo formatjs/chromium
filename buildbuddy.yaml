@@ -615,7 +615,7 @@ actions:
           python3 -m tools.ci.compile.experiment --batch --compare-concurrency \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
 
-  - name: Chromium cold build linux-amd64
+  - name: Chromium clean cold build linux-amd64
     container_image: ubuntu-24.04
     allow_concurrent_runs: false
     allow_concurrent_runs_on_branches: []
@@ -633,7 +633,7 @@ actions:
             --platform linux-amd64 --revision "$(git rev-parse HEAD)" \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-amd64"
 
-  - name: Chromium cold build linux-arm64
+  - name: Chromium clean cold build linux-arm64
     container_image: ubuntu-24.04
     allow_concurrent_runs: false
     allow_concurrent_runs_on_branches: []
@@ -651,7 +651,7 @@ actions:
             --platform linux-arm64 --revision "$(git rev-parse HEAD)" \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-arm64"
 
-  - name: Chromium cold build darwin-arm64
+  - name: Chromium clean cold build darwin-arm64
     container_image: ubuntu-24.04
     allow_concurrent_runs: false
     allow_concurrent_runs_on_branches: []
@@ -669,7 +669,7 @@ actions:
             --platform darwin-arm64 --revision "$(git rev-parse HEAD)" \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/darwin-arm64"
 
-  - name: Chromium cold build windows-amd64
+  - name: Chromium clean cold build windows-amd64
     container_image: ubuntu-24.04
     allow_concurrent_runs: false
     allow_concurrent_runs_on_branches: []
@@ -687,7 +687,7 @@ actions:
             --platform windows-amd64 --revision "$(git rev-parse HEAD)" \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/windows-amd64"
 
-  - name: Chromium cold build windows-arm64
+  - name: Chromium clean cold build windows-arm64
     container_image: ubuntu-24.04
     allow_concurrent_runs: false
     allow_concurrent_runs_on_branches: []
