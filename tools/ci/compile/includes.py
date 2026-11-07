@@ -23,10 +23,29 @@ def download(path, url, digest):
     path.chmod(0o755)
 
 
-def compiler_search_count(arguments):
+def compiler_search_paths(arguments):
     if not arguments or any(arg.startswith('@') for arg in arguments):
         raise ValueError('Expanded compiler arguments required')
-    return sum(arg.startswith(('-I', '-isystem', '-iquote')) for arg in arguments)
+    paths, position = [], 0
+    while position < len(arguments):
+        argument = arguments[position]
+        for flag in ('-isystem', '-iquote', '-I'):
+            if argument.startswith(flag):
+                if argument == flag:
+                    position += 1
+                    if position == len(arguments):
+                        raise ValueError('Compiler search path missing: ' + flag)
+                    path = arguments[position]
+                else:
+                    path = argument[len(flag):]
+                paths.append({'flag': flag, 'path': path})
+                break
+        position += 1
+    return paths
+
+
+def compiler_search_count(arguments):
+    return len(compiler_search_paths(arguments))
 
 
 def main():
@@ -36,6 +55,8 @@ def main():
     parser.add_argument('--arguments-only', action='store_true')
     args = parser.parse_args()
     args.directory.mkdir(parents=True, exist_ok=False)
+    cache = Path.home() / '.cache/chromium-strict-cold-downloads'
+    cache.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='chromium-private-includes-') as temporary:
         root = Path(temporary)
         trial = root / 'trial'
@@ -51,7 +72,7 @@ def main():
                 download(bb, 'https://github.com/buildbuddy-io/bazel/releases/download/5.0.500/bazel-5.0.500-linux-x86_64',
                          'f8a188913203f23961a61f1c5eb64b0eef65cf24e0014ec074b5598af4fbc68a')
                 command = [sys.executable, '-m', 'tools.ci.compile.local', '--comparison', 'local-includes',
-                           '--directory', str(trial), '--repository-cache', str(root / 'fetch-cache'),
+                           '--directory', str(trial), '--repository-cache', str(cache),
                            '--sandbox-base', str(args.sandbox_base), '--jobs', '8',
                            '--bazel', str(bazel), '--bb', str(bb)]
                 with subprocess.Popen(command, cwd=ROOT) as process:
@@ -79,7 +100,7 @@ def main():
                            '--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build',
                            '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                            '--remote_executor=', '--remote_cache=', '--disk_cache=', '--repo_contents_cache=',
-                           '--repository_cache=' + str(root / 'fetch-cache'), '--bes_backend=', '--bes_results_url=',
+                           '--repository_cache=' + str(cache), '--bes_backend=', '--bes_results_url=',
                            '--define=CHROMIUM_COMPILE_PROBE_SCAN=1', '--define=CHROMIUM_LOCAL_INCLUDES=' + str(enabled),
                            '--output=starlark',
                            '--starlark:expr=[list(a.argv) for a in target.actions if a.mnemonic == "CppCompile"]',
@@ -89,6 +110,8 @@ def main():
                     subprocess.run(command, cwd=ROOT, stdout=output, check=True)
                 # Native Action.argv expands response files; aquery may expose only @file.
                 rows = ast.literal_eval(graph.read_text())
+                report.setdefault('first_compile_search_paths', {})[str(enabled)] = (
+                    compiler_search_paths(rows[0]) if rows else [])
                 report.setdefault('argument_rows', {})[str(enabled)] = [
                     {'argument_count': len(arguments),
                      'response_file_count': sum(arg.startswith('@') for arg in arguments)}
@@ -107,7 +130,8 @@ def main():
             raise
         finally:
             (args.directory / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
-            print(json.dumps(report), flush=True)
+            print(json.dumps({key: value for key, value in report.items()
+                              if key != 'first_compile_search_paths'}), flush=True)
 
 
 if __name__ == '__main__':
