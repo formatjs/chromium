@@ -255,6 +255,29 @@ class ArtifactsTest(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(linked), mode='r:gz') as archive:
             self.assertTrue(all(not item.islnk() for item in archive))
 
+    def test_sandbox_file_links_match_materialized_bundle(self):
+        original = package(self.bundle, self.root / 'materialized', self.target, REVISION)
+        staged = self.root / 'sandbox-bundle'
+        staged.mkdir()
+        for source in self.bundle.rglob('*'):
+            destination = staged / source.relative_to(self.bundle)
+            if source.is_dir():
+                destination.mkdir()
+            else:
+                destination.symlink_to(source.resolve())
+        archived = package(staged, self.root / 'sandboxed', self.target, REVISION)
+        self.assertEqual(original.read_bytes(), archived.read_bytes())
+        relocated = unpack(archived, self.root / 'installed', self.target, REVISION)
+        self.assertEqual((relocated / 'resources.pak').read_bytes(),
+                         (self.bundle / 'resources.pak').read_bytes())
+
+    def test_absolute_link_outside_runtime_tree_is_rejected(self):
+        outside = self.root / 'outside'
+        outside.write_bytes(b'not a runtime input')
+        (self.bundle / 'escape').symlink_to(outside)
+        with self.assertRaisesRegex(ValueError, 'outside runtime tree'):
+            package(self.bundle, self.root / 'escaped', self.target, REVISION)
+
     def test_macos_framework_symlinks_survive_handoff(self):
         target = PLATFORMS['darwin-arm64']
         executable = self.bundle / target['executable']
