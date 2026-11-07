@@ -116,6 +116,27 @@ def native_browser():
             linkstatic = True,
             deps = ([":browser_tool_headers"] if angle or v8 or ffmpeg else ([":browser_headers"] if library["srcs"] or library["hdrs"] else [])) + library["deps"],
         )
+        blink_path = original.split("(")[0].split(":")[0]
+        if any([blink_path == root or blink_path.startswith(root + "/") for root in [
+            "//third_party/blink/renderer/core",
+            "//third_party/blink/renderer/modules",
+            "//third_party/blink/renderer/platform",
+            "//third_party/blink/renderer/bindings",
+        ]]):
+            common.update(
+                features = ["cc_include_scanning"],
+                # Skia selects these headers through macro includes.
+                additional_compiler_inputs = [
+                    "//:base/component_export.h",
+                    "//:skia/config/SkUserConfig.h",
+                    "//:skia/config/sk_ref_cnt_ext_debug.h",
+                    "//:skia/config/sk_ref_cnt_ext_release.h",
+                    "//:skia/ext/skia_histogram.h",
+                    "@chromium//native:gen/gpu/config/gpu_driver_bug_workaround_autogen.h",
+                    # Keep the directory used by ../../skia/config includes.
+                    ":browser_forwarders/third_party/re2/src/re2/re2.h",
+                ],
+            )
         qt = original in qt_libraries
         include_options = ["-I" + Label(root).workspace_root for root in library.get("include_roots", [])]
         if angle:
@@ -188,11 +209,30 @@ def native_browser():
             if not main and [path for path in outputs if path in RUNTIME_FILES]:
                 runtime_binaries.append(":" + library["name"])
             continue
+        headers = library["hdrs"]
+        if original.split("(")[0] == "//third_party/blink/renderer/core:core":
+            # Generated permission strings include this header from reused base.
+            headers = headers + ["//:base/strings/string_slice.h"]
         common.update(
-            hdrs = library["hdrs"],
+            hdrs = headers,
             includes = library["includes"],
             alwayslink = library["kind"] == "source_set",
         )
+        if "(//build/toolchain/linux:" not in original and library["kind"] not in ["executable", "shared_library"] and any([original.startswith(prefix) for prefix in ["//chrome/", "//chrome:", "//extensions/", "//extensions:", "//components/", "//components:"]]):
+            common.update(
+                features = ["cc_include_scanning"],
+                # Skia selects these headers through macro includes.
+                additional_compiler_inputs = [
+                    "//:base/component_export.h",
+                    "//:skia/config/SkUserConfig.h",
+                    "//:skia/config/sk_ref_cnt_ext_debug.h",
+                    "//:skia/config/sk_ref_cnt_ext_release.h",
+                    "//:skia/ext/skia_histogram.h",
+                    ":gen/gpu/config/gpu_driver_bug_workaround_autogen.h",
+                    ":browser_forwarders/third_party/re2/src/re2/re2.h",
+                ],
+            )
+
         c_sources = [path for path in library["srcs"] if path.endswith(".c")]
         asm_sources = [path for path in library["srcs"] if path.endswith((".s", ".S"))]
         for suffix, sources, options in [

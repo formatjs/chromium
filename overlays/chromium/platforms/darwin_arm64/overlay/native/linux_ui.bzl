@@ -17,7 +17,7 @@ def native_linux_ui():
     cc_library(
         name = "linux_ui_headers",
         hdrs = SHARED_HEADERS + [":all_buildflags"] + native.glob(["linux_ui_forwarders/**/*.h"]),
-        includes = ["..", "gen", "../gpu", "../third_party/khronos", "linux_ui_forwarders"],
+        includes = ["..", "gen", "../gpu", "linux_ui_forwarders"],
         deps = [
             "//build:build_config",
             "@chromium_angle//:headers",

@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from urllib.parse import unquote, urlparse
 
 
@@ -55,7 +56,7 @@ def checksum(path):
         return hashlib.file_digest(source, 'sha256').hexdigest()
 
 
-def package_payload(bundle, payload, target):
+def package_payload(bundle, payload, target, *, compression_level=1):
     validate_binary(bundle, target)
     payload.parent.mkdir(parents=True, exist_ok=True)
 
@@ -72,7 +73,7 @@ def package_payload(bundle, payload, target):
         return member
 
     with payload.open('wb') as raw, gzip.GzipFile(
-            filename='', mode='wb', fileobj=raw, mtime=0, compresslevel=6) as compressed:
+            filename='', mode='wb', fileobj=raw, mtime=0, compresslevel=compression_level) as compressed:
         with tarfile.open(fileobj=compressed, mode='w|', format=tarfile.PAX_FORMAT,
                           dereference=False) as output:
             output.add(bundle, arcname='bundle', filter=normalize)
@@ -152,13 +153,98 @@ def unpack(artifact, destination, target, revision):
     return bundle
 
 
-def build(target, destination, revision, hosted=False):
+def cold_build_report(events, elapsed, success, *, expected_output_base=None, output_base_was_fresh=False):
+    """Keep cache evidence alongside cold-run timing, including failed runs."""
+    metrics = {}
+    invocation = None
+    output_bases = []
+    if events.exists():
+        with events.open() as source:
+            for line in source:
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if 'started' in event:
+                    invocation = event['started'].get('uuid')
+                if 'buildMetrics' in event:
+                    metrics = event['buildMetrics']
+                command = event.get('structuredCommandLine', {})
+                if command.get('commandLineLabel') == 'canonical':
+                    for section in command.get('sections', []):
+                        if section.get('sectionLabel') == 'startup options':
+                            output_bases.extend(option.get('optionValue')
+                                                for option in section.get('optionList', {}).get('option', [])
+                                                if option.get('optionName') == 'output_base')
+    output_base_verified = (output_base_was_fresh and expected_output_base is not None
+                            and output_bases == [str(expected_output_base)])
+    actions = metrics.get('actionSummary', {})
+    cached = sum(int(item.get('count', 0)) for item in actions.get('runnerCount', [])
+                 if 'cache' in item.get('name', '').lower())
+    cached += int(actions.get('actionCacheStatistics', {}).get('hits', 0))
+    compiles = sum(int(item.get('actionsExecuted', 0)) for item in actions.get('actionData', [])
+                   if item.get('mnemonic') == 'CppCompile')
+    return {
+        'invocation_id': invocation,
+        'elapsed_seconds': elapsed,
+        'build_succeeded': success,
+        'cold_result_verified': (success and output_base_verified and bool(actions.get('runnerCount'))
+                                 and 'actionCacheStatistics' in actions and cached == 0 and compiles > 0),
+        'output_base_verified': output_base_verified,
+        'output_base_was_absent': output_base_was_fresh,
+        'effective_output_base': output_bases[0] if len(output_bases) == 1 else None,
+        'cache_state': {
+            'bazel_output_state': 'fresh' if output_base_verified else 'unverified',
+            'repository_download_cache': 'fresh' if output_base_verified else 'unverified',
+            'remote_action_cache_reads': False,
+            'disk_action_cache': False,
+            'remote_cas': 'shared; not cleared',
+        },
+        'cached_actions': cached,
+        'cpp_compile_actions': compiles,
+        'build_metrics': metrics,
+    }
+
+
+def prepare_cold_scratch(parent):
+    """Discard only owned scratch state left by a killed hosted cold build."""
+    scratch = parent / '.chromium-cold-build'
+    marker = scratch / '.owner'
+    ownership = 'chromium-ci cold scratch\n'
+    if scratch.exists() or scratch.is_symlink():
+        if (scratch.is_symlink() or not scratch.is_dir() or marker.is_symlink()
+                or not marker.is_file() or marker.read_text() != ownership):
+            raise ValueError('Refusing to remove unowned cold scratch')
+        if any(child.name != marker.name and (
+                child.is_symlink() or not child.is_dir() or not child.name.startswith('chromium-build-'))
+               for child in scratch.iterdir()):
+            raise ValueError('Unexpected files in cold scratch')
+        for child in scratch.iterdir():
+            if child.name != marker.name:
+                shutil.rmtree(child)
+        return scratch
+    scratch.mkdir()
+    marker.write_text(ownership)
+    return scratch
+
+
+def filesystem_usage(path):
+    disk, stat = shutil.disk_usage(path), os.statvfs(path)
+    return {'total_bytes': disk.total, 'free_bytes': disk.free,
+            'total_inodes': stat.f_files, 'free_inodes': stat.f_favail}
+
+
+def build(target, destination, revision, hosted=False, cold=False):
+    if cold and not hosted:
+        raise ValueError('Cold benchmark requires a BuildBuddy workflow runner')
     bazel = [os.environ.get('BAZEL', 'bazel')]
     flags = ['--config=browser']
     if hosted:
         if not os.environ.get('BUILDBUDDY_CI_RUNNER_ABSPATH'):
             raise ValueError('Hosted mode requires a BuildBuddy workflow runner')
-        flags.extend(['--config=buildbuddy', '--keep_going'])
+        # Retained input trees need heap headroom at 128 active actions.
+        bazel.append('--host_jvm_args=-Xmx12g')
+        flags.extend(['--config=buildbuddy', '--keep_going', '--noexperimental_remote_discard_merkle_trees'])
         if target['os'] == 'darwin':
             # Bound input downloads for the large framework link.
             flags.extend(['--strategy=CppLink=sandboxed', '--remote_max_connections=8'])
@@ -170,17 +256,54 @@ def build(target, destination, revision, hosted=False):
     if not re.fullmatch(r'[0-9a-f]{40}', revision):
         raise ValueError('Expected a full source commit SHA')
     label = '//tools/ci:' + target['id'] + '_archive'
-    with tempfile.TemporaryDirectory(prefix='chromium-build-') as temporary:
+    started = time.monotonic()
+    scratch = prepare_cold_scratch(ROOT.parent) if cold else None
+    with tempfile.TemporaryDirectory(prefix='chromium-build-', dir=scratch) as temporary:
         events = Path(temporary) / 'events.json'
-        subprocess.run([
-            *bazel, 'build', *flags, '--//tools/ci:revision=' + revision,
-            '--build_event_json_file=' + str(events),
-            '--nobuild_event_json_file_path_conversion', label,
-        ], cwd=ROOT, check=True)
-        outputs = artifact_outputs(events, label)
-        destination.mkdir(parents=True, exist_ok=True)
-        for source in outputs:
-            shutil.copyfile(source, destination / source.name)
+        if cold:
+            destination.mkdir(parents=True, exist_ok=True)
+            flags.append('--profile=' + str(destination / 'cold-profile.json'))
+            output_base = Path(temporary) / 'output-base'
+            output_base_was_fresh = not output_base.exists()
+            if not output_base_was_fresh:
+                raise ValueError('Cold output base already exists')
+            # Managed RC files may set output_base independently of output_user_root.
+            bazel.extend(['--batch', '--output_user_root=' + str(Path(temporary) / 'bazel'),
+                          '--output_base=' + str(output_base)])
+            flags.extend([
+                '--remote_accept_cached=false', '--disk_cache=', '--repo_contents_cache=',
+                '--repository_cache=' + str(Path(temporary) / 'repository-cache'),
+                '--modify_execution_info=.*=+no-cache',
+            ])
+        filesystem_before = filesystem_usage(temporary) if cold else None
+        if cold:
+            print('Cold filesystem before build: ' + json.dumps(filesystem_before), flush=True)
+        success = False
+        try:
+            subprocess.run([
+                *bazel, 'build', *flags, '--//tools/ci:revision=' + revision,
+                '--build_event_json_file=' + str(events),
+                '--nobuild_event_json_file_path_conversion', label,
+            ], cwd=ROOT, check=True)
+            outputs = artifact_outputs(events, label)
+            destination.mkdir(parents=True, exist_ok=True)
+            for source in outputs:
+                shutil.copyfile(source, destination / source.name)
+            success = True
+        finally:
+            if cold:
+                report = cold_build_report(events, time.monotonic() - started, success,
+                                           expected_output_base=output_base,
+                                           output_base_was_fresh=output_base_was_fresh)
+                report['cache_state']['execution_policy'] = 'no-cache; no in-flight action merging'
+                report['client_filesystem'] = {
+                    'before': filesystem_before, 'after': filesystem_usage(temporary),
+                }
+                print('Cold filesystem after build: ' + json.dumps(report['client_filesystem']['after']), flush=True)
+                destination.mkdir(parents=True, exist_ok=True)
+                (destination / 'cold-build.json').write_text(json.dumps(report, indent=2) + '\n')
+        if cold and not report['cold_result_verified']:
+            raise ValueError('Cold build evidence missing, output base reused, or cached actions detected')
     return destination / ('chromium-' + target['id'] + '.tar.gz')
 
 
@@ -231,7 +354,11 @@ def main():
     parser.add_argument('--screenshots', type=Path, help='Rendering evidence directory for smoke tests')
     parser.add_argument('--buildbuddy-hosted', action='store_true',
                         help='Use credentials injected by the BuildBuddy workflow runner')
+    parser.add_argument('--cold', action='store_true',
+                        help='Benchmark a hosted build with fresh Bazel state and no action-cache reuse')
     args = parser.parse_args()
+    if args.cold and (args.command != 'build' or not args.buildbuddy_hosted):
+        parser.error('--cold requires build --buildbuddy-hosted')
     if args.command == 'matrix':
         print(json.dumps({'include': CONFIGURATION['platforms']}, separators=(',', ':')))
         return
@@ -248,7 +375,7 @@ def main():
             parser.error('--payload is required')
         print(stamp_payload(args.payload, args.directory, target, args.revision))
     elif args.command == 'build':
-        print(build(target, args.directory, args.revision, hosted=args.buildbuddy_hosted))
+        print(build(target, args.directory, args.revision, hosted=args.buildbuddy_hosted, cold=args.cold))
     elif args.command == 'package':
         if not args.bundle:
             parser.error('--bundle is required')

@@ -1,0 +1,19 @@
+load("@chromium_windows_amd64//native:blink_core_sources.bzl", "LIBRARIES")
+load("//tools/ci:browser_targets.bzl", "windows_amd64_browser")
+load("//tools/ci/compile:probe.bzl", "blink_compile_probe")
+
+package(default_visibility = ["//visibility:public"])
+
+blink_compile_probe(
+    name = "blink_layout_compile_probe",
+    libraries = LIBRARIES,
+    repository = "@chromium_windows_amd64",
+)
+
+windows_amd64_browser(
+    name = "blink-layout-windows-amd64",
+    srcs = [
+        ":blink_layout_compile_probe",
+        ":blink_layout_compile_probe_canvas",
+    ],
+)

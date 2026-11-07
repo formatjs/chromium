@@ -1,16 +1,19 @@
 """Collect BuildBuddy action counts and sanitized timing summaries for one revision."""
 
 import argparse
+from bisect import bisect_right
 from concurrent.futures import ThreadPoolExecutor
 import gzip
 import json
+import math
 import os
 from pathlib import Path
 import re
+import statistics
 import tempfile
 import urllib.request
 
-from tools.ci.buildbuddy_artifacts import API_URL, api_request, invocation_id
+from tools.ci.buildbuddy_artifacts import API_URL, COLD_WORKFLOW_PREFIXES, api_request, invocation_id
 
 
 RPC_URL = 'https://formatjs.buildbuddy.io/rpc/BuildBuddyService/'
@@ -41,18 +44,128 @@ def summarize(invocation):
     return result
 
 
-def trace_summary(path):
+def compiler_work(events):
+    """Attribute completed task spans to compiler intervals on the same thread."""
+    threads, groups = {}, {}
+    for event in events:
+        name = event.get('name', '')
+        if event.get('cat') != 'action processing' or not name.startswith('Compiling '):
+            continue
+        source = name.removeprefix('Compiling ').removesuffix(' [for tool]')
+        if '/gen/' in source:
+            source = source.split('/gen/', 1)[1]
+        source = source.removeprefix('gen/')
+        group = next((group for prefix, group in (
+            ('third_party/blink/', 'blink'), ('third_party/v8/', 'v8'),
+            ('v8/', 'v8'), ('chrome/', 'chrome'), ('components/', 'components'),
+            ('content/', 'content'),
+        ) if source.startswith(prefix)), 'other')
+        row = groups.setdefault(group, {
+            'compile_spans': 0, 'tool_compile_spans': 0, 'action_task_seconds': 0,
+            'merkle_task_seconds': 0, 'worker_task_seconds': 0, 'worker_spans': 0,
+            'input_discovery_task_seconds': 0, 'include_scanning_task_seconds': 0,
+        })
+        row['compile_spans'] += 1
+        row['tool_compile_spans'] += int(name.endswith(' [for tool]'))
+        row['action_task_seconds'] += event['dur'] / 1e6
+        threads.setdefault(event.get('tid'), []).append((event['ts'], event['ts'] + event['dur'], group))
+    indices = {}
+    for thread, intervals in threads.items():
+        intervals.sort()
+        indices[thread] = ([item[0] for item in intervals], intervals)
+    for event in events:
+        field = None
+        if event.get('cat') == 'general information' and event.get('name') == 'MerkleTreeComputer.buildForSpawn':
+            field = 'merkle_task_seconds'
+        elif event.get('cat') == 'Remote execution process wall time':
+            field = 'worker_task_seconds'
+        elif event.get('cat') == 'discover inputs':
+            field = 'input_discovery_task_seconds'
+        elif event.get('cat') == 'include scanner':
+            field = 'include_scanning_task_seconds'
+        index = indices.get(event.get('tid'))
+        if field is None or index is None:
+            continue
+        starts, intervals = index
+        position = bisect_right(starts, event['ts']) - 1
+        if position < 0:
+            continue
+        start, end, group = intervals[position]
+        if event['ts'] >= start and event['ts'] + event['dur'] <= end + 1000:
+            groups[group][field] += event['dur'] / 1e6
+            if field == 'worker_task_seconds':
+                groups[group]['worker_spans'] += 1
+    return groups
+
+
+def trace_summary(path, allow_partial=False):
     with path.open('rb') as source:
         opener = gzip.open if source.read(2) == b'\x1f\x8b' else open
     with opener(path, 'rt') as source:
-        trace = json.load(source)
-    events = trace.get('traceEvents', [])
+        data = source.read()
+    complete = True
+    try:
+        events = json.loads(data).get('traceEvents', [])
+    except json.JSONDecodeError:
+        if not allow_partial:
+            raise
+        start = re.search(r'"traceEvents"\s*:\s*\[', data)
+        if start is None:
+            raise ValueError('Partial profile has no event array')
+        complete, events, position = False, [], start.end()
+        decoder = json.JSONDecoder()
+        separator = re.compile(r'[\s,]*')
+        while position < len(data):
+            position = separator.match(data, position).end()
+            try:
+                event, position = decoder.raw_decode(data, position)
+            except json.JSONDecodeError:
+                break
+            if not isinstance(event, dict):
+                raise ValueError('Profile event must be an object')
+            events.append(event)
+        if not events:
+            raise ValueError('Partial profile has no complete events')
     durations = [event for event in events if event.get('ph') == 'X' and event.get('dur', 0) > 0]
-    phases = [event for event in durations if event.get('cat') == 'build phase marker']
+    phases = [event for event in events if event.get('cat') == 'build phase marker']
     longest = sorted(durations, key=lambda event: event['dur'], reverse=True)[:40]
     fields = ('cat', 'ts', 'dur', 'tid')
-    return {'phases': [{key: event.get(key) for key in fields} for event in phases],
-            'longest_events': [{key: event.get(key) for key in fields} for event in longest]}
+    phase_names = {'Launch Blaze', 'Initialize command', 'Evaluate target patterns',
+                   'Load, analyze dependencies and build artifacts', 'Complete build'}
+    phase_summary = [{**{key: event.get(key) for key in (*fields, 'ph')},
+                      **({'name': event['name']} if event.get('name') in phase_names else {})}
+                     for event in phases]
+    operations = {
+        'merkle': ('general information', 'MerkleTreeComputer.buildForSpawn'),
+        'upload_missing_inputs': ('Remote execution upload time', 'upload missing inputs'),
+        'worker_execution': ('Remote execution process wall time', None),
+        'worker_queue': ('Remote execution queuing time', None),
+        'output_download': ('Remote execution file fetching', None),
+        'input_discovery': ('discover inputs', None),
+        'include_scanning': ('include scanner', None),
+    }
+    tasks = {}
+    for name, (category, event_name) in operations.items():
+        spans = [event for event in durations if event.get('cat') == category
+                 and (event_name is None or event.get('name') == event_name)]
+        tasks[name] = {'count': len(spans), 'task_seconds': sum(event['dur'] for event in spans) / 1e6}
+    counters = {}
+    for label, counter_name, argument, unit in [
+        ('bazel_cpu', 'CPU usage (Bazel)', 'cpu', 'cores'),
+        ('bazel_memory', 'Memory usage (Bazel)', 'memory', 'MB'),
+        ('active_actions', 'action count', 'action', 'actions'),
+    ]:
+        samples = [event.get('args', {}).get(argument) for event in events
+                   if event.get('ph') == 'C' and event.get('name') == counter_name]
+        samples = [value for value in samples if isinstance(value, (int, float)) and math.isfinite(value)]
+        if samples:
+            counters[label] = {'samples': len(samples), 'sample_mean': statistics.fmean(samples),
+                               'sample_max': max(samples), 'unit': unit}
+    return {'trace_complete': complete, 'event_count': len(events),
+            'compiler_work': compiler_work(durations),
+            'phases': phase_summary,
+            'longest_events': [{key: event.get(key) for key in fields} for event in longest],
+            'tasks': tasks, 'counters': counters}
 
 
 def collect(identifier):
@@ -60,22 +173,49 @@ def collect(identifier):
         'invocationId': identifier, 'fetchChildInvocations': True}})['invocation'][0]
     result = summarize(outer)
     result['children'] = []
-    if outer.get('pattern') == ['Chromium compile input experiment']:
+    pattern = outer.get('pattern', [])
+    cold_prefix = next((prefix for prefix in COLD_WORKFLOW_PREFIXES
+                        if len(pattern) == 1 and pattern[0].startswith(prefix)), None)
+    report_key = None
+    cold_profile = None
+    report_path = 'compile-input-experiment/report.json'
+    if pattern == ['Chromium compile input experiment'] or (
+            len(pattern) == 1 and pattern[0].startswith(('Chromium compile inputs ', 'Chromium compile throughput '))):
+        report_key = 'compile_experiment'
+    elif len(pattern) == 1 and pattern[0].startswith('Chromium compression benchmark '):
+        report_key = 'compression_experiment'
+        report_path = 'compression-experiment/report.json'
+    elif len(pattern) == 1 and pattern[0].startswith('Chromium bindings budget '):
+        report_key = 'bindings_experiment'
+        report_path = 'bindings-budget/report.json'
+    elif cold_prefix:
+        report_key = 'cold_build'
+        report_path = pattern[0].removeprefix(cold_prefix) + '/cold-build.json'
+    if report_key:
         with api_request('GetInvocation', {
                 'selector': {'invocation_id': identifier}, 'include_artifacts': True,
         }, os.environ['BUILDBUDDY_API_KEY']) as response:
             invocations = json.load(response).get('invocation', [])
+        if report_key == 'cold_build':
+            result['raw_event_artifacts'] = sum(
+                artifact.get('name', '').endswith('/cold-events.json')
+                for invocation in invocations for artifact in invocation.get('artifacts', []))
+            profiles = [artifact for invocation in invocations
+                        for artifact in invocation.get('artifacts', [])
+                        if artifact.get('name', '').endswith('/cold-profile.json')]
+            if len(profiles) == 1:
+                cold_profile = profiles[0]['uri']
         reports = [artifact for invocation in invocations
                    for artifact in invocation.get('artifacts', [])
-                   if artifact.get('name', '').endswith('/compile-input-experiment/report.json')
-                   or artifact.get('name') == 'compile-input-experiment/report.json']
+                   if artifact.get('name', '').endswith('/' + report_path)
+                   or artifact.get('name') == report_path]
         if len(reports) == 1:
             with api_request('GetFile', {'uri': reports[0]['uri']},
                              os.environ['BUILDBUDDY_API_KEY']) as response:
                 payload = response.read(4 * 1024 * 1024 + 1)
             if len(payload) > 4 * 1024 * 1024:
-                raise ValueError('Compiler experiment report exceeds 4 MiB')
-            result['compile_experiment'] = json.loads(payload)
+                raise ValueError('Build measurement report exceeds 4 MiB')
+            result[report_key] = json.loads(payload)
     for child in outer.get('childInvocations', []):
         child_id = child['invocationId']
         full = rpc('GetInvocation', {'lookup': {'invocationId': child_id}})['invocation'][0]
@@ -97,6 +237,18 @@ def collect(identifier):
                 profile['summary'] = trace_summary(path)
             del profile['uri']
         result['children'].append(summary)
+    if cold_profile and not any(child['profiles'] for child in result['children']):
+        with tempfile.TemporaryDirectory(prefix='bb-cold-profile-') as temporary:
+            path = Path(temporary) / 'trace.json'
+            with api_request('GetFile', {'uri': cold_profile}, os.environ['BUILDBUDDY_API_KEY']) as response, \
+                    path.open('wb') as output:
+                size = 0
+                while chunk := response.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > 256 * 1024 * 1024:
+                        raise ValueError('Profile exceeds 256 MiB')
+                    output.write(chunk)
+            result['cold_profile'] = trace_summary(path, allow_partial=True)
     return result
 
 
@@ -119,7 +271,8 @@ def main():
         if url.startswith('https://formatjs.buildbuddy.io/invocation/'):
             identifiers.setdefault(status['context'], invocation_id(url))
     args.directory.mkdir(parents=True, exist_ok=True)
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    # Full cold traces retain large decoded event graphs.
+    with ThreadPoolExecutor(max_workers=2) as executor:
         futures = {name: executor.submit(collect, identifier)
                    for name, identifier in identifiers.items()}
         results = {}

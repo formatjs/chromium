@@ -58354,7 +58354,7 @@ LIBRARIES = {
             ":media_ef87bf880656756e",
             ":mojo_cpp_bindings",
             ":skia",
-            "@aom//:aom_rc",
+            ":aom_rc_public",
             "@chromium_pciutils//:pci",
             "@chromium_platform_headers//:alsa",
             "@chromium_platform_headers//:atk",

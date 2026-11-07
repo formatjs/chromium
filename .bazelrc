@@ -10,6 +10,8 @@ build:browser --jobs=4
 build:browser --discard_analysis_cache
 build:browser --notrack_incremental_state
 build:browser --nokeep_state_after_build
+# Selected Chromium libraries request scanning; toolchain bootstrap stays unchanged.
+build:browser --cc_include_scanning
 
 # Hosted workflows supply authentication through their Bazel wrapper.
 build:buildbuddy --build_metadata=REPO_URL=https://github.com/formatjs/chromium.git
@@ -21,7 +23,7 @@ build:buildbuddy --remote_executor=grpcs://formatjs.buildbuddy.io
 build:buildbuddy --remote_download_outputs=toplevel
 # Rebuild evicted intermediates in place.
 build:buildbuddy --rewind_lost_inputs
-build:buildbuddy --jobs=64
+build:buildbuddy --jobs=128
 build:buildbuddy --ui_event_filters=-info
 build:buildbuddy --extra_execution_platforms=//platforms:buildbuddy_linux_amd64
 

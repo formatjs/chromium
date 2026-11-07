@@ -6,6 +6,39 @@ on:
         description: Full source commit SHA to profile
         required: true
         type: string
+      baseline:
+        description: Optional green commit for browser payload byte comparison
+        required: false
+        type: string
+      revision_kind:
+        description: Candidate browser build type
+        type: choice
+        default: browser
+        options: [browser, cold-browser]
+      verify_nss_integrity:
+        description: Verify randomized NSS signatures while comparing all other payload bytes
+        required: false
+        type: boolean
+        default: false
+      diagnose_payload:
+        description: Include tar member hashes and metadata when comparing payloads
+        required: false
+        type: boolean
+        default: false
+      smoke_cold_artifact:
+        description: Execute and render the selected cold artifact on its native runner
+        required: false
+        type: boolean
+        default: false
+      invocation_url:
+        description: Successful cold BuildBuddy workflow URL, required for native smoke
+        required: false
+        type: string
+      platform:
+        description: Platforms to compare
+        type: choice
+        default: all
+        options: [all, linux-amd64, linux-arm64, darwin-arm64, windows-amd64, windows-arm64]
 permissions:
   contents: read
 jobs:
@@ -15,12 +48,38 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-python@v7
+        if: inputs.verify_nss_integrity
+        with:
+          python-version: '3.13'
+      - name: Install pinned integrity verifier
+        if: inputs.verify_nss_integrity
+        run: >-
+          python -m pip install --require-hashes --only-binary=:all:
+          -r tools/ci/integrity_requirements.txt
       - name: Collect Bazel metrics and sanitized timing summaries
         env:
           BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_RO_PUBLIC_KEY }}
           GH_TOKEN: ${{ github.token }}
           BUILD_SHA: ${{ inputs.revision }}
         run: python3 -m tools.ci.profile_buildbuddy --revision "$BUILD_SHA" --directory "$RUNNER_TEMP/build-profile"
+      - name: Compare browser payload bytes
+        if: inputs.baseline != ''
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_RO_PUBLIC_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          BUILD_SHA: ${{ inputs.revision }}
+          BASELINE_SHA: ${{ inputs.baseline }}
+          REVISION_KIND: ${{ inputs.revision_kind }}
+          PLATFORM: ${{ inputs.platform }}
+          DIAGNOSE_PAYLOAD: ${{ inputs.diagnose_payload }}
+          VERIFY_NSS_INTEGRITY: ${{ inputs.verify_nss_integrity }}
+        run: |
+          arguments=(--baseline "$BASELINE_SHA" --revision "$BUILD_SHA" --directory "$RUNNER_TEMP/build-profile" --revision-kind "$REVISION_KIND")
+          if [[ "$PLATFORM" != all ]]; then arguments+=(--platform "$PLATFORM"); fi
+          if [[ "$DIAGNOSE_PAYLOAD" == true ]]; then arguments+=(--diagnose-members); fi
+          if [[ "$VERIFY_NSS_INTEGRITY" == true ]]; then arguments+=(--verify-nss-integrity); fi
+          python3 -m tools.ci.compare_payloads "${arguments[@]}"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -28,3 +87,15 @@ jobs:
           path: ${{ runner.temp }}/build-profile
           if-no-files-found: error
           retention-days: 7
+
+  cold_smoke:
+    if: inputs.smoke_cold_artifact
+    uses: ./.github/workflows/cold-smoke.yml
+    permissions:
+      contents: read
+      statuses: write
+    secrets: inherit
+    with:
+      platform: ${{ inputs.platform }}
+      revision: ${{ inputs.revision }}
+      invocation_url: ${{ inputs.invocation_url }}

@@ -3851,7 +3851,7 @@ LIBRARIES = {
             ":paint_72198bff3a66bb77",
             ":skia",
             ":url",
-            "@aom//:aom",
+            ":aom_public",
         ],
         "linkopts": [
             "-lbsm",
@@ -9241,7 +9241,7 @@ LIBRARIES = {
             ":linux_ui_6aed93e9638c7edf",
             ":media_4c0f50f573fd3ece",
             ":media_71729c57250ac72e",
-            "@aom//:aom",
+            ":aom_public",
         ],
         "linkopts": [
             "-lbsm",

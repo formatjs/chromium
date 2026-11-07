@@ -46,7 +46,7 @@ def run(manifest):
             logical_path(build, logical).parent.mkdir(parents=True, exist_ok=True)
         response = build / 'action.rsp'
         response.write_text(shlex.join(manifest['response_file_contents']))
-        arguments = [arg.replace('{{response_file_name}}', str(response))
+        arguments = [arg.replace('{{response_file_name}}', response.name)
                      for arg in manifest['args']]
         if any('{{' in arg or '$LLVM_ROOT' in arg for arg in arguments):
             raise ValueError('unresolved generator argument')
@@ -56,7 +56,7 @@ def run(manifest):
         # Child tools resolve their own runfiles.
         for variable in ['RUNFILES_DIR', 'RUNFILES_MANIFEST_FILE']:
             environment.pop(variable, None)
-        result = subprocess.run([sys.executable, str(script), *arguments],
+        result = subprocess.run([sys.executable, os.path.relpath(script, build), *arguments],
                                 cwd=build, env=environment)
         if result.returncode:
             raise SystemExit(result.returncode)

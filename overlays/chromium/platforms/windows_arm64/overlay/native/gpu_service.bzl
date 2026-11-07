@@ -24,7 +24,7 @@ def native_gpu_service():
     cc_library(
         name = "gpu_service_headers",
         hdrs = SHARED_HEADERS + [":all_buildflags"] + native.glob(["gpu_service_forwarders/**/*.h"], allow_empty = True),
-        includes = ["..", "gen", "../gpu", "../third_party/khronos", "gen/third_party/dawn/include", "gen/third_party/dawn/src", "gpu_service_forwarders"],
+        includes = ["..", "gen", "../gpu", "gen/third_party/dawn/include", "gen/third_party/dawn/src", "gpu_service_forwarders"],
         deps = [
             ":dawn_headers",
             ":dawn_native_headers",

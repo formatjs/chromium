@@ -31,6 +31,13 @@ def _sources_impl(ctx):
     overlay = root.get_child("overlays/" + ctx.attr.overlay + "/bcr/overlay")
     files = {}
     directories = {"": True}
+    excluded = {relative: True for relative in ctx.attr.exclude_paths}
+    for relative in excluded:
+        parts = relative.split("/")
+        if not relative or relative.startswith("/") or ".." in parts:
+            fail("Invalid excluded source path: " + relative)
+        for depth in range(1, len(parts)):
+            directories["/".join(parts[:depth])] = True
     layers = [overlay]
     if ctx.attr.variant:
         layers.append(root.get_child("overlays/" + ctx.attr.overlay + "/platforms/" + ctx.attr.variant + "/overlay"))
@@ -78,6 +85,8 @@ def _sources_impl(ctx):
         for directory, prefix in pending:
             for path in sorted(directory.readdir(), key = str):
                 relative = prefix + path.basename
+                if relative in excluded:
+                    continue
                 if path.is_dir and relative in directories:
                     next_level.append((path, relative + "/"))
                 elif relative not in files:
@@ -103,6 +112,7 @@ _sources = repository_rule(
         "overlay": attr.string(mandatory = True),
         "patches": attr.label_list(allow_files = [".patch"]),
         "variant": attr.string(),
+        "exclude_paths": attr.string_list(),
     },
 )
 

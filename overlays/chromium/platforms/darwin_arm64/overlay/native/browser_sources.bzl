@@ -738978,7 +738978,7 @@ LIBRARIES = {
             ":geometry_08e263e6d1b42686",
             ":libvpx_public",
             ":media_ef87bf880656756e",
-            "@aom//:aom"
+            ":aom_public"
         ],
         "linkopts": [
             "-lbsm",

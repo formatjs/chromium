@@ -64,6 +64,22 @@ class BuildBuddyArtifactsTest(unittest.TestCase):
             with self.subTest(response=response), self.assertRaises(ValueError):
                 artifacts.artifact_uris(response, REVISION, TARGET)
 
+    def test_cold_browser_keeps_provenance_checks_and_cannot_impersonate_regular_build(self):
+        for prefix in ('Chromium cold build ', 'Chromium clean cold build '):
+            with self.subTest(prefix=prefix):
+                self.check_cold_browser_provenance(prefix)
+
+    def check_cold_browser_provenance(self, prefix):
+        response = invocation()
+        response['invocation'][0]['pattern'] = prefix + TARGET
+        self.assertEqual(set(artifacts.artifact_uris(response, REVISION, TARGET, kind='cold-browser')),
+                         {ARCHIVE, ARCHIVE + '.sha256'})
+        with self.assertRaisesRegex(ValueError, 'successful commit'):
+            artifacts.artifact_uris(response, REVISION, TARGET)
+        response['invocation'][0]['success'] = False
+        with self.assertRaisesRegex(ValueError, 'successful commit'):
+            artifacts.artifact_uris(response, REVISION, TARGET, kind='cold-browser')
+
     def test_download_checks_digest_before_publishing_files(self):
         payload = b'compressed browser artifact'
         digest = (hashlib.sha256(payload).hexdigest() + '\n').encode()
@@ -89,6 +105,18 @@ class BuildBuddyArtifactsTest(unittest.TestCase):
                     mock.call('GetFile', {'uri': 'bytestream://formatjs.buildbuddy.io/blobs/1'},
                               'read-only-test-key'),
                 ])
+
+    def test_cold_browser_download_uses_browser_archive_name(self):
+        payload = b'cold browser artifact'
+        response = invocation()
+        response['invocation'][0]['pattern'] = 'Chromium cold build ' + TARGET
+        replies = [io.BytesIO(json.dumps(response).encode()), io.BytesIO(payload),
+                   io.BytesIO((hashlib.sha256(payload).hexdigest() + '\n').encode())]
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(artifacts, 'api_request', side_effect=replies):
+            destination = Path(directory) / 'download'
+            artifacts.download(URL, REVISION, TARGET, destination, 'read-only-test-key', kind='cold-browser')
+            self.assertEqual((destination / ARCHIVE).read_bytes(), payload)
 
     def test_oversized_download_leaves_no_artifact(self):
         with tempfile.TemporaryDirectory() as directory:

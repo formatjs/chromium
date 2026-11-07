@@ -137,13 +137,17 @@ def chromium_python_action(name, srcs, outs, script, args = None, response_file_
         **kwargs: Common rule attributes.
     """
     paths = sorted(outs)
+    generator_args = list(args or [])
+    if script == "third_party/blink/renderer/bindings/scripts/generate_bindings.py" and "--single_process" not in generator_args:
+        # Keep the upstream pool from growing with the executor's host CPU count.
+        generator_args = ["--single_process"] + generator_args
     _python_action(
         name = name,
         srcs = srcs,
         out_files = paths,
         logical_outputs = [outs[path] for path in paths],
         script = script,
-        args = args or [],
+        args = generator_args,
         response_file_contents = response_file_contents or [],
         deps = deps or [],
         **kwargs

@@ -20,6 +20,6 @@ def chromium_browser_sources(ctx):
             name = "chromium_" + name,
             remote = remote,
             commit = commit,
-            patch_cmds = ["find . -mindepth 2 -type f \\( -name BUILD -o -name BUILD.bazel \\) -delete"],
+            patch_cmds = ["find . -mindepth 2 -type f \\( -name BUILD -o -name BUILD.bazel \\) -delete"] + (["rm -rf third_party/protobuf"] if name == "openscreen" else []),
             build_file_content = ctx.read(Label("//build:browser_sources.BUILD.bazel")).replace("@@PREFIX@@", prefix).replace("@@HEADER_EXCLUDES@@", str(["third_party/protobuf/**"] if name == "openscreen" else [])),
         )

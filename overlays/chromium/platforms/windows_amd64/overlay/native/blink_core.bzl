@@ -26,6 +26,17 @@ def native_blink_core():
             linkopts = library["linkopts"],
             linkstatic = True,
             alwayslink = library["kind"] == "source_set",
+            features = ["cc_include_scanning"],
+            # Skia selects these through macro includes.
+            additional_compiler_inputs = [
+                "//:base/component_export.h",
+                "//:skia/config/SkUserConfig.h",
+                "//:skia/config/sk_ref_cnt_ext_debug.h",
+                "//:skia/config/sk_ref_cnt_ext_release.h",
+                "//:skia/ext/skia_histogram.h",
+                # Keep the directory used by ../../skia/config includes.
+                ":blink_core_forwarders/third_party/re2/src/re2/re2.h",
+            ],
             deps = [":blink_core_headers"] + library["deps"],
         )
         common["deps"] = common["deps"] + chromium_objc_libraries(library, common["deps"])

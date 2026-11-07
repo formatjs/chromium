@@ -4934,7 +4934,7 @@ LIBRARIES = {
             ":paint_72198bff3a66bb77",
             ":skia",
             ":url",
-            "@aom//:aom"
+            ":aom_public"
         ],
         "linkopts": [
             "-DEFAULTLIB:cfgmgr32.lib",
@@ -10632,7 +10632,7 @@ LIBRARIES = {
             ":libvpx_public",
             ":linux_ui_6aed93e9638c7edf",
             ":media_4c0f50f573fd3ece",
-            "@aom//:aom"
+            ":aom_public"
         ],
         "linkopts": [
             "-DEFAULTLIB:cfgmgr32.lib",

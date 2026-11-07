@@ -15,6 +15,6 @@ jobs:
           python-version: '3.13'
       - run: >-
           python -m pip install --require-hashes --only-binary=:all:
-          -r tools/ci/rendering/requirements.txt
+          -r tools/ci/rendering/requirements.txt -r tools/ci/integrity_requirements.txt
       - run: python3 -m unittest discover -s tests
       - run: python3 overlays/chromium/tests/validate_bcr.py

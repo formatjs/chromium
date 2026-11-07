@@ -35,6 +35,53 @@ class RepositoryPath:
 
 
 class SourceProjectionTest(unittest.TestCase):
+    def test_excluded_vendor_tree_keeps_archive_and_explicit_overrides(self):
+        definition = Path(__file__).resolve().parents[1] / 'build/repositories.bzl'
+        function = next(node for node in ast.parse(definition.read_text()).body
+                        if isinstance(node, ast.FunctionDef) and node.name == '_sources_impl')
+        environment = {'fail': lambda message: self.fail(message)}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(definition), 'exec'), environment)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'archive'
+            catalog = root / 'workspace/overlays.json'
+            overlay = catalog.parent / 'overlays/chromium/bcr/overlay'
+            overlay.mkdir(parents=True)
+            catalog.write_text('{}')
+            relative = 'third_party/protobuf/src/google/protobuf/repeated_field.h'
+            original = source / relative
+            original.parent.mkdir(parents=True)
+            original.write_text('vendored header\n')
+            sibling = source / 'third_party/protobuf/README.chromium'
+            sibling.write_text('metadata\n')
+            untouched = source / 'chrome/renderer/file.cc'
+            untouched.parent.mkdir(parents=True)
+            untouched.write_text('source\n')
+            replacement = overlay / 'third_party/protobuf/src/overlay_marker.h'
+            replacement.parent.mkdir(parents=True)
+            replacement.write_text('explicit overlay\n')
+            output = root / 'projected'
+            output.mkdir()
+
+            def symlink(path, name):
+                target = output / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.symlink_to(str(path), target_is_directory=path.is_dir)
+
+            context = SimpleNamespace(
+                attr=SimpleNamespace(catalog=catalog, archive=source / '__source__/anchor',
+                                     overlay='chromium', variant='', patches=[],
+                                     exclude_paths=['third_party/protobuf/src']),
+                path=lambda path: RepositoryPath(path), watch_tree=lambda path: None,
+                read=lambda path: Path(str(path)).read_text(), symlink=symlink,
+            )
+            environment['_sources_impl'](context)
+            self.assertFalse((output / relative).exists())
+            self.assertEqual(original.read_text(), 'vendored header\n')
+            self.assertEqual((output / 'third_party/protobuf/README.chromium').read_text(), 'metadata\n')
+            self.assertEqual((output / 'third_party/protobuf/src/overlay_marker.h').read_text(), 'explicit overlay\n')
+            self.assertTrue((output / 'chrome').is_symlink())
+
     def test_platform_patch_uses_private_copy_and_preserves_shared_trees(self):
         definition = Path(__file__).resolve().parents[1] / 'build/repositories.bzl'
         function = next(node for node in ast.parse(definition.read_text()).body
@@ -88,6 +135,7 @@ class SourceProjectionTest(unittest.TestCase):
                     context = SimpleNamespace(
                         attr=SimpleNamespace(catalog=catalog, archive=source / '__source__/anchor',
                                              overlay='chromium', variant=variant,
+                                             exclude_paths=[],
                                              patches=[patch] if variant == 'darwin_arm64' else []),
                         path=lambda path: RepositoryPath(path), watch_tree=lambda path: None,
                         read=lambda path: Path(str(path)).read_text(),

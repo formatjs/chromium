@@ -16,7 +16,7 @@ def native_linux_ui():
     cc_library(
         name = "linux_ui_headers",
         hdrs = SHARED_HEADERS + [":all_buildflags"],
-        includes = ["..", "gen", "../gpu", "../third_party/khronos"],
+        includes = ["..", "gen", "../gpu"],
         deps = [
             "//build:build_config",
             "@xkbcommon//:xkbcommon_headers",

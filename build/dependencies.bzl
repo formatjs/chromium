@@ -117,6 +117,7 @@ def _dependencies_impl(ctx):
             overlay = name,
             archive = "@" + archive_name + "//__source__:anchor",
             catalog = Label("//:overlays.json"),
+            exclude_paths = ["third_party/protobuf/src"] if name in ["chromium", "ipcz"] else [],
         )
     chromium_overlay_repository(
         name = "chromium_linux_arm64",
@@ -124,6 +125,7 @@ def _dependencies_impl(ctx):
         variant = "linux_arm64",
         archive = "@chromium_sources//__source__:anchor",
         catalog = Label("//:overlays.json"),
+        exclude_paths = ["third_party/protobuf/src"],
     )
     for variant in ["windows_amd64", "windows_arm64", "darwin_arm64"]:
         chromium_overlay_repository(
@@ -133,6 +135,7 @@ def _dependencies_impl(ctx):
             patches = [Label("//build:chromium-macos-headless-quit.patch")] if variant == "darwin_arm64" else [],
             archive = "@chromium_sources//__source__:anchor",
             catalog = Label("//:overlays.json"),
+            exclude_paths = ["third_party/protobuf/src"],
         )
     chromium_v8_repository(name = "chromium_v8", archive = "@v8_sources//__source__:anchor", catalog = Label("//:overlays.json"))
     chromium_angle_repository(name = "chromium_angle", archive = "@angle_sources//__source__:anchor", catalog = Label("//:overlays.json"))

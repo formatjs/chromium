@@ -1,0 +1,30 @@
+load("@chromium_darwin_arm64//native:blink_core_sources.bzl", CORE = "LIBRARIES")
+load("@chromium_darwin_arm64//native:blink_modules_sources.bzl", MODULES = "LIBRARIES")
+load("@chromium_darwin_arm64//native:blink_platform_sources.bzl", PLATFORM = "LIBRARIES")
+load("//tools/ci:browser_targets.bzl", "darwin_arm64_browser")
+load("//tools/ci/compile:probe.bzl", "host_blink_compile_probe")
+
+package(default_visibility = ["//visibility:public"])
+
+host_blink_compile_probe(
+    name = "blink_layout_compile_probe",
+    captured_host = False,
+    libraries = dict(CORE.items() + MODULES.items() + PLATFORM.items()),
+    repository = "@chromium_darwin_arm64",
+    wide = True,
+)
+
+darwin_arm64_browser(
+    name = "blink-native-darwin-arm64",
+    srcs = [":blink_layout_compile_probe" + suffix for suffix in [
+        "",
+        "_canvas",
+        "_accessibility",
+        "_canvas2d",
+        "_platform",
+        "_bindings",
+        "_graphics",
+        "_mediastream",
+        "_webcodecs",
+    ]],
+)

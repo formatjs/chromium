@@ -1,6 +1,7 @@
 load("@bazel_skylib//rules:common_settings.bzl", "string_flag")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
 load(":archive.bzl", "chromium_archive")
 load(
@@ -659,4 +660,40 @@ windows_amd64_browser(
 windows_arm64_browser(
     name = "gpu-windows-arm64",
     srcs = [":gpu_static_crt"],
+)
+
+py_binary(
+    name = "compression_benchmark",
+    srcs = [
+        "chromium.py",
+        "compression_benchmark.py",
+    ],
+    data = ["platforms.json"],
+    main = "compression_benchmark.py",
+    tags = ["manual"],
+)
+
+py_test(
+    name = "windows-amd64_compression_benchmark",
+    size = "enormous",
+    timeout = "eternal",
+    srcs = [
+        "chromium.py",
+        "compression_benchmark.py",
+    ],
+    args = [
+        "--bundle",
+        "$(rootpath :windows-amd64)",
+        "--platform",
+        "windows-amd64",
+    ],
+    data = [
+        "platforms.json",
+        ":windows-amd64",
+    ],
+    main = "compression_benchmark.py",
+    tags = [
+        "manual",
+        "no-cache",
+    ],
 )

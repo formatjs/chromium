@@ -137697,7 +137697,7 @@ LIBRARIES = {
             ":compositor_e5e8d7aff33c4c71",
             ":compositor_f6e430a14da1028c",
             ":compositor_fff5abb68dc452cc",
-            "@aom//:aom",
+            ":aom_public",
         ],
         "linkopts": [
             "-lbsm",

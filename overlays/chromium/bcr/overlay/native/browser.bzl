@@ -193,6 +193,20 @@ def native_browser():
             includes = library["includes"],
             alwayslink = library["kind"] == "source_set",
         )
+        if any([original.startswith(prefix) for prefix in ["//chrome/", "//chrome:", "//extensions/", "//extensions:", "//components/", "//components:"]]):
+            common.update(
+                features = ["cc_include_scanning"],
+                # Skia selects these headers through macro includes.
+                additional_compiler_inputs = [
+                    "//:base/component_export.h",
+                    "//:skia/config/SkUserConfig.h",
+                    "//:skia/config/sk_ref_cnt_ext_debug.h",
+                    "//:skia/config/sk_ref_cnt_ext_release.h",
+                    "//:skia/ext/skia_histogram.h",
+                    ":gen/gpu/config/gpu_driver_bug_workaround_autogen.h",
+                    ":browser_forwarders/third_party/re2/src/re2/re2.h",
+                ],
+            )
         c_sources = [path for path in library["srcs"] if path.endswith(".c")]
         asm_sources = [path for path in library["srcs"] if path.endswith((".s", ".S"))]
         for suffix, sources, options in [

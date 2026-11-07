@@ -1,0 +1,18 @@
+load("@chromium_darwin_arm64//native:browser_sources.bzl", "LIBRARIES")
+load("//tools/ci:browser_targets.bzl", "darwin_arm64_browser")
+load("//tools/ci/compile:browser_probe_sources.bzl", "SOURCE_GROUPS")
+load("//tools/ci/compile:probe.bzl", "browser_compile_probe")
+
+package(default_visibility = ["//visibility:public"])
+
+browser_compile_probe(
+    name = "browser_compile_probe",
+    libraries = LIBRARIES,
+    platform = "darwin-arm64",
+    repository = "@chromium_darwin_arm64",
+)
+
+darwin_arm64_browser(
+    name = "browser-inputs-darwin-arm64",
+    srcs = [":browser_compile_probe_" + str(index) for index in range(len(SOURCE_GROUPS))],
+)

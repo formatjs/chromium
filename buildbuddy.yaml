@@ -1,3 +1,4 @@
+# Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
   - name: Chromium linux-amd64
     container_image: ubuntu-24.04
@@ -5,12 +6,12 @@ actions:
     allow_concurrent_runs_on_branches: []
     timeout: 6h
     resource_requests:
-      cpu: 8
+      cpu: 16
       memory: 32GB
       disk: 200GB
     triggers:
       push:
-        branches: [main]
+        branches: [main, "perf/compile-cross-platform", "perf/native-blink-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -26,12 +27,12 @@ actions:
     allow_concurrent_runs_on_branches: []
     timeout: 6h
     resource_requests:
-      cpu: 8
+      cpu: 16
       memory: 32GB
       disk: 200GB
     triggers:
       push:
-        branches: [main]
+        branches: [main, "perf/compile-cross-platform", "perf/host-blink-rollout", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -47,12 +48,12 @@ actions:
     allow_concurrent_runs_on_branches: []
     timeout: 6h
     resource_requests:
-      cpu: 8
+      cpu: 16
       memory: 32GB
       disk: 200GB
     triggers:
       push:
-        branches: [main]
+        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -68,12 +69,12 @@ actions:
     allow_concurrent_runs_on_branches: []
     timeout: 6h
     resource_requests:
-      cpu: 8
+      cpu: 16
       memory: 32GB
       disk: 200GB
     triggers:
       push:
-        branches: [main]
+        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -89,12 +90,12 @@ actions:
     allow_concurrent_runs_on_branches: []
     timeout: 6h
     resource_requests:
-      cpu: 8
+      cpu: 16
       memory: 32GB
       disk: 200GB
     triggers:
       push:
-        branches: [main]
+        branches: [main, "perf/compile-cross-platform", "perf/native-platform-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -220,7 +221,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main]
+        branches: [main, "perf/compile-cross-platform"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -270,7 +271,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main, "perf/compile-*"]
+        branches: [main, "perf/compile-*", "!perf/compile-throughput", "!perf/compile-concurrency"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
@@ -278,3 +279,456 @@ actions:
       - run: |
           python3 -m tools.ci.compile.experiment \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs linux-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: [main, "perf/compile-*", "!perf/compile-throughput", "!perf/compile-concurrency"]
+      pull_request:
+        branches: ["*"]
+        merge_with_base: false
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --platform linux-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs darwin-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: [main, "perf/compile-*", "!perf/compile-throughput", "!perf/compile-concurrency"]
+      pull_request:
+        branches: ["*"]
+        merge_with_base: false
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --platform darwin-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs windows-amd64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: [main, "perf/compile-*", "!perf/compile-throughput", "!perf/compile-concurrency"]
+      pull_request:
+        branches: ["*"]
+        merge_with_base: false
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --platform windows-amd64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs windows-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: [main, "perf/compile-*", "!perf/compile-throughput", "!perf/compile-concurrency"]
+      pull_request:
+        branches: ["*"]
+        merge_with_base: false
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --platform windows-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs host-blink
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/host-blink"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --host-blink \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs host-wide
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/host-blink-wide"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --wide-host-blink \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile throughput linux-amd64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/compile-throughput"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --batch \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile throughput merkle-retention
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/merkle-retention"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --batch --compare-merkle-retention \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs browser
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/browser-inputs", "perf/browser-platform-inputs"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --browser \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs browser linux-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/browser-platform-inputs"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --browser --platform linux-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs browser darwin-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/browser-platform-inputs"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --browser --platform darwin-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs browser windows-amd64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/browser-platform-inputs"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --browser --platform windows-amd64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs browser windows-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/browser-platform-inputs"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --browser --platform windows-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs native-wide
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/native-blink-wide", "perf/native-blink-platforms"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --wide-native-blink \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs native-wide linux-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/native-blink-platforms"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --wide-native-blink --platform linux-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs native-wide darwin-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/native-blink-platforms"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --wide-native-blink --platform darwin-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs native-wide windows-amd64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/native-blink-platforms"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --wide-native-blink --platform windows-amd64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile inputs native-wide windows-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 8
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/native-blink-platforms"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --wide-native-blink --platform windows-arm64 \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium compile throughput concurrency
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/compile-concurrency"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compile.experiment --batch --compare-concurrency \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compile-input-experiment"
+
+  - name: Chromium clean cold build linux-amd64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 6h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/cold-linux-amd64", "perf/cold-linux-amd64-128"]
+    steps:
+      - run: |
+          python3 tools/ci/chromium.py build --buildbuddy-hosted --cold \
+            --platform linux-amd64 --revision "$(git rev-parse HEAD)" \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-amd64"
+
+  - name: Chromium clean cold build linux-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 6h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/cold-linux-arm64"]
+    steps:
+      - run: |
+          python3 tools/ci/chromium.py build --buildbuddy-hosted --cold \
+            --platform linux-arm64 --revision "$(git rev-parse HEAD)" \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-arm64"
+
+  - name: Chromium clean cold build darwin-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 6h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/cold-darwin-arm64"]
+    steps:
+      - run: |
+          python3 tools/ci/chromium.py build --buildbuddy-hosted --cold \
+            --platform darwin-arm64 --revision "$(git rev-parse HEAD)" \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/darwin-arm64"
+
+  - name: Chromium clean cold build windows-amd64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 6h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/cold-windows-amd64"]
+    steps:
+      - run: |
+          python3 tools/ci/chromium.py build --buildbuddy-hosted --cold \
+            --platform windows-amd64 --revision "$(git rev-parse HEAD)" \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/windows-amd64"
+
+  - name: Chromium clean cold build windows-arm64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 6h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/cold-windows-arm64"]
+    steps:
+      - run: |
+          python3 tools/ci/chromium.py build --buildbuddy-hosted --cold \
+            --platform windows-arm64 --revision "$(git rev-parse HEAD)" \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/windows-arm64"
+
+  - name: Chromium compression benchmark windows-amd64
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/compression-benchmark"]
+    steps:
+      - run: |
+          bazel --host_jvm_args=-Xmx12g test --config=browser --config=buildbuddy \
+            --noexperimental_remote_discard_merkle_trees --nocache_test_results --nozip_undeclared_test_outputs \
+            --repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1 \
+            --repo_env=BAZEL_WINDOWS_SDK_EULA=1 \
+            //tools/ci:windows-amd64_compression_benchmark
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          directory = Path(os.environ['BUILDBUDDY_ARTIFACTS_DIRECTORY']) / 'compression-experiment'
+          directory.mkdir(parents=True, exist_ok=True)
+          source = Path('bazel-testlogs/tools/ci/windows-amd64_compression_benchmark/test.outputs/report.json')
+          (directory / 'report.json').write_bytes(source.read_bytes())
+          PY

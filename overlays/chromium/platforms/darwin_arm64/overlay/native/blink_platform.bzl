@@ -71,6 +71,20 @@ def native_blink_platform():
             includes = library["includes"],
             alwayslink = library["kind"] == "source_set",
         )
+        if original.startswith("//third_party/blink/renderer/platform"):
+            common.update(
+                features = ["cc_include_scanning"],
+                # Skia uses macro includes that the scanner cannot resolve.
+                additional_compiler_inputs = [
+                    "//:base/component_export.h",
+                    "//:skia/config/SkUserConfig.h",
+                    "//:skia/config/sk_ref_cnt_ext_debug.h",
+                    "//:skia/config/sk_ref_cnt_ext_release.h",
+                    "//:skia/ext/skia_histogram.h",
+                    ":gen/gpu/config/gpu_driver_bug_workaround_autogen.h",
+                    ":blink_platform_forwarders/third_party/re2/src/re2/re2.h",
+                ],
+            )
         c_sources = [p for p in library["srcs"] if p.endswith(".c")]
         common["deps"] = common["deps"] + chromium_objc_libraries(library, common["deps"])
         if c_sources:

@@ -8,27 +8,101 @@ import unittest
 from unittest import mock
 
 from tools.ci import profile_buildbuddy
-from tools.ci.profile_buildbuddy import summarize, trace_summary
+from tools.ci.profile_buildbuddy import compiler_work, summarize, trace_summary
 
 
 class BuildProfileTest(unittest.TestCase):
     def test_compiler_experiment_report_is_collected_from_workflow_artifact(self):
         report = {'baseline': {'input_entries': 76130}, 'include-scan': {'input_entries': 1000}}
         uri = 'bytestream://formatjs.buildbuddy.io/report'
-        outer = {'pattern': ['Chromium compile input experiment']}
+        for pattern, artifact_path, key in [
+            ('Chromium compile input experiment', 'compile-input-experiment/report.json', 'compile_experiment'),
+            ('Chromium compile inputs host-blink', 'compile-input-experiment/report.json', 'compile_experiment'),
+            ('Chromium cold build linux-amd64', 'linux-amd64/cold-build.json', 'cold_build'),
+            ('Chromium clean cold build darwin-arm64', 'darwin-arm64/cold-build.json', 'cold_build'),
+            ('Chromium compression benchmark windows-amd64', 'compression-experiment/report.json', 'compression_experiment'),
+            ('Chromium bindings budget darwin-arm64', 'bindings-budget/report.json', 'bindings_experiment'),
+        ]:
+            with self.subTest(pattern=pattern):
+                outer = {'pattern': [pattern]}
+                artifacts = {'invocation': [{'artifacts': [{
+                    'name': 'command-0/' + artifact_path, 'uri': uri}]}]}
+                with mock.patch.object(profile_buildbuddy, 'rpc', return_value={'invocation': [outer]}), \
+                        mock.patch.object(profile_buildbuddy, 'api_request', side_effect=[
+                            io.BytesIO(json.dumps(artifacts).encode()), io.BytesIO(json.dumps(report).encode())]) as api, \
+                        mock.patch.dict(os.environ, {'BUILDBUDDY_API_KEY': 'read-only-test-key'}):
+                    result = profile_buildbuddy.collect('workflow')
+                self.assertEqual(result[key], report)
+                api.assert_has_calls([
+                    mock.call('GetInvocation', {'selector': {'invocation_id': 'workflow'},
+                                               'include_artifacts': True}, 'read-only-test-key'),
+                    mock.call('GetFile', {'uri': uri}, 'read-only-test-key'),
+                ])
+
+    def test_killed_cold_run_keeps_sanitized_completed_trace_events(self):
+        event = {'cat': 'general information', 'name': 'MerkleTreeComputer.buildForSpawn',
+                 'ph': 'X', 'dur': 500000, 'args': {'command': 'DO_NOT_EXPORT'}}
+        trace = '{"otherData":{},"traceEvents":[\n' + json.dumps(event) + ',\n{"unfinished":'
+        uri = 'bytestream://formatjs.buildbuddy.io/cold-profile'
+        outer = {'pattern': ['Chromium cold build linux-amd64'],
+                 'success': False, 'invocationStatus': 'COMPLETE_INVOCATION_STATUS'}
         artifacts = {'invocation': [{'artifacts': [{
-            'name': 'command-0/compile-input-experiment/report.json', 'uri': uri}]}]}
+            'name': 'command-0/linux-amd64/cold-profile.json', 'uri': uri},
+            {'name': 'command-0/linux-amd64/cold-events.json', 'uri': 'DO_NOT_DOWNLOAD'}]}]}
         with mock.patch.object(profile_buildbuddy, 'rpc', return_value={'invocation': [outer]}), \
                 mock.patch.object(profile_buildbuddy, 'api_request', side_effect=[
-                    io.BytesIO(json.dumps(artifacts).encode()), io.BytesIO(json.dumps(report).encode())]) as api, \
+                    io.BytesIO(json.dumps(artifacts).encode()), io.BytesIO(trace.encode())]), \
                 mock.patch.dict(os.environ, {'BUILDBUDDY_API_KEY': 'read-only-test-key'}):
-            result = profile_buildbuddy.collect('workflow')
-        self.assertEqual(result['compile_experiment'], report)
-        api.assert_has_calls([
-            mock.call('GetInvocation', {'selector': {'invocation_id': 'workflow'},
-                                       'include_artifacts': True}, 'read-only-test-key'),
-            mock.call('GetFile', {'uri': uri}, 'read-only-test-key'),
-        ])
+            result = profile_buildbuddy.collect('killed-workflow')
+        self.assertEqual(result['raw_event_artifacts'], 1)
+        self.assertFalse(result['cold_profile']['trace_complete'])
+        self.assertEqual(result['cold_profile']['event_count'], 1)
+        self.assertEqual(result['cold_profile']['tasks']['merkle'],
+                         {'count': 1, 'task_seconds': 0.5})
+        self.assertNotIn('cold_build', result)
+        self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
+        self.assertNotIn(uri, json.dumps(result))
+
+    def test_incomplete_profiles_require_explicit_diagnostic_mode(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'partial.json'
+            path.write_text('{"traceEvents":[{"ph":"X","dur":1},')
+            with self.assertRaises(json.JSONDecodeError):
+                trace_summary(path)
+            self.assertFalse(trace_summary(path, allow_partial=True)['trace_complete'])
+            for content in ['{} garbage', '{"traceEvents":[{"unfinished":']:
+                path.write_text(content)
+                with self.assertRaises(ValueError):
+                    trace_summary(path, allow_partial=True)
+
+    def test_compiler_attribution_respects_threads_intervals_and_generated_sources(self):
+        events = [
+            {'cat': 'action processing', 'name': 'Compiling native/gen/third_party/blink/a.cc [for tool]',
+             'ph': 'X', 'tid': 1, 'ts': 0, 'dur': 10000000},
+            {'cat': 'action processing', 'name': 'Compiling components/b.cc',
+             'ph': 'X', 'tid': 2, 'ts': 0, 'dur': 10000000},
+            {'cat': 'action processing', 'name': 'Compiling DO_NOT_EXPORT',
+             'ph': 'X', 'tid': 3, 'ts': 0, 'dur': 10000000},
+            *[{'cat': 'general information', 'name': 'MerkleTreeComputer.buildForSpawn',
+               'ph': 'X', 'tid': thread, 'ts': 100, 'dur': duration}
+              for thread, duration in [(1, 1000000), (2, 2000000), (99, 5000000)]],
+            {'cat': 'Remote execution process wall time', 'ph': 'X',
+             'tid': 1, 'ts': 2000000, 'dur': 3000000},
+            {'cat': 'Remote execution process wall time', 'ph': 'X',
+             'tid': 2, 'ts': 9000000, 'dur': 3000000},
+            {'cat': 'discover inputs', 'ph': 'X', 'tid': 1, 'ts': 100, 'dur': 500000},
+            {'cat': 'include scanner', 'ph': 'X', 'tid': 1, 'ts': 200, 'dur': 250000},
+        ]
+        result = compiler_work(events)
+        self.assertEqual(result['blink']['compile_spans'], 1)
+        self.assertEqual(result['blink']['tool_compile_spans'], 1)
+        self.assertEqual(result['blink']['merkle_task_seconds'], 1)
+        self.assertEqual(result['blink']['worker_task_seconds'], 3)
+        self.assertEqual(result['blink']['input_discovery_task_seconds'], 0.5)
+        self.assertEqual(result['blink']['include_scanning_task_seconds'], 0.25)
+        self.assertEqual(result['components']['merkle_task_seconds'], 2)
+        self.assertEqual(result['components']['worker_task_seconds'], 0)
+        self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
 
     def test_metrics_preserved_without_command_credentials(self):
         metrics = {'actionSummary': {'actionsCreated': '42123', 'actionsExecuted': '17'},
@@ -51,7 +125,7 @@ class BuildProfileTest(unittest.TestCase):
 
     def test_trace_summary_keeps_durations_and_phases_without_event_arguments(self):
         events = [
-            {'name': 'compile', 'cat': 'action processing', 'ph': 'X', 'ts': 10, 'dur': 40,
+            {'name': 'PRIVATE_SOURCE_NAME', 'cat': 'action processing', 'ph': 'X', 'ts': 10, 'dur': 40,
              'args': {'command': 'DO_NOT_EXPORT'}},
             {'name': 'analysis', 'cat': 'build phase marker', 'ph': 'X', 'ts': 0, 'dur': 10},
             {'name': 'counter', 'ph': 'C', 'ts': 1, 'dur': 9999},
@@ -64,7 +138,29 @@ class BuildProfileTest(unittest.TestCase):
         self.assertEqual([item['dur'] for item in result['longest_events']], [40, 10])
         self.assertEqual([item['dur'] for item in result['phases']], [10])
         self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
-        self.assertNotIn('compile', json.dumps(result))
+        self.assertNotIn('PRIVATE_SOURCE_NAME', json.dumps(result))
+
+    def test_trace_summary_preserves_instant_phases_and_selected_resource_samples(self):
+        events = [
+            {'cat': 'build phase marker', 'name': 'Complete build', 'ph': 'i', 'ts': 9000000},
+            {'cat': 'general information', 'name': 'MerkleTreeComputer.buildForSpawn',
+             'ph': 'X', 'dur': 500000},
+            {'cat': 'Remote execution process wall time', 'ph': 'X', 'dur': 2000000},
+            *[{'name': 'CPU usage (Bazel)', 'ph': 'C',
+               'args': {'cpu': value, 'command': 'DO_NOT_EXPORT'}} for value in (2, 6)],
+            {'name': 'Memory usage (Bazel)', 'ph': 'C', 'args': {'memory': 1024}},
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'trace.json'
+            path.write_text(json.dumps({'traceEvents': events}))
+            result = trace_summary(path)
+        self.assertEqual(result['phases'][0]['name'], 'Complete build')
+        self.assertEqual(result['phases'][0]['ph'], 'i')
+        self.assertEqual(result['tasks']['merkle'], {'count': 1, 'task_seconds': 0.5})
+        self.assertEqual(result['tasks']['worker_execution'], {'count': 1, 'task_seconds': 2})
+        self.assertEqual(result['counters']['bazel_cpu'], {
+            'samples': 2, 'sample_mean': 4, 'sample_max': 6, 'unit': 'cores'})
+        self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
 
 
 if __name__ == '__main__':

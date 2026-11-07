@@ -59010,7 +59010,7 @@ LIBRARIES = {
             ":linux_ui_f808491510315941",
             ":media_e0dee64a2167a54f",
             ":media_ef87bf880656756e",
-            "@aom//:aom_rc",
+            ":aom_rc_public",
             "@libvpx//:vpx_rc"
         ],
         "linkopts": [

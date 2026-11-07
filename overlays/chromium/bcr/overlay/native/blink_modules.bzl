@@ -27,6 +27,20 @@ def native_blink_modules():
             alwayslink = library["kind"] == "source_set",
             deps = [":blink_modules_headers"] + library["deps"],
         )
+        if original.startswith("//third_party/blink/renderer/modules") or original.startswith("//third_party/blink/renderer/bindings"):
+            common.update(
+                features = ["cc_include_scanning"],
+                # Skia uses macro includes that the scanner cannot resolve.
+                additional_compiler_inputs = [
+                    "//:base/component_export.h",
+                    "//:skia/config/SkUserConfig.h",
+                    "//:skia/config/sk_ref_cnt_ext_debug.h",
+                    "//:skia/config/sk_ref_cnt_ext_release.h",
+                    "//:skia/ext/skia_histogram.h",
+                    ":gen/gpu/config/gpu_driver_bug_workaround_autogen.h",
+                    ":blink_modules_forwarders/third_party/re2/src/re2/re2.h",
+                ],
+            )
         if c_sources:
             cc_library(
                 name = library["name"] + "_c",

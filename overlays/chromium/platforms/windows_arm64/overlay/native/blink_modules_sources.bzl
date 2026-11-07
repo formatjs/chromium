@@ -75264,7 +75264,7 @@ LIBRARIES = {
             ":libvpx_public",
             ":media_61355a5116463bab",
             ":media_ef87bf880656756e",
-            "@aom//:aom",
+            ":aom_public",
             "@opus//:opus"
         ],
         "linkopts": [

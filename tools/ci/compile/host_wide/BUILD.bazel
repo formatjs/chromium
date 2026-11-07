@@ -1,0 +1,27 @@
+load("@chromium_linux_arm64//native:browser_sources.bzl", "LIBRARIES")
+load("//tools/ci:browser_targets.bzl", "linux_amd64_browser")
+load("//tools/ci/compile:probe.bzl", "host_blink_compile_probe")
+
+package(default_visibility = ["//visibility:public"])
+
+host_blink_compile_probe(
+    name = "blink_layout_compile_probe",
+    libraries = LIBRARIES,
+    repository = "@chromium_linux_arm64",
+    wide = True,
+)
+
+linux_amd64_browser(
+    name = "blink-host-linux-arm64",
+    srcs = [":blink_layout_compile_probe" + suffix for suffix in [
+        "",
+        "_canvas",
+        "_accessibility",
+        "_canvas2d",
+        "_platform",
+        "_bindings",
+        "_graphics",
+        "_mediastream",
+        "_webcodecs",
+    ]],
+)

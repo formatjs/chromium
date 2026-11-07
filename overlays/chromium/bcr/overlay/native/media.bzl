@@ -8,6 +8,8 @@ load(":python_action.bzl", "chromium_python_action")
 
 def native_media():
     chromium_public_dependency(name = "libvpx_public", dependency = "@libvpx//:libvpx")
+    chromium_public_dependency(name = "aom_public", dependency = "@aom//:aom")
+    chromium_public_dependency(name = "aom_rc_public", dependency = "@aom//:aom_rc")
     for bridge in BRIDGES:
         chromium_cxx_bridge(**bridge)
     for action in ACTIONS:
@@ -34,7 +36,7 @@ def native_media():
             "@chromium_platform_headers//:pulse_headers",
             "@opus//:opus",
             ":libvpx_public",
-            "@aom//:aom",
+            ":aom_public",
             "@dav1d//:dav1d",
             "@re2//:re2",
             "@fp16//:fp16",

@@ -71548,7 +71548,7 @@ LIBRARIES = {
             ":libvpx_public",
             ":media_61355a5116463bab",
             ":media_ef87bf880656756e",
-            "@aom//:aom",
+            ":aom_public",
             "@chromium_pciutils//:pci",
             "@chromium_platform_headers_cross//:alsa",
             "@chromium_platform_headers_cross//:atk",

@@ -73,13 +73,32 @@ reusing its 1.12 GB compressed payload took 1.3–5.7 seconds to stamp. Full CI
 wall-time improvement still needs comparison after the new payload cache warms.
 
 The compiler optimization pilot lives in `tools/ci/compile`. It forwards Blink's
-real compilation context while compiling `layout_box.cc`, `layout_view.cc`, and
-`svg_object_painter.cc`, avoiding a full Blink library rebuild. The initial
+real compilation context while compiling layout, SVG paint, CSS color, and
+canvas probe sources, avoiding a full Blink library rebuild. CSS and canvas
+sources cover the macro-closure and Khronos declaration failures found by the
+first full-browser trial. Each source retains its owning library's flags. The initial
 single-source action declared 76,130 inputs. The BuildBuddy experiment compares
 baseline/scanner/scanner/baseline runs, records compiler input differences and
 per-source timings, and requires identical archive bytes. Distinct unused macros
 force every selected source to recompile; timing excludes generator preparation.
-Production builds keep their current settings during the pilot.
+The full-browser trial enables the scanner flag in `--config=browser`, with only
+Blink core libraries requesting its feature. Toolchain bootstrap and other
+Chromium libraries keep their existing input behavior. Macro-selected Skia
+headers remain mandatory inputs. The experiment branch runs browser builds and
+Linux runtime coverage before rollout.
+
+`--platform` selects any supported browser triple. Each cross-platform probe lives
+in its own package and uses that platform's captured compilation context. Windows
+uses the MSVC transition and accepts both SDK/runtime licenses, matching browser
+CI. BuildBuddy runs the five comparisons; GitHub only collects sanitized reports.
+
+The optional `--batch` host benchmark compiles 100 fixed common core sources plus
+the canvas regression source. It warms both configurations before the timed
+baseline/scanner/scanner/baseline sequence. Every source recompiles each run;
+all six archive sets must match. Its dedicated `perf/compile-throughput` branch
+runs only the throughput action, excluding the small regression jobs. Wait for
+other browser rebuilds to finish before interpreting client CPU and execution
+phase timings.
 
 Next: reduce oversized header closures, audit host-library reuse where compiler
 and ABI settings match, then benchmark client CPU and action concurrency. Rollout

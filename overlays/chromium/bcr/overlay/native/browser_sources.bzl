@@ -688940,7 +688940,7 @@ LIBRARIES = {
             ":harfbuzz",
             ":libvpx_public",
             ":media_ef87bf880656756e",
-            "@aom//:aom",
+            ":aom_public",
             "@chromium_pciutils//:pci",
             "@chromium_platform_headers//:alsa",
             "@chromium_platform_headers//:atk",

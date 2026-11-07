@@ -20,7 +20,7 @@ def native_ozone():
     cc_library(
         name = "ozone_headers",
         hdrs = SHARED_HEADERS + [":all_buildflags"] + native.glob(["ozone_forwarders/**/*.h"]),
-        includes = ["..", "gen", "../gpu", "../third_party/khronos", "ozone_forwarders"],
+        includes = ["..", "gen", "../gpu", "ozone_forwarders"],
         deps = [
             "//build:build_config",
             "@chromium_angle//:headers",
