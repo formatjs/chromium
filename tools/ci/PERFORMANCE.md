@@ -79,9 +79,11 @@ the optimization. Each new cold trial needs a new directory.
 ## Strict BuildBuddy cold target
 
 Target: complete Linux AMD64 archive under one hour on a BuildBuddy workflow
-runner. `perf/bb-strict-cold` requests 32 CPUs, 64GiB RAM and 300GiB disk;
-the report records actual CPU and memory limits. This is a separate hardware
-comparison from the 16-CPU local baseline. Other triples are not measured yet.
+runner. `perf/bb-strict-cold` requests 16 CPUs, 48GiB RAM and 300GiB disk;
+the report records actual CPU and memory limits. BB rejected the initial
+32-CPU request: this organization permits at most 16 CPUs per workflow runner.
+Storage and CPU model can still differ from the local baseline. Other triples
+are not measured yet.
 
 `tools.ci.bb_cold` runs the local protocol with a verified direct Bazel binary,
 fresh checkout, install/output roots and auxiliary caches. RBE, action caches,

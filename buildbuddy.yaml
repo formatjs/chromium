@@ -7,8 +7,8 @@ actions:
     allow_concurrent_runs_on_branches: []
     timeout: 6h
     resource_requests:
-      cpu: 32
-      memory: 64GB
+      cpu: 16
+      memory: 48GB
       disk: 300GB
     triggers:
       push:

@@ -20,7 +20,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--revision', required=True)
-    parser.add_argument('--jobs', type=int, default=32)
+    parser.add_argument('--jobs', type=int, default=16)
     args = parser.parse_args()
     destination = args.directory.resolve()
     destination.mkdir(parents=True, exist_ok=False)
@@ -50,7 +50,7 @@ def main():
                        sys.executable, '-m', 'tools.ci.local_cold', '--directory', str(trial),
                        '--repository-cache', str(cache), '--revision', args.revision,
                        '--bazel', str(bazel), '--jobs', str(args.jobs),
-                       '--action-memory-mb', '32000', '--sandbox-base', '{sandbox}',
+                       '--action-memory-mb', '20000', '--sandbox-base', '{sandbox}',
                        '--max-seconds', '0']
             with subprocess.Popen(command) as process:
                 while True:
