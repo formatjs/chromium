@@ -12,6 +12,9 @@ build:browser --notrack_incremental_state
 build:browser --nokeep_state_after_build
 # Selected Chromium libraries request scanning; toolchain bootstrap stays unchanged.
 build:browser --cc_include_scanning
+# This experiment validates complete native-sharing artifacts, not cold timing.
+build:browser --define=CHROMIUM_NATIVE_TOOLS=1
+build:browser --extra_toolchains=@chromium//native/tool_configuration:native_linux_execution
 
 # Hosted workflows supply authentication through their Bazel wrapper.
 build:buildbuddy --build_metadata=REPO_URL=https://github.com/formatjs/chromium.git

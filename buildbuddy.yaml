@@ -31,7 +31,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: [main, "perf/compile-cross-platform", "perf/native-blink-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout", "perf/local-cold"]
+        branches: [main, "perf/compile-cross-platform", "perf/native-blink-rollout", "perf/browser-platform-rollout", "perf/browser-concurrency-rollout", "perf/local-cold", "perf/native-tool-validation"]
       pull_request:
         branches: ["*"]
         merge_with_base: false
