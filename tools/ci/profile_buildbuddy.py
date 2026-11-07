@@ -216,6 +216,19 @@ def collect(identifier):
             if len(payload) > 4 * 1024 * 1024:
                 raise ValueError('Build measurement report exceeds 4 MiB')
             result[report_key] = json.loads(payload)
+        if report_key == 'cold_build':
+            summary_path = report_path.removesuffix('cold-build.json') + 'trace-summary.json'
+            summaries = [artifact for invocation in invocations
+                         for artifact in invocation.get('artifacts', [])
+                         if artifact.get('name', '').endswith('/' + summary_path)
+                         or artifact.get('name') == summary_path]
+            if len(summaries) == 1:
+                with api_request('GetFile', {'uri': summaries[0]['uri']},
+                                 os.environ['BUILDBUDDY_API_KEY']) as response:
+                    payload = response.read(4 * 1024 * 1024 + 1)
+                if len(payload) > 4 * 1024 * 1024:
+                    raise ValueError('Profile summary exceeds 4 MiB')
+                result['cold_profile'] = json.loads(payload)
     for child in outer.get('childInvocations', []):
         child_id = child['invocationId']
         full = rpc('GetInvocation', {'lookup': {'invocationId': child_id}})['invocation'][0]

@@ -12,6 +12,31 @@ from tools.ci.profile_buildbuddy import compiler_work, summarize, trace_summary
 
 
 class BuildProfileTest(unittest.TestCase):
+    def test_strict_cold_profile_collects_published_summary_without_raw_trace(self):
+        report = {'cold_result_verified': True, 'elapsed_seconds': 3500}
+        summary = {'trace_complete': True, 'event_count': 1200,
+                   'compiler_work': {'v8': {'compile_spans': 90}}}
+        report_uri = 'bytestream://formatjs.buildbuddy.io/cold-report'
+        summary_uri = 'bytestream://formatjs.buildbuddy.io/trace-summary'
+        outer = {'pattern': ['Chromium strict cold build linux-amd64']}
+        artifacts = {'invocation': [{'artifacts': [
+            {'name': 'command-0/linux-amd64/cold-build.json', 'uri': report_uri},
+            {'name': 'command-0/linux-amd64/trace-summary.json', 'uri': summary_uri}]}]}
+        with mock.patch.object(profile_buildbuddy, 'rpc', return_value={'invocation': [outer]}), \
+                mock.patch.object(profile_buildbuddy, 'api_request', side_effect=[
+                    io.BytesIO(json.dumps(artifacts).encode()), io.BytesIO(json.dumps(report).encode()),
+                    io.BytesIO(json.dumps(summary).encode())]) as api, \
+                mock.patch.dict(os.environ, {'BUILDBUDDY_API_KEY': 'read-only-test-key'}):
+            result = profile_buildbuddy.collect('workflow')
+        self.assertEqual(result['cold_build'], report)
+        self.assertEqual(result['cold_profile'], summary)
+        self.assertEqual(api.call_args_list, [
+            mock.call('GetInvocation', {'selector': {'invocation_id': 'workflow'},
+                                       'include_artifacts': True}, 'read-only-test-key'),
+            mock.call('GetFile', {'uri': report_uri}, 'read-only-test-key'),
+            mock.call('GetFile', {'uri': summary_uri}, 'read-only-test-key'),
+        ])
+
     def test_compiler_experiment_report_is_collected_from_workflow_artifact(self):
         report = {'baseline': {'input_entries': 76130}, 'include-scan': {'input_entries': 1000}}
         uri = 'bytestream://formatjs.buildbuddy.io/report'
