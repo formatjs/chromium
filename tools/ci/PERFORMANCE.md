@@ -78,7 +78,9 @@ the optimization. Each new cold trial needs a new directory.
 
 The original RAM-sandbox baseline at `4ad4231` finishes in 12,940.10s
 (3h35m40s), executing 75,286 C++ actions locally with no reused action results.
-No OOM kills occur. Its archive fails relocation: local sandbox input symlinks
+BEP reports 166,786.67 compiler CPU-seconds (46.33 CPU-hours), and
+48.61 CPU-hours across all actions. No OOM kills occur. Its archive fails
+relocation: local sandbox input symlinks
 were stored as absolute archive links. The packaging fix materializes those
 files while preserving relative framework links. A separate repack of the same
 compiled output passes ABI and both rendering pages with zero changed pixels;
@@ -753,3 +755,30 @@ The first four fresh-state targets pass while Darwin repeatedly completes the
 bounded producer. The final clean-runner cohort passes all five builds without
 repeating bindings. Serial mode bounds resource use and preserves outputs;
 it alone did not fix the earlier repeated work.
+
+## Allocated CPU capacity
+
+A separate 257-source Blink probe on a 16-CPU/32GB workflow request reports
+19 available CPUs. ABBA build times are 123.36/117.70s with 16 jobs and
+110.89/111.30s with 19 jobs: 7.8% lower mean wall time. Compiler CPU work rises
+7.4%, from 1,735.73s to 1,863.79s on average. Minimum sampled available memory
+stays above 20GB. Each pass executes exactly 257 selected local compiles, with
+no supporting recompiles. All object bytes and both archives match.
+
+Supporting setup stays warm; deleting only the probe's validated object outputs
+forces compilation without changing compiler commands. These measurements do
+not establish a complete cold-build speedup. The separate strict-cold trial at
+`67a544d` tests 19 jobs with fresh state, dependency archives only and RBE off.
+Its result is pending.
+
+## Compiler training lead
+
+The published LLVM 23.1.2-2 compiler's provenance points to hermetic-llvm
+commit `35bd1a8`. Its [release packager](https://github.com/hermeticbuild/hermetic-llvm/blob/35bd1a85beead3d12dbb8f9a54ebe94aa7e3c724/prebuilt/llvm/llvm_release.bzl)
+uses stage 3, which already applies ThinLTO and FDO. The
+[training corpus](https://github.com/hermeticbuild/hermetic-llvm/blob/35bd1a85beead3d12dbb8f9a54ebe94aa7e3c724/toolchain/bootstrap/stage3/BUILD.bazel)
+is Zstd C and freestanding C; the workload helper accepts C/header inputs and
+uses the C compile action. Representative C++ training is an unmeasured lead
+for the observed frontend cost. Any experiment needs a pinned compiler archive,
+unchanged LLVM source/version and target flags, and complete output validation.
+Do not rebuild the compiler inside the strict-cold browser timing trial.
