@@ -117,9 +117,12 @@ def main():
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--action-memory-mb', type=int, default=24000)
+    parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
+    if args.native_tools and args.platform != 'linux-amd64':
+        parser.error('--native-tools currently requires linux-amd64')
     if platform.system() != 'Linux' or platform.machine() not in {'x86_64', 'amd64'}:
         parser.error('Local benchmark currently requires a Linux amd64 host')
     if not re.fullmatch(r'[0-9a-f]{40}', args.revision):
@@ -191,6 +194,9 @@ def main():
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
         if args.sandbox_base:
             command.append('--sandbox_base=' + str(args.sandbox_base))
+        if args.native_tools:
+            command.extend(['--define=CHROMIUM_NATIVE_TOOLS=1',
+                            '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution'])
         if args.platform.startswith('windows-'):
             command.extend(['--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
                             '--repo_env=BAZEL_WINDOWS_SDK_EULA=1'])
@@ -227,6 +233,7 @@ def main():
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
                        'action_memory_mb': args.action_memory_mb,
+                       'native_tool_sharing_requested': args.native_tools,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
                        'sandbox_capacity_bytes': (shutil.disk_usage(args.sandbox_base).total

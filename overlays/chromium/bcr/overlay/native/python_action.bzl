@@ -1,10 +1,21 @@
 """Run declared upstream Python generators in their logical Chromium layout."""
 
+NATIVE_LINUX_TOOLCHAIN = Label("//native/tool_configuration:native_linux_type")
+
+def native_linux_exec_group():
+    # Unused native sharing must not require a Linux executor.
+    return exec_group(toolchains = [config_common.toolchain_type(NATIVE_LINUX_TOOLCHAIN, mandatory = False)])
+
+def require_native_linux(ctx):
+    if ctx.exec_groups["native_linux"].toolchains[NATIVE_LINUX_TOOLCHAIN] == None:
+        fail("Native tool sharing requires the Linux AMD64 GNU 2.31 execution toolchain")
+
 ChromiumFilesInfo = provider(
     "Files staged at their declared Chromium-relative paths.",
     fields = {
         "mappings": "Depset of (file, Chromium-relative path) pairs.",
         "executables": "Optional list of (files_to_run, logical path) pairs.",
+        "native_linux": "Optional requirement to execute shared native tools on Linux AMD64 GNU 2.31.",
     },
 )
 
@@ -25,6 +36,9 @@ def _executables(deps):
             tools[logical] = runner
     return [(tools[path], path) for path in sorted(tools)]
 
+def requires_native_linux(deps):
+    return any([getattr(dep[ChromiumFilesInfo], "native_linux", False) for dep in deps])
+
 def _direct_mappings(srcs):
     mappings = []
     for target, logical in srcs.items():
@@ -41,7 +55,11 @@ def _logical_group_impl(ctx):
     )
     return [
         DefaultInfo(files = depset([file for file, _ in mappings.to_list()])),
-        ChromiumFilesInfo(mappings = mappings, executables = _executables(ctx.attr.deps)),
+        ChromiumFilesInfo(
+            mappings = mappings,
+            executables = _executables(ctx.attr.deps),
+            native_linux = requires_native_linux(ctx.attr.deps),
+        ),
         ChromiumGeneratedFilesInfo(mappings = depset(
             [pair for pair in _direct_mappings(ctx.attr.srcs) if pair[1].startswith("out/bazel-import/")],
             transitive = _generated(ctx.attr.deps),
@@ -57,6 +75,11 @@ chromium_filegroup = rule(
 )
 
 def _python_action_impl(ctx):
+    native_linux = requires_native_linux(ctx.attr.deps)
+    if native_linux:
+        require_native_linux(ctx)
+    python = ctx.attr._native_python if native_linux else ctx.attr._python
+    runtime = python[platform_common.ToolchainInfo].py3_runtime
     outputs = ctx.outputs.out_files
     mappings = depset(
         _direct_mappings(ctx.attr.srcs),
@@ -82,13 +105,14 @@ def _python_action_impl(ctx):
         description["executable_inputs"] = [logical for _, logical in executables]
     ctx.actions.write(manifest, json.encode(description))
     ctx.actions.run(
-        executable = ctx.attr._python[platform_common.ToolchainInfo].py3_runtime.interpreter,
+        executable = runtime.interpreter,
         arguments = ["-I", "-B", ctx.file._script.path, manifest.path],
-        inputs = depset(inputs + [manifest, ctx.file._script], transitive = [ctx.attr._python[platform_common.ToolchainInfo].py3_runtime.files] + [dep[DefaultInfo].files for dep in ctx.attr.deps]),
+        inputs = depset(inputs + [manifest, ctx.file._script], transitive = [runtime.files] + [dep[DefaultInfo].files for dep in ctx.attr.deps]),
         outputs = outputs,
         tools = [runner for runner, _ in executables],
         mnemonic = "ChromiumPython",
         progress_message = "Generating %s" % ctx.label,
+        exec_group = "native_linux" if native_linux else None,
     )
     return [
         DefaultInfo(files = depset(outputs)),
@@ -102,6 +126,7 @@ def _python_action_impl(ctx):
                 for out, logical in zip(outputs, ctx.attr.logical_outputs)
             ], transitive = [mappings] if ctx.attr.propagate_inputs else []),
             executables = executables if ctx.attr.propagate_inputs else [],
+            native_linux = native_linux and ctx.attr.propagate_inputs,
         ),
     ]
 
@@ -120,7 +145,9 @@ _python_action = rule(
         "response_file_contents": attr.string_list(),
         "_script": attr.label(default = Label("//native:python_action.py"), allow_single_file = True),
         "_python": attr.label(default = Label("@rules_python//python:current_py_toolchain"), cfg = "exec"),
+        "_native_python": attr.label(default = Label("@rules_python//python:current_py_toolchain"), cfg = config.exec("native_linux")),
     },
+    exec_groups = {"native_linux": native_linux_exec_group()},
 )
 
 def chromium_python_action(name, srcs, outs, script, args = None, response_file_contents = None, deps = None, **kwargs):

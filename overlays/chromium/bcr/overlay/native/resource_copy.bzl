@@ -1,6 +1,6 @@
 """Native copies preserving Chromium's generated asset paths."""
 
-load(":python_action.bzl", "ChromiumFilesInfo", "ChromiumGeneratedFilesInfo")
+load(":python_action.bzl", "ChromiumFilesInfo", "ChromiumGeneratedFilesInfo", "requires_native_linux")
 
 def _copy_impl(ctx):
     sources = {}
@@ -22,7 +22,7 @@ def _copy_impl(ctx):
         ChromiumFilesInfo(mappings = depset(
             mappings + [(file, logical) for logical, file in sources.items()],
             transitive = [dep[ChromiumFilesInfo].mappings for dep in ctx.attr.deps],
-        )),
+        ), native_linux = requires_native_linux(ctx.attr.deps)),
     ]
 
 _copy = rule(

@@ -21,6 +21,7 @@ def main():
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--revision', required=True)
     parser.add_argument('--jobs', type=int, default=16)
+    parser.add_argument('--native-tools', action='store_true')
     args = parser.parse_args()
     destination = args.directory.resolve()
     destination.mkdir(parents=True, exist_ok=False)
@@ -52,6 +53,8 @@ def main():
                        '--bazel', str(bazel), '--jobs', str(args.jobs),
                        '--heap-gib', '8', '--action-memory-mb', '14000', '--sandbox-base', '{sandbox}',
                        '--max-seconds', '0']
+            if args.native_tools:
+                command.append('--native-tools')
             with subprocess.Popen(command) as process:
                 while True:
                     try:

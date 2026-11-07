@@ -12,10 +12,11 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: ["perf/bb-strict-cold"]
+        branches: ["perf/bb-native-cold"]
     steps:
       - run: |
           python3 -m tools.ci.bb_cold \
+            --native-tools \
             --revision "$(git rev-parse HEAD)" \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-amd64"
 

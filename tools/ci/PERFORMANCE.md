@@ -101,6 +101,19 @@ local protocol's use of fetched Git objects. Profile summarization and runner
 cleanup happen afterward. Publish cache-policy proof and a sanitized profile;
 accept only after the exact archive passes native ABI and rendering checks.
 
+The native tool sharing experiment at `ff7cee3` reduces the analyzed full archive
+closure from 76,719 to 52,534 C++ actions (24,185 fewer, 31.5%). The disabled
+prototype preserves the original C++ action fingerprints; enabled sharing
+requires an execution toolchain marker for Linux AMD64 GNU 2.31, and the probe
+verifies missing registration fails. Configurable and external tools keep their
+execution transition. These are action counts, not executed compile timings.
+
+`perf/bb-native-cold` enables this candidate in a separate strict-cold trial with
+`--native-tools`. Browser compiler/toolchain settings stay unchanged; native
+tools use the matching target configuration. Real generator outputs, full
+browser payload, ABI and rendering still need verification.
+Cross builds retain the default behavior; their cold timings remain unmeasured.
+
 No strict BB result is recorded yet. Prior RBE results below do not prove this
 target. Hosted timeout limits can terminate a run before the configured 6h.
 
