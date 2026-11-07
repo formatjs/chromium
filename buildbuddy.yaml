@@ -17,6 +17,7 @@ actions:
       - run: |
           python3 -m tools.ci.compile.private_ram --size-gib 8 -- \
             python3 -m tools.ci.compile.includes \
+            --arguments-only \
             --sandbox-base '{sandbox}' \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/private-includes"
 

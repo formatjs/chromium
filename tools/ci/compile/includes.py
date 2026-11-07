@@ -1,6 +1,7 @@
 """Run the captured-include pilot with byte and compiler-argument checks."""
 
 import argparse
+import ast
 import hashlib
 import json
 from pathlib import Path
@@ -22,10 +23,17 @@ def download(path, url, digest):
     path.chmod(0o755)
 
 
+def compiler_search_count(arguments):
+    if not arguments or any(arg.startswith('@') for arg in arguments):
+        raise ValueError('Expanded compiler arguments required')
+    return sum(arg.startswith(('-I', '-isystem', '-iquote')) for arg in arguments)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--sandbox-base', type=Path, required=True)
+    parser.add_argument('--arguments-only', action='store_true')
     args = parser.parse_args()
     args.directory.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(prefix='chromium-private-includes-') as temporary:
@@ -35,25 +43,30 @@ def main():
         try:
             bazel, bb = root / 'bazel', root / 'bb'
             download(bazel, 'https://github.com/bazelbuild/bazel/releases/download/9.2.0/bazel-9.2.0-linux-x86_64', BAZEL_SHA256)
-            download(bb, 'https://github.com/buildbuddy-io/bazel/releases/download/5.0.500/bazel-5.0.500-linux-x86_64',
-                     'f8a188913203f23961a61f1c5eb64b0eef65cf24e0014ec074b5598af4fbc68a')
-            command = [sys.executable, '-m', 'tools.ci.compile.local', '--comparison', 'local-includes',
-                       '--directory', str(trial), '--repository-cache', str(root / 'fetch-cache'),
-                       '--sandbox-base', str(args.sandbox_base), '--jobs', '8',
-                       '--bazel', str(bazel), '--bb', str(bb)]
-            with subprocess.Popen(command, cwd=ROOT) as process:
-                while True:
-                    try:
-                        code = process.wait(timeout=30)
-                        break
-                    except subprocess.TimeoutExpired:
-                        print('Compiler include pilot running', flush=True)
-            if (trial / 'report.json').exists():
-                report.update(json.loads((trial / 'report.json').read_text()))
-            if code:
-                for log in sorted(trial.glob('*.log'), key=lambda p: p.stat().st_mtime)[-1:]:
-                    print(log.read_text(errors='replace')[-8000:], flush=True)
-                raise ValueError('Compiler include pilot failed')
+            if args.arguments_only:
+                trial.mkdir()
+                report.update(measurement='Analysis only; no compiler executions or timing claim',
+                              compile_trial_skipped=True)
+            else:
+                download(bb, 'https://github.com/buildbuddy-io/bazel/releases/download/5.0.500/bazel-5.0.500-linux-x86_64',
+                         'f8a188913203f23961a61f1c5eb64b0eef65cf24e0014ec074b5598af4fbc68a')
+                command = [sys.executable, '-m', 'tools.ci.compile.local', '--comparison', 'local-includes',
+                           '--directory', str(trial), '--repository-cache', str(root / 'fetch-cache'),
+                           '--sandbox-base', str(args.sandbox_base), '--jobs', '8',
+                           '--bazel', str(bazel), '--bb', str(bb)]
+                with subprocess.Popen(command, cwd=ROOT) as process:
+                    while True:
+                        try:
+                            code = process.wait(timeout=30)
+                            break
+                        except subprocess.TimeoutExpired:
+                            print('Compiler include pilot running', flush=True)
+                if (trial / 'report.json').exists():
+                    report.update(json.loads((trial / 'report.json').read_text()))
+                if code:
+                    for log in sorted(trial.glob('*.log'), key=lambda p: p.stat().st_mtime)[-1:]:
+                        print(log.read_text(errors='replace')[-8000:], flush=True)
+                    raise ValueError('Compiler include pilot failed')
 
             # Query after measurements so diagnostics cannot affect their timing.
             counts = {}
@@ -62,25 +75,29 @@ def main():
                            '--bazelrc=' + str(ROOT / '.bazelrc'), '--batch', '--host_jvm_args=-Xmx12g',
                            '--output_user_root=' + str(trial / 'bazel-root'),
                            '--output_base=' + str(trial / 'output-base'),
-                           '--install_base=' + str(trial / 'install-base'), 'aquery', '--config=browser',
+                           '--install_base=' + str(trial / 'install-base'), 'cquery', '--config=browser',
                            '--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build',
                            '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                            '--remote_executor=', '--remote_cache=', '--disk_cache=', '--repo_contents_cache=',
                            '--repository_cache=' + str(root / 'fetch-cache'), '--bes_backend=', '--bes_results_url=',
                            '--define=CHROMIUM_COMPILE_PROBE_SCAN=1', '--define=CHROMIUM_LOCAL_INCLUDES=' + str(enabled),
-                           '--output=jsonproto', '--include_artifacts=false', '--include_commandline=true',
-                           'mnemonic("CppCompile", //tools/ci/compile/local:gin)']
+                           '--output=starlark',
+                           '--starlark:expr=[list(a.argv) for a in target.actions if a.mnemonic == "CppCompile"]',
+                           '//tools/ci/compile/local:gin']
                 graph = root / ('arguments-' + str(enabled) + '.json')
                 with graph.open('w') as output:
                     subprocess.run(command, cwd=ROOT, stdout=output, check=True)
-                rows = json.loads(graph.read_text()).get('actions', [])
+                # Native Action.argv expands response files; aquery may expose only @file.
+                rows = ast.literal_eval(graph.read_text())
+                report.setdefault('argument_rows', {})[str(enabled)] = [
+                    {'argument_count': len(arguments),
+                     'response_file_count': sum(arg.startswith('@') for arg in arguments)}
+                    for arguments in rows]
                 values = []
-                for action in rows:
-                    arguments = action.get('arguments', [])
-                    if action['mnemonic'] != 'CppCompile' or not arguments:
-                        raise ValueError('Missing real compiler arguments')
-                    values.append(sum(arg.startswith(('-I', '-isystem', '-iquote')) for arg in arguments))
+                for arguments in rows:
+                    values.append(compiler_search_count(arguments))
                 counts[str(enabled)] = sorted(values)
+                report['header_search_entries'] = counts
             if (len(counts['0']) != 4 or len(counts['1']) != 4
                     or not all(0 < new < old for old, new in zip(counts['0'], counts['1']))):
                 raise ValueError('Compiler search lists did not shrink for all four Gin compiles')
