@@ -17,7 +17,9 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.13'
-      - run: python -m pip install --require-hashes --only-binary=:all: -r tools/ci/rendering/requirements.txt
+      - run: >-
+          python -m pip install --require-hashes --only-binary=:all:
+          -r tools/ci/rendering/requirements.txt
       - uses: actions/download-artifact@v8
         with:
           name: chromium-linux-arm64-85f68a703a15439fd9aca037b431aa0f1416c053
