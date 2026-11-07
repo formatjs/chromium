@@ -79,6 +79,7 @@ def main():
                            '--remote_executor=', '--remote_cache=', '--disk_cache=',
                            '--repo_contents_cache=', '--repository_cache=' + str(root / 'fetch-cache'),
                            '--bes_backend=', '--bes_results_url=',
+                           '--//tools/ci:revision=' + BASE,
                            '--define=CHROMIUM_NATIVE_TOOLS=' + str(enabled),
                            '--output=jsonproto', '--include_artifacts=false', '--include_commandline=false']
                 if register:
