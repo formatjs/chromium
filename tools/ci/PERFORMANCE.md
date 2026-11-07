@@ -769,7 +769,16 @@ Supporting setup stays warm; deleting only the probe's validated object outputs
 forces compilation without changing compiler commands. These measurements do
 not establish a complete cold-build speedup. The separate strict-cold trial at
 `67a544d` tests 19 jobs with fresh state, dependency archives only and RBE off.
-Its result is pending.
+It [hits the hosted free-tier limit](https://formatjs.buildbuddy.io/invocation/9f80e2fc-3f69-4a9a-bd56-e477c4a7d46c)
+after 3,602.15s. Runner usage is 59,171.49 CPU-seconds and 17,541,894,144 bytes
+peak memory. No browser archive completes. This does not meet the cold goal.
+
+The retained streaming profile survives the kill. Its partial trace contains
+213,123 complete events, including 16,436 completed compile spans totaling
+45,460.82 action task-seconds. These are recorded spans, not a complete count
+of executed compiles or CPU usage. Remote execution task spans are absent.
+The timing verification gate correctly returns false. The last visible progress
+is 74,782/102,633 actions; that fraction cannot establish remaining build time.
 
 ## Compiler training lead
 
@@ -782,3 +791,10 @@ uses the C compile action. Representative C++ training is an unmeasured lead
 for the observed frontend cost. Any experiment needs a pinned compiler archive,
 unchanged LLVM source/version and target flags, and complete output validation.
 Do not rebuild the compiler inside the strict-cold browser timing trial.
+
+The [separate compiler preparation](https://formatjs.buildbuddy.io/invocation/1faf4bbd-dd69-4aea-a088-6ea124411c54)
+at `89fcfb7` adds C++ training to the pinned release source. It uses the original
+Bazel 9.3.0rc2 release settings and LLVM 22.1.4 bootstrap seed; the compiler being
+built remains LLVM 23.1.2. Upstream credentials and service endpoints are removed.
+This preparation uses cached RBE. It is not a cold browser benchmark, and no
+replacement compiler or speedup has been validated yet.
