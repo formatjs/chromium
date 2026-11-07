@@ -33,3 +33,19 @@ Current validation: patch applies to both pinned module and release sources;
 corpus passes Clang 23.1.2 with hermetic headers; Bazel analysis declares the
 stage-2 C++ compile action and compiler profile output. This does not prove
 profile generation, a successful compiler bootstrap or a performance gain.
+
+Preparation runs in the pinned upstream workspace, retaining its Bazel
+9.3.0rc2 release settings. Upstream service credentials and endpoints are
+removed; our BuildBuddy runner supplies authentication. The experimental
+`perf/llvm-cxx-prepare` workflow builds only the Linux amd64 compiler archive
+with cached RBE. This is compiler preparation, not a cold browser measurement.
+
+Local preparation check, without compiling LLVM:
+
+```sh
+python3 -m tools.ci.prepare_llvm --prepare-only --directory /tmp/llvm-preparation
+```
+
+The report records source and patch checksums. Archive selection requires a
+successful Bazel target and one downloaded archive from its build events.
+The browser still uses its original prebuilt compiler.
