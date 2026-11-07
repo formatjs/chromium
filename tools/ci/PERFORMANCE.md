@@ -8,7 +8,10 @@ registered actions are not executed compiles.
 
 Target: under one hour per supported triple on BuildBuddy, including artifact
 packaging. Preserve hermetic toolchains, declared inputs, compiler options,
-target ABIs, and native rendering smoke coverage. Four strict cold targets finish under one hour; Darwin remains unverified. The `24375b5` cohort finished in 35m56s–46m04s and passed native
+target ABIs, and native rendering smoke coverage. All five strict cold workflows at
+`85f68a7` finish in 35m01s–44m40s. All five exact artifacts pass native rendering
+and payload checks; Linux ARM64 needs one unchanged-artifact native retry,
+described below. The `24375b5` cohort finished in 35m56s–46m04s and passed native
 rendering, but retained BuildBuddy's managed output base. Those timings are
 uncached-action measurements, not fresh-output cold proof. The user's observed build effort, including retries, is about
 2.5 hours; the mixed-cache profile below is not a cold baseline.
@@ -39,8 +42,8 @@ so a generator-pool failure is not established as the cause.
 The initial scanner candidate left a host gap: Linux ARM64's browser capture contains
 19 host Blink-core libraries with 2,733 source entries outside the dedicated
 Blink-core macro. The follow-up covers captured host core, modules, platform,
-and bindings: 162 libraries with 7,604 source entries. Full Linux ARM64 validation
-remains required. The other four browser captures contain no Blink-core libraries.
+and bindings: 162 libraries with 7,604 source entries. Full Linux ARM64 cold
+compilation passes at `85f68a7`. The other four browser captures contain no Blink-core libraries.
 
 The hosted build command accepts `--cold`. It starts a batch Bazel process with
 a unique output root and fresh repository download cache, disables disk caches
@@ -89,7 +92,7 @@ CPUs, scanning, retained trees, and fixed compiler options.
 
 ## Latest strict cold results
 
-The `0046328` cohort uses fresh output bases verified against canonical Bazel
+The `85f68a7` cohort uses fresh output bases verified against canonical Bazel
 startup options, fresh repository download caches, zero reused actions, and
 no in-flight action merging. Shared RBE CAS and worker caches remain uncleared.
 Times cover the complete BB workflow, including setup, fetching, analysis,
@@ -97,16 +100,49 @@ linking, packaging, and artifact upload.
 
 | Target | Complete BB workflow | Executed C++ compiles | Executed Bazel actions |
 | --- | ---: | ---: | ---: |
-| [Windows MSVC AMD64](https://formatjs.buildbuddy.io/invocation/6202aeb6-2d75-4407-9e91-3ac80d9b1daa) | 39m20s | 55,019 | 122,379 |
-| [Windows MSVC ARM64](https://formatjs.buildbuddy.io/invocation/f7789787-5f26-447f-97bf-4d82cd13acf9) | 40m15s | 55,764 | 124,685 |
-| [Linux AMD64](https://formatjs.buildbuddy.io/invocation/84679466-4338-459f-acf9-522ecec5efdf) | 42m43s | 75,286 | 154,750 |
-| [Linux ARM64](https://formatjs.buildbuddy.io/invocation/14045122-03d4-4ab3-ab81-6eabbd0c2a7d) | 47m36s | 77,537 | 161,470 |
+| [Darwin ARM64](https://formatjs.buildbuddy.io/invocation/7c86d092-f531-42dd-85bb-ee233cff840a) | 35m01s | 54,966 | 127,570 |
+| [Windows MSVC AMD64](https://formatjs.buildbuddy.io/invocation/c1c6e279-e7f1-4ab4-9c1d-82be3547a9c7) | 37m08s | 55,019 | 122,379 |
+| [Windows MSVC ARM64](https://formatjs.buildbuddy.io/invocation/aec72430-d18a-4447-9626-d583b1be45a2) | 39m00s | 55,764 | 124,685 |
+| [Linux AMD64](https://formatjs.buildbuddy.io/invocation/efe51a1b-306d-4ba3-9754-8a4efedc0ba0) | 40m08s | 75,286 | 154,750 |
+| [Linux ARM64](https://formatjs.buildbuddy.io/invocation/77be5395-5ac1-442c-aad5-839ef004ecff) | 44m40s | 77,537 | 161,470 |
 
-All four exact cold artifacts pass native ABI and rendering smoke. Windows
-payloads, including PDBs, match same-commit normal builds byte-for-byte. Linux
-comparisons verify the existing randomized NSS signatures while covering all
-remaining tar bytes. Independent RBE metadata confirms 263,606 distinct,
-completed, unmerged C++ outputs with no failed or incomplete compile records.
+Independent RBE metadata confirms all 318,572 distinct, completed, unmerged C++
+outputs, with no failed or incomplete compile records. The workflows execute
+690,854 Bazel actions in total. All builds run on Linux AMD64; four targets are
+cross-compiled. GHA target machines only execute downloaded artifacts.
+
+All five exact cold artifacts pass native ABI and rendering smoke. Darwin and
+Windows payloads, including PDBs, match same-commit normal builds byte-for-byte.
+Both Linux comparisons verify the existing randomized NSS signatures while
+covering every other tar byte. Exact-artifact evidence:
+[Linux AMD64](https://github.com/formatjs/chromium/actions/runs/42384803347),
+[Linux ARM64](https://github.com/formatjs/chromium/actions/runs/42385204450),
+[Darwin ARM64](https://github.com/formatjs/chromium/actions/runs/42384394363),
+[Windows AMD64](https://github.com/formatjs/chromium/actions/runs/42384568172), and
+[Windows ARM64](https://github.com/formatjs/chromium/actions/runs/42384716677).
+
+Linux ARM64's first native attempt captures repeated page content in the layout
+scene's bottom rows: 1,456 pixels exceed tolerance. The same artifact and harness
+pass on retry with zero changed pixels in both scenes. The failed evidence stays
+available. A [native differential probe](https://github.com/formatjs/chromium/actions/runs/42385696912)
+passes 60/60 unchanged captures; an explicit-viewport candidate fails 4/60.
+Reject that candidate. The original harness and strict thresholds stay intact;
+the intermittent capture issue remains a known limitation, not a diagnosed
+compiler regression. Neither baseline nor comparison thresholds changed.
+
+Final profiles report 3m38s–4m05s analysis and 29m42s–39m20s execution; critical
+paths are 6m24s–9m44s. Mean Bazel CPU usage is 7.7–10.9 cores, sampled heap peaks
+are 9.4–10.4GB, and average active actions are 95–113. Sampled worker queues
+average 61–80ms. These are overlapping spans, not additive wall-time savings.
+Per-library attribution covers only paired same-thread spans; use complete RBE
+execution records for compiler counts. Darwin's final framework action takes
+155s, including 121s downloading inputs. Moving that link to RBE is a future
+measurement candidate, not part of this change. All current toolchains and
+compiler options stay intact.
+
+The earlier `0046328` cohort already verified the four Linux/Windows targets in
+39m20s–47m36s, including exact-artifact smoke and payload checks. Darwin failed
+there; the latest clean-runner cohort supersedes that incomplete result.
 
 Darwin's `0046328` run repeatedly executes the same bindings action. Eight
 executions complete successfully in roughly 3m30s each; this is not evidence of
@@ -117,9 +153,12 @@ device. The trial does not establish a rewinding fix. Both 200GB and 400GB disk
 requests expose the same 93GiB filesystem; /tmp and workspace share that device.
 Moving paths alone cannot resolve the capacity issue. A separate 03d46f1 trial
 uses a fresh runner namespace with Bazel 9.2: 87GiB free and no managed output
-base at startup. Cold completion and payload/native validation remain pending. Bazel 9.3 includes
+base at startup. That diagnostic finishes in 35m39s, passes native rendering,
+and produces a byte-identical Darwin payload. The final `85f68a7` run also executes
+bindings once successfully. Bazel 9.3 includes
 [upstream rewinding fixes](https://github.com/bazelbuild/bazel/releases/tag/9.3.0);
-a connection to this failure remains a hypothesis until the trial completes.
+a connection to the earlier repeated work remains unproven. Production stays on
+Bazel 9.2; no compiler or toolchain change is needed for the measured results.
 
 Cold jobs now use distinct clean-runner namespaces. Retry state lives in an
 owned scratch directory outside the checkout; a later run removes abandoned
@@ -181,7 +220,10 @@ dependency context. Captured target-local directories may belong in local
 compiler options rather than public `includes`; validate header selection and
 object equivalence before changing that boundary.
 
-## Results so far
+## Earlier experiments
+
+These notes record intermediate results. The final cohort above supersedes
+their pending rollout and validation statements.
 
 - The isolated 13-source browser comparison at `482a69c` passes all five
   triples: all four archive sets match per platform, 260 selected compiles total.
@@ -535,6 +577,7 @@ at `340cdb9` runs upstream `--single_process` and compares all 5,574 output hash
 with the cached parallel producer. Every file matches. Use that supported mode
 for binding generation, keeping upstream code and output coverage intact. The
 production action query confirms exactly one flag and the complete output set.
-Four fresh-state targets pass. Darwin repeatedly completes the bounded producer;
-runner state remains under investigation. Serial mode bounds resource use and
-preserves outputs, but has not established a fix for Darwin's repeated work.
+The first four fresh-state targets pass while Darwin repeatedly completes the
+bounded producer. The final clean-runner cohort passes all five builds without
+repeating bindings. Serial mode bounds resource use and preserves outputs;
+it alone did not fix the earlier repeated work.
