@@ -75,7 +75,7 @@ def main():
     parser.add_argument('--bazel', default=os.environ.get('BAZEL', 'bazel'))
     parser.add_argument('--bb', default='bb', help='CLI used only for offline execution-log comparisons')
     parser.add_argument('--jobs', type=int, default=16)
-    parser.add_argument('--comparison', choices=['include-scan', 'inmemory-sandboxes', 'ram-sandboxes'], default='include-scan')
+    parser.add_argument('--comparison', choices=['include-scan', 'inmemory-sandboxes', 'ram-sandboxes', 'local-includes'], default='include-scan')
     parser.add_argument('--sandbox-base', type=Path, help='Empty private tmpfs mount for RAM sandbox comparison')
     args = parser.parse_args()
     if args.jobs < 1:
@@ -83,6 +83,8 @@ def main():
     if args.comparison == 'ram-sandboxes':
         if args.sandbox_base is None:
             parser.error('--comparison=ram-sandboxes requires --sandbox-base')
+        args.sandbox_base = verify_ram_sandbox(args.sandbox_base)
+    elif args.comparison == 'local-includes' and args.sandbox_base is not None:
         args.sandbox_base = verify_ram_sandbox(args.sandbox_base)
     elif args.sandbox_base is not None:
         parser.error('--sandbox-base requires --comparison=ram-sandboxes')
@@ -129,9 +131,10 @@ def main():
                        '--modify_execution_info=CppCompile=+no-cache',
                        '--per_file_copt=' + compiler_pattern(SOURCES) + '@-DBAZEL_COMPILE_PROFILE_RUN=' + nonce + '_' + mode.replace('-', '_'),
                        '--cc_include_scanning=true',
-                       '--define=CHROMIUM_COMPILE_PROBE_SCAN=' + ('1' if variant == 'include-scan' and experimental else '0'),
+                       '--define=CHROMIUM_COMPILE_PROBE_SCAN=' + ('1' if variant == 'local-includes' or variant == 'include-scan' and experimental else '0'),
+                       '--define=CHROMIUM_LOCAL_INCLUDES=' + ('1' if variant == 'local-includes' and experimental else '0'),
                        '--experimental_inmemory_sandbox_stashes=' + ('true' if variant == 'inmemory-sandboxes' and experimental else 'false'),
-                       '--sandbox_base=' + (str(args.sandbox_base) if variant == 'ram-sandboxes' and experimental else ''),
+                       '--sandbox_base=' + (str(args.sandbox_base) if args.sandbox_base and (variant == 'local-includes' or variant == 'ram-sandboxes' and experimental) else ''),
                        TARGET]
             started = time.monotonic()
             print(mode + ' START', flush=True)

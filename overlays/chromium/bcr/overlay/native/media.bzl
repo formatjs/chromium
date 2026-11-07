@@ -1,6 +1,7 @@
 """Captured Chromium media pipeline, parsers, storage and Symphonia bridge."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 load(":media_sources.bzl", "ACTIONS", "BRIDGES", "LIBGAV1_DEFINES", "LIBRARIES", "SHARED_HEADERS")
 load(":public_dependency.bzl", "chromium_public_dependency")
@@ -48,7 +49,7 @@ def native_media():
         c_sources = [p for p in library["srcs"] if p.endswith(".c")]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -59,14 +60,14 @@ def native_media():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = library["c_copts"],
+                copts = captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         cc_library(
             name = library["name"],
             srcs = [p for p in library["srcs"] if p not in c_sources],
-            copts = library["copts"],
+            copts = captured_copts(library),
             **common
         )
     for name, original in {

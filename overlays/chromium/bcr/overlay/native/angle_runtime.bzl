@@ -5,6 +5,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":angle_runtime_sources.bzl", "ACTIONS", "LIBRARIES", "RUNTIME_DEPS", "SHARED_HEADERS")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":python_action.bzl", "chromium_python_action")
 
 def native_angle_runtime():
@@ -30,7 +31,7 @@ def native_angle_runtime():
     )
     for original, library in LIBRARIES.items():
         common = dict(
-            copts = library["copts"],
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -47,9 +48,9 @@ def native_angle_runtime():
             cc_import(name = library["name"], shared_library = ":" + filename)
         else:
             c_sources = [p for p in library["srcs"] if p.endswith(".c")]
-            common.update(hdrs = library["hdrs"], includes = library["includes"])
+            common.update(hdrs = library["hdrs"], includes = captured_includes(library))
             if c_sources:
-                cc_library(name = library["name"] + "_c", srcs = c_sources, **dict(common, copts = library["c_copts"]))
+                cc_library(name = library["name"] + "_c", srcs = c_sources, **dict(common, copts = captured_copts(library, "c_copts")))
                 common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
             cc_library(
                 name = library["name"],

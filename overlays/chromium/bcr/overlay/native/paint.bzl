@@ -1,6 +1,7 @@
 """Complete captured compositor paint closure, using Chromium's native providers."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":paint_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_paint():
@@ -16,8 +17,8 @@ def native_paint():
                 name = library["name"] + "_asm",
                 srcs = assembly,
                 hdrs = library["hdrs"],
-                includes = library["includes"],
-                copts = library["asm_copts"],
+                includes = captured_includes(library),
+                copts = captured_copts(library, "asm_copts"),
                 local_defines = library["defines"],
                 deps = [":paint_headers"] + library["deps"],
             )
@@ -25,8 +26,8 @@ def native_paint():
             name = library["name"],
             srcs = [p for p in library["srcs"] if p not in assembly],
             hdrs = library["hdrs"],
-            includes = library["includes"],
-            copts = library["copts"],
+            includes = captured_includes(library),
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,

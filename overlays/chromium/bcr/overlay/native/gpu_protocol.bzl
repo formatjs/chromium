@@ -1,6 +1,7 @@
 """Captured GPU command protocol, shared-image formats and GLES2 interfaces."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":gpu_protocol_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_gpu_protocol():
@@ -15,8 +16,8 @@ def native_gpu_protocol():
             name = library["name"],
             srcs = library["srcs"],
             hdrs = library["hdrs"],
-            includes = library["includes"],
-            copts = library["copts"],
+            includes = captured_includes(library),
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,

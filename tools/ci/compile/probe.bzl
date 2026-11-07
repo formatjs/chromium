@@ -1,5 +1,6 @@
 """Compile representative Blink sources with their real compiler inputs."""
 
+load("@chromium//native:captured_includes.bzl", "captured_include_options")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":batch_sources.bzl", BATCH_SOURCES = "SOURCES")
@@ -24,7 +25,7 @@ def _blink_library_probe(name, library, repository, sources, forwarders = "blink
     cc_library(
         name = name,
         srcs = [repository + ("//native" if source.startswith(":") else "//:") + source for source in sources],
-        copts = library["copts"],
+        copts = library["copts"] + captured_include_options(library, owner = Label(repository + "//native:BUILD.bazel")),
         local_defines = library["defines"],
         linkstatic = True,
         deps = [":" + name + "_headers"],
@@ -56,7 +57,7 @@ def native_compile_probe(name, library, sources):
     cc_library(
         name = name,
         srcs = ["@chromium//native" + p if p.startswith(":") else "@chromium" + p if p.startswith("//") else p for p in sources],
-        copts = library["copts"],
+        copts = library["copts"] + captured_include_options(library, owner = Label("@chromium//native:BUILD.bazel")),
         local_defines = library["defines"],
         linkstatic = True,
         deps = [":" + name + "_headers"],

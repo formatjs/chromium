@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":network_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":protobuf_config.bzl", "chromium_protobuf_library")
 load(":python_action.bzl", "chromium_python_action")
@@ -23,7 +24,7 @@ def native_network():
         common = dict(
             name = library["name"],
             srcs = library["srcs"],
-            copts = library["copts"],
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -33,7 +34,7 @@ def native_network():
             common["srcs"] = library["srcs"] + library["hdrs"]
         else:
             common["hdrs"] = library["hdrs"]
-            common["includes"] = library["includes"]
+            common["includes"] = captured_includes(library)
         rule(**common)
     for name, original in {
         "net": "//net:net",

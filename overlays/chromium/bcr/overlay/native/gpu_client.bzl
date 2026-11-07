@@ -1,6 +1,7 @@
 """Captured GPU clients, raster command producers and Viz common types."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":gpu_client_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_gpu_client():
@@ -15,8 +16,8 @@ def native_gpu_client():
             name = library["name"],
             srcs = library["srcs"],
             hdrs = library["hdrs"],
-            copts = library["copts"],
-            includes = library["includes"],
+            copts = captured_copts(library),
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,

@@ -1,6 +1,7 @@
 """Captured Linux DRM/GBM wrappers with the original system GBM interface."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":linux_buffers_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_linux_buffers():
@@ -15,8 +16,8 @@ def native_linux_buffers():
             name = library["name"],
             srcs = library["srcs"],
             hdrs = library["hdrs"],
-            includes = library["includes"],
-            copts = library["copts"],
+            includes = captured_includes(library),
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,

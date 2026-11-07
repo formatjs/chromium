@@ -78,6 +78,13 @@ the optimization. Each new cold trial needs a new directory.
 
 ## Strict BuildBuddy cold target
 
+`perf/local-includes` separately tests `CHROMIUM_LOCAL_INCLUDES=1`: captured
+source targets keep their effective GN include paths in local compiler options;
+header-only providers retain exported includes. The pilot forces 96 selected
+compiles across repeated modes, requires identical archives, and checks actual
+Gin compiler arguments for shorter search lists. Scanning and private RAM
+sandboxes stay enabled in both modes. No performance or full-browser claim yet.
+
 Target: complete Linux AMD64 archive under one hour on a BuildBuddy workflow
 runner. `perf/bb-strict-cold` requests 16 CPUs, 32GiB RAM and 200GiB disk;
 the report records actual CPU and memory limits. BB rejected the initial

@@ -1,6 +1,7 @@
 """Captured compositor and its network, metrics and WebRTC dependencies."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":compositor_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS")
 load(":public_dependency.bzl", "chromium_link_dependency", "chromium_public_dependency")
 load(":python_action.bzl", "chromium_python_action")
@@ -54,7 +55,7 @@ def native_compositor():
         c_sources = [p for p in library["srcs"] if p.endswith(".c")]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -67,14 +68,14 @@ def native_compositor():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = private_copts + library["c_copts"],
+                copts = private_copts + captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         cc_library(
             name = library["name"],
             srcs = [p for p in library["srcs"] if p not in c_sources],
-            copts = private_copts + library["copts"],
+            copts = private_copts + captured_copts(library),
             **common
         )
     for name, original in {

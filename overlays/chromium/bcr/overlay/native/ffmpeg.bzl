@@ -1,6 +1,7 @@
 """Chromium FFmpeg profile and native SIMD assembly."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":ffmpeg_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":public_dependency.bzl", "chromium_public_dependency")
 load(":python_action.bzl", "chromium_python_action")
@@ -28,7 +29,7 @@ def native_ffmpeg():
         other_sources = [p for p in library["srcs"] if not p.endswith(".c")]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -38,14 +39,14 @@ def native_ffmpeg():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = config_options + library["c_copts"],
+                copts = config_options + captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         cc_library(
             name = library["name"],
             srcs = other_sources,
-            copts = config_options + library["copts"],
+            copts = config_options + captured_copts(library),
             **common
         )
     native.alias(name = "ffmpeg", actual = ":" + LIBRARIES["//third_party/ffmpeg:ffmpeg"]["name"])

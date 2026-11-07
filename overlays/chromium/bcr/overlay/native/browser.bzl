@@ -5,6 +5,7 @@ load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:defs.bzl", "py_binary")
 load(":browser_sources.bzl", "ACTIONS", "ASSET_GROUPS", "BRIDGES", "COPIES", "LIBRARIES", "RUNTIME_FILES", "SHARED_HEADERS", "TOOLS")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 load(":public_dependency.bzl", "chromium_snapshot_dependencies")
 load(":python_action.bzl", "chromium_filegroup", "chromium_python_action")
@@ -127,7 +128,7 @@ def native_browser():
             common["deps"] = common["deps"] + [":browser_ffmpeg_headers"]
         if library.get("ffmpeg_config"):
             include_options.insert(0, "-iquote" + Label("@chromium_ffmpeg//:headers").workspace_root + "/" + library["ffmpeg_config"])
-        cpp_options = library["copts"] + include_options
+        cpp_options = captured_copts(library) + include_options
         if qt:
             common["deps"] = library["deps"]
             if original == "//ui/qt:qt_interface":
@@ -153,15 +154,15 @@ def native_browser():
             c_sources = [path for path in library["srcs"] if path.endswith(".c")]
             asm_sources = [path for path in library["srcs"] if path.endswith((".s", ".S"))]
             for suffix, sources, options in [
-                ("_c", c_sources, library.get("c_copts", [])),
-                ("_asm", asm_sources, library.get("asm_copts", [])),
+                ("_c", c_sources, captured_copts(library, "c_copts")),
+                ("_asm", asm_sources, captured_copts(library, "asm_copts")),
             ]:
                 if sources:
                     cc_library(
                         name = library["name"] + suffix,
                         srcs = sources,
                         hdrs = library["hdrs"],
-                        includes = library["includes"],
+                        includes = captured_includes(library),
                         copts = options + include_options,
                         local_defines = library["defines"],
                         deps = common["deps"],
@@ -178,7 +179,7 @@ def native_browser():
             cc_binary(
                 name = primary,
                 srcs = [path for path in library["srcs"] if path not in c_sources and path not in asm_sources] + library["hdrs"],
-                includes = library["includes"],
+                includes = captured_includes(library),
                 copts = cpp_options,
                 linkshared = shared,
                 data = [":icudtl.dat", ":browser_assets", ":browser_v8_runtime", ":angle_runtime"] if main else binary_data,
@@ -190,7 +191,7 @@ def native_browser():
             continue
         common.update(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             alwayslink = library["kind"] == "source_set",
         )
         if any([original.startswith(prefix) for prefix in ["//chrome/", "//chrome:", "//extensions/", "//extensions:", "//components/", "//components:"]]):
@@ -210,8 +211,8 @@ def native_browser():
         c_sources = [path for path in library["srcs"] if path.endswith(".c")]
         asm_sources = [path for path in library["srcs"] if path.endswith((".s", ".S"))]
         for suffix, sources, options in [
-            ("_c", c_sources, library.get("c_copts", [])),
-            ("_asm", asm_sources, library.get("asm_copts", [])),
+            ("_c", c_sources, captured_copts(library, "c_copts")),
+            ("_asm", asm_sources, captured_copts(library, "asm_copts")),
         ]:
             if sources:
                 cc_library(name = library["name"] + suffix, srcs = sources, copts = options + include_options, **common)

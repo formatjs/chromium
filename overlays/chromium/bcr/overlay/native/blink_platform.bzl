@@ -4,6 +4,7 @@ load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":blink_platform_sources.bzl", "ACTIONS", "LIBRARIES", "METADATA", "SHARED_HEADERS", "TOOLS")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":generated_files.bzl", "CAPTURED_FILES")
 load(":public_dependency.bzl", "chromium_public_dependency")
 load(":python_action.bzl", "chromium_python_action")
@@ -59,13 +60,13 @@ def native_blink_platform():
                 name = library["name"],
                 srcs = library["srcs"] + library["hdrs"],
                 data = [":icudtl.dat"],
-                copts = library["copts"],
+                copts = captured_copts(library),
                 **common
             )
             continue
         common.update(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             alwayslink = library["kind"] == "source_set",
         )
         if original.startswith("//third_party/blink/renderer/platform"):
@@ -87,14 +88,14 @@ def native_blink_platform():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = library["c_copts"],
+                copts = captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         cc_library(
             name = library["name"],
             srcs = [p for p in library["srcs"] if p not in c_sources],
-            copts = library["copts"],
+            copts = captured_copts(library),
             **common
         )
     native.alias(

@@ -2,6 +2,7 @@
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":generated_files.bzl", "CAPTURED_FILES")
 load(":gpu_service_sources.bzl", "ACTIONS", "LIBRARIES", "METADATA", "SHARED_HEADERS")
 load(":python_action.bzl", "chromium_python_action")
@@ -36,7 +37,7 @@ def native_gpu_service():
         c_sources = [p for p in library["srcs"] if p.endswith(".c")]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -47,14 +48,14 @@ def native_gpu_service():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = library["c_copts"],
+                copts = captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         cc_library(
             name = library["name"],
             srcs = [p for p in library["srcs"] if p not in c_sources],
-            copts = library["copts"],
+            copts = captured_copts(library),
             **common
         )
     for name, original in {

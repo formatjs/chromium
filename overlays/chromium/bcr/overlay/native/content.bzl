@@ -3,6 +3,7 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:py_info.bzl", "PyInfo")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":content_sources.bzl", "ACTIONS", "COPIES", "LIBRARIES", "METADATA", "SHARED_HEADERS", "TOOLS")
 load(":generated_files.bzl", "CAPTURED_FILES")
 load(":python_action.bzl", "ChromiumFilesInfo", "ChromiumGeneratedFilesInfo", "chromium_python_action")
@@ -63,7 +64,7 @@ def native_content():
         c_sources = [p for p in library["srcs"] if p.endswith(".c")]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -74,7 +75,7 @@ def native_content():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = library["c_copts"],
+                copts = captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
@@ -84,7 +85,7 @@ def native_content():
             cc_library(
                 name = "content_gpu_internals",
                 srcs = [gpu_internals],
-                copts = library["copts"],
+                copts = captured_copts(library),
                 implementation_deps = [":content_revision_headers"],
                 **common
             )
@@ -93,7 +94,7 @@ def native_content():
         cc_library(
             name = library["name"],
             srcs = cpp_sources,
-            copts = library["copts"],
+            copts = captured_copts(library),
             **common
         )
     native.alias(

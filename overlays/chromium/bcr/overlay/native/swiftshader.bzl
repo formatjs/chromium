@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":python_action.bzl", "chromium_python_action")
 load(":swiftshader_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS")
 
@@ -29,7 +30,7 @@ def native_swiftshader():
             cc_binary(
                 name = "libvk_swiftshader.so",
                 srcs = library["srcs"],
-                copts = library["copts"],
+                copts = captured_copts(library),
                 local_defines = library["defines"],
                 additional_linker_inputs = [script],
                 linkopts = [p.replace("../../third_party/swiftshader/src/Vulkan/vk_swiftshader.lds", "$(location " + script + ")") for p in library["linkopts"]] + ["-Wl,-soname,libvk_swiftshader.so"],
@@ -42,7 +43,7 @@ def native_swiftshader():
         assembly = [p for p in library["srcs"] if p.endswith((".S", ".s"))]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -50,14 +51,14 @@ def native_swiftshader():
             deps = dependencies,
         )
         if c_sources:
-            cc_library(name = library["name"] + "_c", srcs = c_sources, copts = library["c_copts"], **common)
+            cc_library(name = library["name"] + "_c", srcs = c_sources, copts = captured_copts(library, "c_copts"), **common)
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         if assembly:
-            cc_library(name = library["name"] + "_asm", srcs = assembly, copts = library["asm_copts"], **common)
+            cc_library(name = library["name"] + "_asm", srcs = assembly, copts = captured_copts(library, "asm_copts"), **common)
             common["deps"] = common["deps"] + [":" + library["name"] + "_asm"]
         cc_library(
             name = library["name"],
             srcs = [p for p in library["srcs"] if p not in c_sources and p not in assembly],
-            copts = library["copts"],
+            copts = captured_copts(library),
             **common
         )

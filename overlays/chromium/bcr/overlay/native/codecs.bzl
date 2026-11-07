@@ -1,6 +1,7 @@
 """Original JPEG, WebP and GIF codec implementations and native SIMD assembly."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":codecs_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
@@ -21,7 +22,7 @@ def native_codecs():
         other_sources = [p for p in library["srcs"] if not p.endswith(".c")]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -31,14 +32,14 @@ def native_codecs():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = library["c_copts"],
+                copts = captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         cc_library(
             name = library["name"],
             srcs = other_sources,
-            copts = library["copts"],
+            copts = captured_copts(library),
             **common
         )
     for name, original in {

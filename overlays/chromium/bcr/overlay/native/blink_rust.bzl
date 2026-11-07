@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":blink_rust_sources.bzl", "BRIDGES", "LIBRARIES", "SHARED_HEADERS")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 
 def native_blink_rust():
@@ -12,8 +13,8 @@ def native_blink_rust():
             name = library["name"],
             srcs = library["srcs"],
             hdrs = library["hdrs"] + SHARED_HEADERS,
-            copts = library["copts"],
-            includes = library["includes"],
+            copts = captured_copts(library),
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,

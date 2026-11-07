@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":ozone_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":python_action.bzl", "chromium_python_action")
 load(":resource_copy.bzl", "chromium_resource_copy")
@@ -35,7 +36,7 @@ def native_ozone():
         c_sources = [p for p in library["srcs"] if p.endswith(".c")]
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -45,7 +46,7 @@ def native_ozone():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = library["c_copts"],
+                copts = captured_copts(library, "c_copts"),
                 alwayslink = library["kind"] == "source_set",
                 **common
             )
@@ -55,7 +56,7 @@ def native_ozone():
                 name = library["name"],
                 srcs = library["srcs"] + library["hdrs"],
                 data = [":ozone_host_icu_data"],
-                copts = library["copts"],
+                copts = captured_copts(library),
                 local_defines = library["defines"],
                 linkopts = library["linkopts"],
                 linkstatic = True,
@@ -65,7 +66,7 @@ def native_ozone():
             cc_library(
                 name = library["name"],
                 srcs = [p for p in library["srcs"] if p not in c_sources],
-                copts = library["copts"],
+                copts = captured_copts(library),
                 alwayslink = library["kind"] == "source_set",
                 **common
             )

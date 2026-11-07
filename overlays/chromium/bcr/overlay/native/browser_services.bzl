@@ -3,6 +3,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":browser_services_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
 
@@ -28,7 +29,7 @@ def native_browser_services():
         common = dict(
             name = library["name"],
             srcs = library["srcs"],
-            copts = library["copts"],
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,
@@ -39,7 +40,7 @@ def native_browser_services():
         else:
             cc_library(
                 hdrs = library["hdrs"],
-                includes = library["includes"],
+                includes = captured_includes(library),
                 alwayslink = library["kind"] == "source_set",
                 **common
             )

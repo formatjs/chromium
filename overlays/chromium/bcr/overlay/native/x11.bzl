@@ -1,6 +1,7 @@
 """Captured Chromium X11 protocol and platform-event libraries."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":python_action.bzl", "chromium_python_action")
 load(":resource_copy.bzl", "chromium_resource_copy")
 load(":x11_sources.bzl", "ACTIONS", "COPIES", "LIBRARIES", "SHARED_HEADERS")
@@ -21,8 +22,8 @@ def native_x11():
             name = library["name"],
             srcs = library["srcs"],
             hdrs = library["hdrs"],
-            includes = library["includes"],
-            copts = library["copts"],
+            includes = captured_includes(library),
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,

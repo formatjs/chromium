@@ -2,6 +2,7 @@
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":dawn_sources.bzl", "ACTIONS", "LIBRARIES", "METADATA", "SHARED_HEADERS")
 load(":generated_files.bzl", "CAPTURED_FILES")
 load(":python_action.bzl", "chromium_python_action")
@@ -28,8 +29,8 @@ def native_dawn():
             name = library["name"],
             srcs = library["srcs"],
             hdrs = library["hdrs"],
-            includes = library["includes"],
-            copts = library["copts"],
+            includes = captured_includes(library),
+            copts = captured_copts(library),
             local_defines = library["defines"],
             linkopts = library["linkopts"],
             linkstatic = True,

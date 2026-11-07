@@ -3,6 +3,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":browser_v8_sources.bzl", "ACTIONS", "LIBRARIES", "PUBLIC_DEFINES", "SHARED_HEADERS", "TOOLS")
+load(":captured_includes.bzl", "captured_copts", "captured_includes")
 load(":masm.bzl", "chromium_masm")
 load(":public_dependency.bzl", "chromium_snapshot_dependencies")
 load(":python_action.bzl", "chromium_python_action")
@@ -30,7 +31,7 @@ def native_browser_v8():
             masm_objects.append(":" + target)
         common = dict(
             hdrs = library["hdrs"],
-            includes = library["includes"],
+            includes = captured_includes(library),
             local_defines = library["defines"],
             defines = PUBLIC_DEFINES if original == "//v8:v8_headers" else [],
             linkopts = library["linkopts"],
@@ -42,7 +43,7 @@ def native_browser_v8():
             cc_library(
                 name = library["name"] + "_c",
                 srcs = c_sources,
-                copts = library["c_copts"],
+                copts = captured_copts(library, "c_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
@@ -50,7 +51,7 @@ def native_browser_v8():
             cc_library(
                 name = library["name"] + "_asm",
                 srcs = asm_sources,
-                copts = library["asm_copts"],
+                copts = captured_copts(library, "asm_copts"),
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_asm"]
@@ -64,7 +65,7 @@ def native_browser_v8():
             cc_binary(
                 name = library["name"],
                 srcs = library["srcs"] + library["hdrs"],
-                copts = library["copts"],
+                copts = captured_copts(library),
                 local_defines = library["defines"],
                 linkopts = library["linkopts"],
                 linkstatic = True,
@@ -75,7 +76,7 @@ def native_browser_v8():
             cc_library(
                 name = library["name"],
                 srcs = [p for p in library["srcs"] if p not in c_sources and p not in asm_sources and p not in masm_sources] + masm_objects,
-                copts = library["copts"],
+                copts = captured_copts(library),
                 **common
             )
     native.alias(name = "browser_v8", actual = ":" + LIBRARIES["//v8:v8"]["name"])
