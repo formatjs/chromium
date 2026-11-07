@@ -118,9 +118,12 @@ def main():
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
+    parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
+    if args.profile and args.profile.exists():
+        parser.error('--profile must start absent')
     if args.native_tools and args.platform != 'linux-amd64':
         parser.error('--native-tools currently requires linux-amd64')
     if platform.system() != 'Linux' or platform.machine() not in {'x86_64', 'amd64'}:
@@ -142,6 +145,7 @@ def main():
     directory.mkdir(parents=True, exist_ok=False)
     source = directory / 'source'
     events = directory / 'events.json'
+    profile = args.profile.resolve() if args.profile else directory / 'profile.json.gz'
     roots = [directory / name for name in ['source', 'output-base', 'install-base', 'bazel-root']]
     fresh = all(not path.exists() for path in roots)
     assert fresh
@@ -189,7 +193,7 @@ def main():
                    '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                    '--//tools/ci:revision=' + args.revision,
                    '--build_event_json_file=' + str(events), '--nobuild_event_json_file_path_conversion',
-                   '--profile=' + str(directory / 'profile.json.gz'), '--record_full_profiler_data',
+                   '--profile=' + str(profile), '--record_full_profiler_data',
                    '--execution_log_compact_file=' + str(directory / 'execution.log'),
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
         if args.sandbox_base:

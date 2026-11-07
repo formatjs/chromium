@@ -114,6 +114,11 @@ tools use the matching target configuration. Real generator outputs, full
 browser payload, ABI and rendering still need verification.
 Cross builds retain the default behavior; their cold timings remain unmeasured.
 
+New trials stream an uncompressed `cold-profile.json` into BB's artifact
+directory so a hosted hard timeout can retain completed trace events. Raw BEP
+and command files stay private. GitHub's collector sanitizes the trace; partial
+profiles remain diagnostic and cannot pass the cold-result or timing gates.
+
 No strict BB result is recorded yet. Prior RBE results below do not prove this
 target. Hosted timeout limits can terminate a run before the configured 6h.
 

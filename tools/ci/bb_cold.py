@@ -25,6 +25,7 @@ def main():
     args = parser.parse_args()
     destination = args.directory.resolve()
     destination.mkdir(parents=True, exist_ok=False)
+    profile = destination / 'cold-profile.json'
     # Workflow snapshots may retain this download cache. Nothing else is reused.
     cache = Path.home() / '.cache/chromium-strict-cold-downloads'
     cache.mkdir(parents=True, exist_ok=True)
@@ -52,6 +53,7 @@ def main():
                        '--repository-cache', str(cache), '--revision', args.revision,
                        '--bazel', str(bazel), '--jobs', str(args.jobs),
                        '--heap-gib', '8', '--action-memory-mb', '14000', '--sandbox-base', '{sandbox}',
+                       '--profile', str(profile),
                        '--max-seconds', '0']
             if args.native_tools:
                 command.append('--native-tools')
@@ -81,7 +83,6 @@ def main():
             report['elapsed_seconds'] = time.monotonic() - started
             report['under_one_hour'] = bool(report['cold_result_verified']
                                            and report['elapsed_seconds'] < 3600)
-            profile = trial / 'profile.json.gz'
             if profile.exists():
                 try:
                     summary = trace_summary(profile)
@@ -95,7 +96,7 @@ def main():
                         stream.seek(max(0, log.stat().st_size - 12000))
                         print(stream.read().decode(errors='replace'), flush=True)
         finally:
-            # Raw BEP/commands can contain environment details. Publish only reports.
+            # Raw BEP/commands stay private; BB retains the streaming profile.
             (destination / 'cold-build.json').write_text(json.dumps(report, indent=2) + '\n')
             print(json.dumps(report), flush=True)
     return 0 if report['under_one_hour'] else 1
