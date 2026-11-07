@@ -1,6 +1,6 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
-  - name: Chromium private include experiment
+  - name: Chromium header include experiment
     container_image: ubuntu-24.04
     user: buildbuddy
     allow_concurrent_runs: false
@@ -12,7 +12,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: ["perf/local-includes"]
+        branches: ["perf/header-includes"]
     steps:
       - run: |
           python3 -m tools.ci.compile.private_ram --size-gib 8 -- \

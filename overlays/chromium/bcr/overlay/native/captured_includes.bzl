@@ -19,7 +19,5 @@ def captured_copts(library, field = "copts"):
     return library.get(field, []) + captured_include_options(library)
 
 def captured_includes(library):
-    # Header-only providers still publish their include interface.
-    if not library.get("srcs", []):
-        return library["includes"]
+    # Captured GN compile settings already include inherited configurations.
     return select({_SETTING: [], "//conditions:default": library["includes"]})
