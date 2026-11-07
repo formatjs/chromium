@@ -21,7 +21,8 @@ BAZEL_SHA256 = '7668a95db1250f12c40407251e4e203b4ec8bf39bc495d2f485b2d8c99048694
 
 
 def machine_limits():
-    cpus = float(len(os.sched_getaffinity(0)))
+    affinity_cpus = len(os.sched_getaffinity(0))
+    cpus = float(affinity_cpus)
     memory = os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')
     cgroup_root = Path('/sys/fs/cgroup')
     for line in Path('/proc/self/cgroup').read_text().splitlines():
@@ -41,7 +42,10 @@ def machine_limits():
             if path == cgroup_root:
                 break
             path = path.parent
-    return {'cpu_limit': cpus, 'memory_limit_bytes': memory, 'system': platform.platform()}
+    model = next((line.partition(':')[2].strip() for line in Path('/proc/cpuinfo').read_text().splitlines()
+                  if line.startswith('model name')), platform.processor())
+    return {'cpu_limit': cpus, 'affinity_cpu_count': affinity_cpus,
+            'reported_processor_model': model, 'memory_limit_bytes': memory, 'system': platform.platform()}
 
 
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None):
