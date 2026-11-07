@@ -55,6 +55,8 @@ def main():
         subprocess.run(['git', 'fetch', '--depth=1', 'origin', BASE], cwd=ROOT, check=True)
         original = {name: subprocess.check_output(['git', 'show', BASE + ':' + name], cwd=ROOT)
                     for name in FILES}
+        supporting = Path.home() / '.cache/chromium-native-graph'
+        supporting.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='chromium-native-graph-') as temporary:
             root = Path(temporary)
             bazel = root / 'bazel-9.2.0'
@@ -66,25 +68,27 @@ def main():
                 raise ValueError('Bazel release checksum mismatch')
             bazel.chmod(0o755)
 
-            def query(name, enabled, *, register=False, expect_failure=False):
+            def query(name, enabled, *, register=False, expect_failure=False, preflight=False):
                 report['stage'] = name
                 save()
                 command = [str(bazel), '--nosystem_rc', '--nohome_rc', '--noworkspace_rc',
                            '--bazelrc=' + str(ROOT / '.bazelrc'), '--batch',
                            '--host_jvm_args=-Xmx12g', '--host_jvm_args=-XX:ActiveProcessorCount=8',
-                           '--output_user_root=' + str(root / 'bazel-root'),
-                           '--output_base=' + str(root / 'output-base'),
+                           '--output_user_root=' + str(supporting / 'bazel-root'),
+                           '--output_base=' + str(supporting / 'output-base'),
                            'aquery', '--config=browser', '--jobs=8', '--loading_phase_threads=4',
+                           '--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build',
                            '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                            '--remote_executor=', '--remote_cache=', '--disk_cache=',
-                           '--repo_contents_cache=', '--repository_cache=' + str(root / 'fetch-cache'),
+                           '--repo_contents_cache=', '--repository_cache=' + str(supporting / 'fetch-cache'),
                            '--bes_backend=', '--bes_results_url=',
                            '--//tools/ci:revision=' + BASE,
                            '--define=CHROMIUM_NATIVE_TOOLS=' + str(enabled),
                            '--output=jsonproto', '--include_artifacts=false', '--include_commandline=false']
                 if register:
                     command.append('--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution')
-                command.append('mnemonic("CppCompile", deps(//tools/ci:linux-amd64_archive))')
+                command.append('//tools/ci:revision' if preflight else
+                               'mnemonic("CppCompile", deps(//tools/ci:linux-amd64_archive))')
                 graph, log = root / (name + '.json'), root / (name + '.log')
                 with graph.open('w') as output, log.open('w') as errors:
                     result = subprocess.run(command, cwd=ROOT, stdout=output, stderr=errors)
@@ -97,6 +101,10 @@ def main():
                 if result.returncode:
                     print(log.read_text(errors='replace')[-8000:], flush=True)
                     raise ValueError('aquery failed: ' + name)
+                if preflight:
+                    report['preflight_passed'] = True
+                    save()
+                    return None
                 fingerprints, summary = summarize_graph(graph)
                 report[name] = summary
                 save()
@@ -104,6 +112,7 @@ def main():
 
             for name, contents in original.items():
                 (ROOT / name).write_bytes(contents)
+            query('preflight', 0, preflight=True)
             baseline = query('original', 0)
             for name, contents in prototype.items():
                 (ROOT / name).write_bytes(contents)
