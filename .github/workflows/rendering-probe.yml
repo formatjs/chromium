@@ -1,0 +1,34 @@
+name: Chromium rendering capture probe
+on:
+  push:
+    branches: [perf/rendering-capture]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  capture:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - run: python -m pip install --require-hashes --only-binary=:all: -r tools/ci/rendering/requirements.txt
+      - uses: actions/download-artifact@v8
+        with:
+          name: chromium-linux-arm64-85f68a703a15439fd9aca037b431aa0f1416c053
+          run-id: 42385204450
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/artifact
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: python -m tools.ci.rendering_probe
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: rendering-capture-probe
+          path: ${{ runner.temp }}/capture-probe
+          retention-days: 7
