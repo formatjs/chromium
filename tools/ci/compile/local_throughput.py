@@ -25,7 +25,9 @@ SOURCES = (*batch_sources()[:256], batch_sources()[-1])
 def object_paths(rows, execution_root):
     files = [execution_root / item for row in rows for item in row]
     if len(files) != len(SOURCES) or len(set(files)) != len(files):
-        raise ValueError('Expected one unique object per selected source')
+        raise ValueError('Expected one unique object per selected source: '
+                         + str(len(SOURCES)) + ' sources, ' + str(len(files))
+                         + ' outputs, ' + str(len(set(files))) + ' unique outputs')
     for file in files:
         if (not file.is_relative_to(execution_root / 'bazel-out')
                 or '/tools/ci/compile/local_throughput/_objs/' not in file.as_posix()
@@ -78,8 +80,8 @@ def main():
         reference = None
         try:
             print('Local throughput: analyze object inventory', flush=True)
-            query = 'filter("^//tools/ci/compile/local_throughput:", deps(' + TARGET + '))'
-            expression = '[f.path for a in target.actions if a.mnemonic == "CppCompile" for f in a.outputs.to_list()]'
+            query = 'kind("cc_library", filter("^//tools/ci/compile/local_throughput:", deps(' + TARGET + ')))'
+            expression = '[f.path for a in target.actions if a.mnemonic == "CppCompile" for f in a.outputs.to_list() if f.path.endswith(".o")]'
             result = subprocess.run([*startup, 'cquery', *flags, '--output=starlark',
                                      '--starlark:expr=' + expression, query],
                                     cwd=ROOT, capture_output=True, text=True)
@@ -88,7 +90,9 @@ def main():
                 raise ValueError('Compiler output inventory analysis failed')
             execution_root = Path(subprocess.check_output(
                 [*startup, 'info', 'execution_root'], cwd=ROOT, text=True).strip())
-            files = object_paths([ast.literal_eval(line) for line in result.stdout.splitlines()], execution_root)
+            rows = [ast.literal_eval(line) for line in result.stdout.splitlines()]
+            report['object_inventory'] = {'rows': len(rows), 'outputs_per_row': [len(row) for row in rows]}
+            files = object_paths(rows, execution_root)
             for name, jobs in [('warmup', 16), ('baseline-1', 16), ('capacity-1', capacity),
                                ('capacity-2', capacity), ('baseline-2', 16)]:
                 if name != 'warmup':
