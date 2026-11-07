@@ -168,6 +168,20 @@ def trace_summary(path, allow_partial=False):
             'tasks': tasks, 'counters': counters}
 
 
+def strict_cold_timing_verified(outer, report):
+    """Require service checkout and setup to fit the same one-hour budget."""
+    try:
+        full_seconds = int(outer.get('durationUsec')) / 1e6
+        build_seconds = float(report.get('elapsed_seconds'))
+    except (TypeError, ValueError):
+        return False
+    return (outer.get('success') is True
+            and outer.get('invocationStatus') == 'COMPLETE_INVOCATION_STATUS'
+            and report.get('cold_result_verified') is True
+            and report.get('local_execution_verified') is True
+            and 0 < build_seconds <= full_seconds < 3600)
+
+
 def collect(identifier):
     outer = rpc('GetInvocation', {'lookup': {
         'invocationId': identifier, 'fetchChildInvocations': True}})['invocation'][0]
@@ -188,6 +202,12 @@ def collect(identifier):
     elif len(pattern) == 1 and pattern[0].startswith('Chromium bindings budget '):
         report_key = 'bindings_experiment'
         report_path = 'bindings-budget/report.json'
+    elif pattern == ['Chromium Clang phase profile']:
+        report_key = 'clang_experiment'
+        report_path = 'clang-profile/report.json'
+    elif pattern in [['Chromium header include experiment'], ['Chromium private include experiment']]:
+        report_key = 'include_experiment'
+        report_path = 'private-includes/report.json'
     elif cold_prefix:
         report_key = 'cold_build'
         report_path = pattern[0].removeprefix(cold_prefix) + '/cold-build.json'
@@ -216,6 +236,19 @@ def collect(identifier):
             if len(payload) > 4 * 1024 * 1024:
                 raise ValueError('Build measurement report exceeds 4 MiB')
             result[report_key] = json.loads(payload)
+        if report_key == 'cold_build':
+            summary_path = report_path.removesuffix('cold-build.json') + 'trace-summary.json'
+            summaries = [artifact for invocation in invocations
+                         for artifact in invocation.get('artifacts', [])
+                         if artifact.get('name', '').endswith('/' + summary_path)
+                         or artifact.get('name') == summary_path]
+            if len(summaries) == 1:
+                with api_request('GetFile', {'uri': summaries[0]['uri']},
+                                 os.environ['BUILDBUDDY_API_KEY']) as response:
+                    payload = response.read(4 * 1024 * 1024 + 1)
+                if len(payload) > 4 * 1024 * 1024:
+                    raise ValueError('Profile summary exceeds 4 MiB')
+                result['cold_profile'] = json.loads(payload)
     for child in outer.get('childInvocations', []):
         child_id = child['invocationId']
         full = rpc('GetInvocation', {'lookup': {'invocationId': child_id}})['invocation'][0]
@@ -249,6 +282,9 @@ def collect(identifier):
                         raise ValueError('Profile exceeds 256 MiB')
                     output.write(chunk)
             result['cold_profile'] = trace_summary(path, allow_partial=True)
+    if cold_prefix == 'Chromium strict cold build ':
+        result['strict_cold_timing_verified'] = strict_cold_timing_verified(
+            outer, result.get('cold_build', {}))
     return result
 
 

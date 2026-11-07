@@ -21,7 +21,8 @@ BAZEL_SHA256 = '7668a95db1250f12c40407251e4e203b4ec8bf39bc495d2f485b2d8c99048694
 
 
 def machine_limits():
-    cpus = float(len(os.sched_getaffinity(0)))
+    affinity_cpus = len(os.sched_getaffinity(0))
+    cpus = float(affinity_cpus)
     memory = os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')
     cgroup_root = Path('/sys/fs/cgroup')
     for line in Path('/proc/self/cgroup').read_text().splitlines():
@@ -41,7 +42,10 @@ def machine_limits():
             if path == cgroup_root:
                 break
             path = path.parent
-    return {'cpu_limit': cpus, 'memory_limit_bytes': memory, 'system': platform.platform()}
+    model = next((line.partition(':')[2].strip() for line in Path('/proc/cpuinfo').read_text().splitlines()
+                  if line.startswith('model name')), platform.processor())
+    return {'cpu_limit': cpus, 'affinity_cpu_count': affinity_cpus,
+            'reported_processor_model': model, 'memory_limit_bytes': memory, 'system': platform.platform()}
 
 
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None):
@@ -117,9 +121,15 @@ def main():
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--action-memory-mb', type=int, default=24000)
+    parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
+    parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
+    if args.profile and args.profile.exists():
+        parser.error('--profile must start absent')
+    if args.native_tools and args.platform != 'linux-amd64':
+        parser.error('--native-tools currently requires linux-amd64')
     if platform.system() != 'Linux' or platform.machine() not in {'x86_64', 'amd64'}:
         parser.error('Local benchmark currently requires a Linux amd64 host')
     if not re.fullmatch(r'[0-9a-f]{40}', args.revision):
@@ -139,6 +149,7 @@ def main():
     directory.mkdir(parents=True, exist_ok=False)
     source = directory / 'source'
     events = directory / 'events.json'
+    profile = args.profile.resolve() if args.profile else directory / 'profile.json.gz'
     roots = [directory / name for name in ['source', 'output-base', 'install-base', 'bazel-root']]
     fresh = all(not path.exists() for path in roots)
     assert fresh
@@ -186,11 +197,14 @@ def main():
                    '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                    '--//tools/ci:revision=' + args.revision,
                    '--build_event_json_file=' + str(events), '--nobuild_event_json_file_path_conversion',
-                   '--profile=' + str(directory / 'profile.json.gz'), '--record_full_profiler_data',
+                   '--profile=' + str(profile), '--record_full_profiler_data',
                    '--execution_log_compact_file=' + str(directory / 'execution.log'),
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
         if args.sandbox_base:
             command.append('--sandbox_base=' + str(args.sandbox_base))
+        if args.native_tools:
+            command.extend(['--define=CHROMIUM_NATIVE_TOOLS=1',
+                            '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution'])
         if args.platform.startswith('windows-'):
             command.extend(['--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
                             '--repo_env=BAZEL_WINDOWS_SDK_EULA=1'])
@@ -227,6 +241,7 @@ def main():
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
                        'action_memory_mb': args.action_memory_mb,
+                       'native_tool_sharing_requested': args.native_tools,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
                        'sandbox_capacity_bytes': (shutil.disk_usage(args.sandbox_base).total

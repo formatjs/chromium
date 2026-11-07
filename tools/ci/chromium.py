@@ -250,9 +250,11 @@ def filesystem_usage(path):
             'total_inodes': stat.f_files, 'free_inodes': stat.f_favail}
 
 
-def build(target, destination, revision, hosted=False, cold=False):
+def build(target, destination, revision, hosted=False, cold=False, native_tools=False):
     if cold and not hosted:
         raise ValueError('Cold benchmark requires a BuildBuddy workflow runner')
+    if native_tools and target['id'] != 'linux-amd64':
+        raise ValueError('Native tool sharing currently requires linux-amd64')
     bazel = [os.environ.get('BAZEL', 'bazel')]
     flags = ['--config=browser']
     if hosted:
@@ -264,6 +266,9 @@ def build(target, destination, revision, hosted=False, cold=False):
         if target['os'] == 'darwin':
             # Bound input downloads for the large framework link.
             flags.extend(['--strategy=CppLink=sandboxed', '--remote_max_connections=8'])
+    if native_tools:
+        flags.extend(['--define=CHROMIUM_NATIVE_TOOLS=1',
+                      '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution'])
     if target['os'] == 'windows':
         flags.extend([
             '--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
@@ -372,9 +377,13 @@ def main():
                         help='Use credentials injected by the BuildBuddy workflow runner')
     parser.add_argument('--cold', action='store_true',
                         help='Benchmark a hosted build with fresh Bazel state and no action-cache reuse')
+    parser.add_argument('--native-tools', action='store_true',
+                        help='Share matching Linux amd64 native tool configurations')
     args = parser.parse_args()
     if args.cold and (args.command != 'build' or not args.buildbuddy_hosted):
         parser.error('--cold requires build --buildbuddy-hosted')
+    if args.native_tools and args.command != 'build':
+        parser.error('--native-tools requires build')
     if args.command == 'matrix':
         print(json.dumps({'include': CONFIGURATION['platforms']}, separators=(',', ':')))
         return
@@ -391,7 +400,8 @@ def main():
             parser.error('--payload is required')
         print(stamp_payload(args.payload, args.directory, target, args.revision))
     elif args.command == 'build':
-        print(build(target, args.directory, args.revision, hosted=args.buildbuddy_hosted, cold=args.cold))
+        print(build(target, args.directory, args.revision, hosted=args.buildbuddy_hosted,
+                    cold=args.cold, native_tools=args.native_tools))
     elif args.command == 'package':
         if not args.bundle:
             parser.error('--bundle is required')

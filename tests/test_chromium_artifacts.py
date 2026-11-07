@@ -233,6 +233,22 @@ class ArtifactsTest(unittest.TestCase):
         self.assertIn('--remote_max_connections=8', command)
         self.assertEqual(command[-1], '//tools/ci:darwin-arm64_archive')
 
+    def test_native_sharing_requires_matching_target_and_execution_toolchain(self):
+        with mock.patch('tools.ci.chromium.subprocess.run',
+                        side_effect=RuntimeError('captured build command')) as process:
+            with self.assertRaisesRegex(RuntimeError, 'captured build command'):
+                build(self.target, self.root / 'native-artifacts', REVISION, native_tools=True)
+        command = process.call_args.args[0]
+        self.assertIn('--define=CHROMIUM_NATIVE_TOOLS=1', command)
+        self.assertIn('--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution', command)
+        for platform in PLATFORMS:
+            if platform == 'linux-amd64':
+                continue
+            with self.subTest(platform=platform), mock.patch('tools.ci.chromium.subprocess.run') as process:
+                with self.assertRaisesRegex(ValueError, 'requires linux-amd64'):
+                    build(PLATFORMS[platform], self.root / platform, REVISION, native_tools=True)
+                process.assert_not_called()
+
     def test_archive_bytes_ignore_input_mtime_and_non_executable_permissions(self):
         first = package(self.bundle, self.root / 'first', self.target, REVISION).read_bytes()
         for path in self.bundle.rglob('*'):

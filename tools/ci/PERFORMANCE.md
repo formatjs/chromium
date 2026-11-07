@@ -76,6 +76,98 @@ analysis, compilation, linking, packaging and artifact copying. A successful
 archive still needs ABI, rendering and payload comparison before accepting
 the optimization. Each new cold trial needs a new directory.
 
+The original RAM-sandbox baseline at `4ad4231` finishes in 12,940.10s
+(3h35m40s), executing 75,286 C++ actions locally with no reused action results.
+No OOM kills occur. Its archive fails relocation: local sandbox input symlinks
+were stored as absolute archive links. The packaging fix materializes those
+files while preserving relative framework links. A separate repack of the same
+compiled output passes ABI and both rendering pages with zero changed pixels;
+this repack is correctness evidence, not a replacement cold timing result.
+
+## Strict BuildBuddy cold target
+
+Target: complete Linux AMD64 archive under one hour on a BuildBuddy workflow
+runner. `perf/strict-cold-*` requests 16 CPUs, 32GiB RAM and 200GiB disk;
+the report records actual CPU and memory limits. BB rejected the initial
+32-CPU request and then 48GiB request: this organization permits at most 16 CPUs
+and 32GiB per workflow runner.
+Storage and CPU model can still differ from the local baseline. Other triples
+are not measured yet.
+
+`tools.ci.bb_cold` runs the local protocol with a verified direct Bazel binary,
+fresh checkout, install/output roots and auxiliary caches. RBE, action caches,
+disk caches and extracted repository caches are disabled. Only fetched archives
+can persist between trials. A private 8GiB tmpfs holds sandbox bookkeeping;
+outputs and extracted sources stay on disk. Runner VM snapshots and OS page
+cache remain uncontrolled; no claim of physically cold RAM or storage.
+
+The outer timer includes Bazel download, private sandbox setup, fresh source
+checkout, fetch/extraction, analysis, generation, compilation, linking, packaging
+and copying artifacts into the BB handoff directory. The workflow service's
+initial repository fetch/queue time is outside this timer, matching the existing
+local protocol's use of fetched Git objects. Profile summarization and runner
+cleanup happen afterward. Publish cache-policy proof and a sanitized profile;
+accept only after the exact archive passes native ABI and rendering checks.
+Acceptance also requires the full BB workflow duration below one hour, covering
+the service's checkout and setup before the benchmark process starts.
+
+The native tool sharing experiment at `ff7cee3` reduces the analyzed full archive
+closure from 76,719 to 52,534 C++ actions (24,185 fewer, 31.5%). The disabled
+prototype preserves the original C++ action fingerprints; enabled sharing
+requires an execution toolchain marker for Linux AMD64 GNU 2.31, and the probe
+verifies missing registration fails. Configurable and external tools keep their
+execution transition. These are action counts, not executed compile timings.
+
+The normal Linux AMD64 workflow enables sharing with `--native-tools`.
+Browser compiler/toolchain settings stay unchanged; native tools use the matching
+target configuration. The full validation build at `11eb009` matches `9c52255`
+byte-for-byte across all 5,176 payload members, and passes native ABI/rendering
+smoke. Its cache-enabled timing is not cold evidence. Cross builds retain the
+default behavior; their strict-cold timings remain unmeasured.
+
+New trials stream an uncompressed `cold-profile.json` into BB's artifact
+directory so a hosted hard timeout can retain completed trace events. Raw BEP
+and command files stay private. GitHub's collector sanitizes the trace; partial
+profiles remain diagnostic and cannot pass the cold-result or timing gates.
+
+No successful strict BB build is recorded yet. Prior RBE results below do not prove this
+target. Hosted timeout limits can terminate a run before the configured 6h.
+
+The strict baseline at `c871de7` reaches the hosted one-hour cap without an
+archive. Workflow execution metadata records 54,990.8 CPU-seconds and
+14,011,092,992 peak memory bytes. It is a failed timing target, not a completed
+cold result. Its older harness did not retain a final profile or report.
+
+The native-sharing trial at `2b0d5b5` also reaches the hosted one-hour cap
+without an archive. Execution metadata records 55,663.4 CPU-seconds and
+17,012,338,688 peak memory bytes. These incomplete runs cannot establish the
+candidate's full-build speedup. Neither trial produced an artifact for validation.
+
+The private-include prototype is rejected. Fully expanded compiler arguments
+show 585 search entries per Gin compile before the change and 599 afterward.
+All three probe archives match across six executions, but the proposed pruning
+does not occur. Whole-build probe times also include inconsistent supporting
+recompilation, so they cannot support a speedup claim.
+
+Removing captured header-only include exports also fails the same gate:
+585 search entries become 595. Keep both include prototypes disabled.
+
+Six instrumented V8 compiles at `196079e` spend 126.69s in Clang's frontend
+and 34.20s in its backend, out of 161.13s compiler task time. Instrumented and
+uninstrumented archives match exactly; `-O3` and `-g0` remain unchanged.
+The runner reports AMD EPYC, 11 CPUs in its affinity mask and 35,264,466,944
+memory bytes after an 8-CPU/32GiB request. These selected compiles indicate
+repeated parsing as the next investigation; they do not establish a whole-build
+frontend percentage. Nested Clang timing totals must not be added together.
+
+The separate generator scratch pilot at `89604ec` completes six executions of
+the 5,574-file Blink bindings generator. Every generated byte matches. Measured
+ABBA action times are 286.37/304.45s for disk scratch and 279.93/277.29s for
+execroot scratch: 5.7% lower mean action time in this small sample. Both modes
+use the same bounded 8GiB RAM sandbox; only the generator's staging directory
+changes. This is warm supporting setup, not a full cold-build speedup. Keep the
+change opt-in pending full-browser payload and rendering checks.
+
 ## BuildBuddy execution target
 
 Target: under one hour per supported triple on BuildBuddy, including artifact

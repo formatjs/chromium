@@ -12,6 +12,49 @@ from tools.ci.profile_buildbuddy import compiler_work, summarize, trace_summary
 
 
 class BuildProfileTest(unittest.TestCase):
+    def test_strict_cold_timing_requires_complete_outer_workflow_within_hour(self):
+        outer = {'success': True, 'invocationStatus': 'COMPLETE_INVOCATION_STATUS',
+                 'durationUsec': '3550000000'}
+        report = {'cold_result_verified': True, 'local_execution_verified': True,
+                  'elapsed_seconds': 3500}
+        self.assertTrue(profile_buildbuddy.strict_cold_timing_verified(outer, report))
+        for change in [{'durationUsec': '3600000000'}, {'durationUsec': None},
+                       {'durationUsec': '3499000000'}, {'success': False},
+                       {'invocationStatus': 'PARTIAL_INVOCATION_STATUS'}]:
+            with self.subTest(change=change):
+                self.assertFalse(profile_buildbuddy.strict_cold_timing_verified(outer | change, report))
+        for change in [{'cold_result_verified': False}, {'local_execution_verified': False},
+                       {'elapsed_seconds': 3600}, {'elapsed_seconds': float('nan')}]:
+            with self.subTest(change=change):
+                self.assertFalse(profile_buildbuddy.strict_cold_timing_verified(outer, report | change))
+
+    def test_strict_cold_profile_collects_published_summary_without_raw_trace(self):
+        report = {'cold_result_verified': True, 'local_execution_verified': True, 'elapsed_seconds': 3500}
+        summary = {'trace_complete': True, 'event_count': 1200,
+                   'compiler_work': {'v8': {'compile_spans': 90}}}
+        report_uri = 'bytestream://formatjs.buildbuddy.io/cold-report'
+        summary_uri = 'bytestream://formatjs.buildbuddy.io/trace-summary'
+        outer = {'pattern': ['Chromium strict cold build linux-amd64'], 'success': True,
+                 'invocationStatus': 'COMPLETE_INVOCATION_STATUS', 'durationUsec': '3550000000'}
+        artifacts = {'invocation': [{'artifacts': [
+            {'name': 'command-0/linux-amd64/cold-build.json', 'uri': report_uri},
+            {'name': 'command-0/linux-amd64/trace-summary.json', 'uri': summary_uri}]}]}
+        with mock.patch.object(profile_buildbuddy, 'rpc', return_value={'invocation': [outer]}), \
+                mock.patch.object(profile_buildbuddy, 'api_request', side_effect=[
+                    io.BytesIO(json.dumps(artifacts).encode()), io.BytesIO(json.dumps(report).encode()),
+                    io.BytesIO(json.dumps(summary).encode())]) as api, \
+                mock.patch.dict(os.environ, {'BUILDBUDDY_API_KEY': 'read-only-test-key'}):
+            result = profile_buildbuddy.collect('workflow')
+        self.assertEqual(result['cold_build'], report)
+        self.assertEqual(result['cold_profile'], summary)
+        self.assertTrue(result['strict_cold_timing_verified'])
+        self.assertEqual(api.call_args_list, [
+            mock.call('GetInvocation', {'selector': {'invocation_id': 'workflow'},
+                                       'include_artifacts': True}, 'read-only-test-key'),
+            mock.call('GetFile', {'uri': report_uri}, 'read-only-test-key'),
+            mock.call('GetFile', {'uri': summary_uri}, 'read-only-test-key'),
+        ])
+
     def test_compiler_experiment_report_is_collected_from_workflow_artifact(self):
         report = {'baseline': {'input_entries': 76130}, 'include-scan': {'input_entries': 1000}}
         uri = 'bytestream://formatjs.buildbuddy.io/report'
@@ -22,6 +65,9 @@ class BuildProfileTest(unittest.TestCase):
             ('Chromium clean cold build darwin-arm64', 'darwin-arm64/cold-build.json', 'cold_build'),
             ('Chromium compression benchmark windows-amd64', 'compression-experiment/report.json', 'compression_experiment'),
             ('Chromium bindings budget darwin-arm64', 'bindings-budget/report.json', 'bindings_experiment'),
+            ('Chromium Clang phase profile', 'clang-profile/report.json', 'clang_experiment'),
+            ('Chromium header include experiment', 'private-includes/report.json', 'include_experiment'),
+            ('Chromium private include experiment', 'private-includes/report.json', 'include_experiment'),
         ]:
             with self.subTest(pattern=pattern):
                 outer = {'pattern': [pattern]}

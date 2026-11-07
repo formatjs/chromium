@@ -13,7 +13,8 @@ from tools.ci.chromium import PLATFORMS, checksum
 
 API_URL = 'https://formatjs.buildbuddy.io/api/v1/'
 MAX_ARCHIVE_BYTES = 4 * 1024 * 1024 * 1024
-COLD_WORKFLOW_PREFIXES = ('Chromium cold build ', 'Chromium clean cold build ')
+COLD_WORKFLOW_PREFIXES = ('Chromium cold build ', 'Chromium clean cold build ',
+                          'Chromium strict cold build ')
 
 
 def invocation_id(url):
