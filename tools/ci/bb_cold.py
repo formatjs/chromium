@@ -46,11 +46,11 @@ def main():
                 raise ValueError('Bazel release checksum mismatch')
             bazel.chmod(0o755)
             report['bootstrap_seconds'] = time.monotonic() - started
-            command = [sys.executable, '-m', 'tools.ci.compile.private_ram', '--size-gib', '16', '--',
+            command = [sys.executable, '-m', 'tools.ci.compile.private_ram', '--size-gib', '8', '--',
                        sys.executable, '-m', 'tools.ci.local_cold', '--directory', str(trial),
                        '--repository-cache', str(cache), '--revision', args.revision,
                        '--bazel', str(bazel), '--jobs', str(args.jobs),
-                       '--action-memory-mb', '20000', '--sandbox-base', '{sandbox}',
+                       '--heap-gib', '8', '--action-memory-mb', '14000', '--sandbox-base', '{sandbox}',
                        '--max-seconds', '0']
             with subprocess.Popen(command) as process:
                 while True:

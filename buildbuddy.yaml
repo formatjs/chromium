@@ -8,8 +8,8 @@ actions:
     timeout: 6h
     resource_requests:
       cpu: 16
-      memory: 48GB
-      disk: 300GB
+      memory: 32GB
+      disk: 200GB
     triggers:
       push:
         branches: ["perf/bb-strict-cold"]
