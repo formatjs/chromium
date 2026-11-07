@@ -57,15 +57,31 @@ def checksum(path):
 
 
 def package_payload(bundle, payload, target, *, compression_level=1):
-    validate_binary(bundle, target)
+    bundle = bundle.resolve()
+    executable = validate_binary(bundle, target)
+    runtime_root = executable.resolve()
+    for _ in PurePosixPath(target['executable']).parts:
+        runtime_root = runtime_root.parent
     payload.parent.mkdir(parents=True, exist_ok=True)
 
     def normalize(member):
-        if member.islnk():
-            source = bundle / PurePosixPath(member.name).relative_to('bundle')
+        relative = PurePosixPath(member.name).relative_to('bundle')
+        source = bundle / relative
+        sandbox_link = member.issym() and PurePosixPath(member.linkname).is_absolute()
+        if sandbox_link:
+            # Local sandboxes expose tree input files as absolute symlinks.
+            resolved = source.resolve()
+            if (not resolved.is_relative_to(runtime_root)
+                    or resolved != (runtime_root / relative).resolve()):
+                raise ValueError('Archive link outside runtime tree: ' + member.name)
+            if not resolved.is_file():
+                raise ValueError('Expected runtime file link: ' + member.name)
+        if member.islnk() or sandbox_link:
+            metadata = source.stat()
             member.type = tarfile.REGTYPE
             member.linkname = ''
-            member.size = source.stat().st_size
+            member.size = metadata.st_size
+            member.mode = metadata.st_mode
         member.uid = member.gid = member.mtime = 0
         member.uname = member.gname = ''
         member.pax_headers = {}
