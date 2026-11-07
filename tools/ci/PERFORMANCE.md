@@ -49,6 +49,8 @@ all three archives match, including the unpatched-toolchain reference. LLVM's
 header providers must expose individual files while preserving separate source
 directories for resource copying. Otherwise discovered headers collide with
 directory inputs in local sandboxes. Compiler versions and flags stay unchanged.
+Only compiler resource, glibc and kernel header sets opt in; SDK consumers keep
+their existing single-directory contract.
 
 A separate RAM-sandbox probe takes 61/75 seconds on ext4 and 20/19 seconds on
 tmpfs. Both input comparisons contain zero changes; every archive matches.
@@ -74,11 +76,11 @@ analysis, compilation, linking, packaging and artifact copying. A successful
 archive still needs ABI, rendering and payload comparison before accepting
 the optimization. Each new cold trial needs a new directory.
 
-## Cold-build target
+## BuildBuddy execution target
 
 Target: under one hour per supported triple on BuildBuddy, including artifact
 packaging. Preserve hermetic toolchains, declared inputs, compiler options,
-target ABIs, and native rendering smoke coverage. All five strict cold workflows at
+target ABIs, and native rendering smoke coverage. All five workflows with fresh client state at
 `85f68a7` finish in 35m01s–44m40s. All five exact artifacts pass native rendering
 and payload checks; Linux ARM64 needs one unchanged-artifact native retry,
 described below. The `24375b5` cohort finished in 35m56s–46m04s and passed native
@@ -160,13 +162,21 @@ also hit the one-hour cap: 142,837/154,750 actions, no compiler errors, and no
 final cold report. The next matched trial compares 64 and 128 jobs with 16 client
 CPUs, scanning, retained trees, and fixed compiler options.
 
-## Latest strict cold results
+## RBE results with fresh client state
 
 The `85f68a7` cohort uses fresh output bases verified against canonical Bazel
 startup options, fresh repository download caches, zero reused actions, and
 no in-flight action merging. Shared RBE CAS and worker caches remain uncleared.
 Times cover the complete BB workflow, including setup, fetching, analysis,
 linking, packaging, and artifact upload.
+
+These timings do not prove a dependency-cache-only cold build. RBE retained
+shared CAS contents and worker state. An action-key salt can force misses
+without clearing that state; an arbitrary shell variable might not enter action
+keys at all. The local protocol above disables RBE and
+all action caches; running it on a fresh BB runner would measure the same cache
+conditions. A comparable RBE trial needs independently empty CAS and executor
+state, not merely a new instance-name string.
 
 | Target | Complete BB workflow | Executed C++ compiles | Executed Bazel actions |
 | --- | ---: | ---: | ---: |
