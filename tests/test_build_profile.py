@@ -12,6 +12,22 @@ from tools.ci.profile_buildbuddy import compiler_work, summarize, trace_summary
 
 
 class BuildProfileTest(unittest.TestCase):
+    def test_strict_cold_timing_requires_complete_outer_workflow_within_hour(self):
+        outer = {'success': True, 'invocationStatus': 'COMPLETE_INVOCATION_STATUS',
+                 'durationUsec': '3550000000'}
+        report = {'cold_result_verified': True, 'local_execution_verified': True,
+                  'elapsed_seconds': 3500}
+        self.assertTrue(profile_buildbuddy.strict_cold_timing_verified(outer, report))
+        for change in [{'durationUsec': '3600000000'}, {'durationUsec': None},
+                       {'durationUsec': '3499000000'}, {'success': False},
+                       {'invocationStatus': 'PARTIAL_INVOCATION_STATUS'}]:
+            with self.subTest(change=change):
+                self.assertFalse(profile_buildbuddy.strict_cold_timing_verified(outer | change, report))
+        for change in [{'cold_result_verified': False}, {'local_execution_verified': False},
+                       {'elapsed_seconds': 3600}, {'elapsed_seconds': float('nan')}]:
+            with self.subTest(change=change):
+                self.assertFalse(profile_buildbuddy.strict_cold_timing_verified(outer, report | change))
+
     def test_strict_cold_profile_collects_published_summary_without_raw_trace(self):
         report = {'cold_result_verified': True, 'elapsed_seconds': 3500}
         summary = {'trace_complete': True, 'event_count': 1200,

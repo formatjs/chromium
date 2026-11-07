@@ -168,6 +168,20 @@ def trace_summary(path, allow_partial=False):
             'tasks': tasks, 'counters': counters}
 
 
+def strict_cold_timing_verified(outer, report):
+    """Require service checkout and setup to fit the same one-hour budget."""
+    try:
+        full_seconds = int(outer.get('durationUsec')) / 1e6
+        build_seconds = float(report.get('elapsed_seconds'))
+    except (TypeError, ValueError):
+        return False
+    return (outer.get('success') is True
+            and outer.get('invocationStatus') == 'COMPLETE_INVOCATION_STATUS'
+            and report.get('cold_result_verified') is True
+            and report.get('local_execution_verified') is True
+            and 0 < build_seconds <= full_seconds < 3600)
+
+
 def collect(identifier):
     outer = rpc('GetInvocation', {'lookup': {
         'invocationId': identifier, 'fetchChildInvocations': True}})['invocation'][0]
@@ -262,6 +276,9 @@ def collect(identifier):
                         raise ValueError('Profile exceeds 256 MiB')
                     output.write(chunk)
             result['cold_profile'] = trace_summary(path, allow_partial=True)
+    if cold_prefix == 'Chromium strict cold build ':
+        result['strict_cold_timing_verified'] = strict_cold_timing_verified(
+            outer, result.get('cold_build', {}))
     return result
 
 
