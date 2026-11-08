@@ -900,3 +900,25 @@ kernel CPU ticks and Bazel RSS. Compare counter deltas across elapsed timestamps
 old peak/OOM totals are not evidence that this trial hit those conditions.
 Kernel and ancestor counters may include other workloads. Missing counters stay
 unknown. Sampling changes no compiler flags, action inputs or cache settings.
+
+### Strict-cold resource observation
+
+BB invocation `e1ce7ada-5652-4c15-932c-6100c78c8613` at revision
+`6d4d9664f20913df9902b2799c9e78e9dce96274` hit the tier timeout after
+3602.232 seconds. Last observed progress was 78,932/102,669 actions; no archive.
+The seven-PCH workload and C04 compiler were unchanged. Collector run
+42518344105 preserves the incomplete profile and 710 resource samples.
+
+Between elapsed 240.861 and 3557.095 seconds, cgroup CPU usage averaged 18.078
+CPU equivalents. The late interval, 1800.020–3557.095 seconds, averaged 18.905
+of 19 guest CPUs: 17.037 user, 1.829 system, 0.001 I/O wait and 0.028 steal.
+CPU quota throttling counters did not increase. Guest/cgroup counters do not
+independently establish physical allocation. These observations favor reducing
+compiler work over another unchanged retry or increasing action concurrency.
+
+Peak sampled Bazel RSS was 7,457,464,320 bytes. Pressure, memory.current,
+memory.peak and memory.events were unavailable; absence of memory pressure is
+unproven. Final file memory includes shared memory, so those values must not be
+added. The trace is partial: its completed-action totals cannot establish final
+work, remaining duration, archive identity, ABI or rendering. Other four triples
+remain cold-unmeasured.
