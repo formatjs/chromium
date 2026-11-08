@@ -1,13 +1,36 @@
 import gzip
+import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
+from tools.ci.compile.experiment import archive_outputs
 from tools.ci.compile.local import _profile_events, local_compile_times, verify_ram_sandbox
 
 
 class LocalCompileExperimentTest(unittest.TestCase):
+    def test_archive_reader_selects_requested_output_group(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            events = []
+            for group, content in [('default', b'default'), ('archive', b'archive')]:
+                file = root / (group + '.a')
+                file.write_bytes(content)
+                events.append({'id': {'namedSet': {'id': group}},
+                               'namedSetOfFiles': {'files': [{'uri': file.as_uri()}]}})
+            events.append({'id': {'targetCompleted': {'label': '//:cohort'}},
+                           'completed': {'success': True, 'outputGroup': [
+                               {'name': group, 'fileSets': [{'id': group}]}
+                               for group in ['default', 'archive']]}})
+            path = root / 'events.json'
+            path.write_text('\n'.join(json.dumps(event) for event in events))
+            for group in ['default', 'archive']:
+                files, _ = archive_outputs(path, '//:cohort', output_group=group)
+                self.assertEqual(files, {group + '.a': hashlib.sha256(group.encode()).hexdigest()})
+            with self.assertRaisesRegex(ValueError, 'did not produce an archive'):
+                archive_outputs(path, '//:cohort', output_group='missing')
+
     def test_ram_comparison_requires_empty_dedicated_tmpfs(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -187,7 +187,7 @@ def query(startup, flags, source, expression, target):
         time.sleep(5 * (attempt + 1))
 
 
-def measure(startup, flags, source, name, target, directory):
+def measure(startup, flags, source, name, target, directory, output_group="default"):
     events = directory / (name + '.events.json')
     profile = directory / (name + '.profile.gz')
     log = directory / (name + '.log')
@@ -213,7 +213,7 @@ def measure(startup, flags, source, name, target, directory):
     if code:
         print(log.read_text(errors='replace')[-6000:], flush=True)
         raise ValueError('PCH probe build failed: ' + name)
-    archives, metrics = archive_outputs(events, target)
+    archives, metrics = archive_outputs(events, target, output_group=output_group)
     if len(archives) != 1:
         raise ValueError('Expected one cohort archive')
     return {'wall_seconds': elapsed, 'minimum_sampled_available_memory_bytes': min(available),

@@ -165,7 +165,7 @@ def browser_source_groups(platform='linux-amd64'):
             for owner, sources in constants['SOURCE_GROUPS'].items()}
 
 
-def archive_outputs(events, target=TARGET):
+def archive_outputs(events, target=TARGET, output_group="default"):
     sets, roots = {}, []
     complete = False
     metrics = {}
@@ -176,7 +176,7 @@ def archive_outputs(events, target=TARGET):
         if event.get('id', {}).get('targetCompleted', {}).get('label') == target:
             complete = event['completed']['success']
             for group in event['completed'].get('outputGroup', []):
-                if group['name'] == 'default':
+                if group['name'] == output_group:
                     roots += [item['id'] for item in group.get('fileSets', [])]
         if 'buildMetrics' in event:
             metrics = event['buildMetrics']

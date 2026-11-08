@@ -31,6 +31,12 @@ COMPONENTS = {
         'group': 'idl', 'pch_consumers': COUNT - 2,
         'source_prefix': 'external/+chromium_dependencies+chromium/',
     },
+    'v8-generated': {
+        'owner': 'browser_v8_0583b2bb19f5557f', 'count': 248,
+        'archive_sha256': '92861f441c27d045b914fdd4276a33fdabfebbdc10d382bc0d3907141c8fb022',
+        'group': 'generated', 'pch_consumers': 246,
+        'source_prefix': 'native/', 'prefix_guard': True,
+    },
     'v8-base': {
         'owner': 'browser_v8_25a5dd0bb5046cea', 'count': 578,
         'archive_sha256': '9041d6d1d33071387ec0ac40c8cd81c1e27883bc726ee2a67e500f4345fb6607',
@@ -62,7 +68,8 @@ def main():
               'revision': revision, 'machine': machine, 'jobs': capacity, 'cpu_budget': capacity,
               'component': args.component, 'owner': owner,
               'source_count': count, 'pch_consumer_count': pch_consumers,
-              'sandbox_directory_reuse': False, 'complete': False, 'phases': {},
+              'sandbox_directory_reuse': False, 'selected_output_group': 'archive',
+              'complete': False, 'phases': {},
               'original_archive_sha256': archive_sha256}
     cache = Path.home() / '.cache/chromium-strict-cold-downloads'
     cache.mkdir(parents=True, exist_ok=True)
@@ -89,7 +96,7 @@ def main():
                    '--bazelrc=' + str(source / '.bazelrc'), '--host_jvm_args=-Xmx8g',
                    '--output_user_root=' + str(root / 'bazel-root'),
                    '--output_base=' + str(root / 'output-base'), '--install_base=' + str(root / 'install-base')]
-        flags = ['--config=browser', '--nodiscard_analysis_cache', '--track_incremental_state',
+        flags = ['--config=browser', '--output_groups=archive', '--nodiscard_analysis_cache', '--track_incremental_state',
                  '--keep_state_after_build', '--spawn_strategy=linux-sandbox',
                  '--sandbox_base=' + str(args.sandbox_base), '--noreuse_sandbox_directories',
                  '--local_resources=memory=14000', '--jobs=' + str(capacity),
@@ -143,6 +150,13 @@ def main():
                     or any(not path.is_relative_to(execution / 'bazel-out') or '..' in path.parts
                            or '/' + PACKAGE + '/' not in path.as_posix() for path in pch_outputs)):
                 raise ValueError('PCH outputs outside expected inventory')
+            if component.get('prefix_guard'):
+                guard_rows, = pch.query(startup, flags, source,
+                                       '[f.path for a in target.actions if a.mnemonic == "ChromiumPchPrefix" for f in a.outputs.to_list()]',
+                                       PREFIX + owner + '_prefix_guard')
+                if len(guard_rows) != 1 or guard_rows[0] != 'bazel-out/k8-fastbuild/bin/' + PACKAGE + '/' + owner + '_prefix_guard.validated':
+                    raise ValueError('Unexpected PCH prefix guard output')
+                pch_outputs.append(execution / guard_rows[0])
             reference = None
             sources = tuple(path.removeprefix('bazel-out/k8-fastbuild/bin/').removeprefix(
                 'external/+chromium_dependencies+chromium/').removeprefix(
@@ -155,7 +169,7 @@ def main():
                         if path.is_symlink() or not path.is_file():
                             raise ValueError('Inventoried output missing or replaced by symlink')
                         path.unlink()
-                row, profile = pch.measure(startup, flags, source, name, targets[variant], root)
+                row, profile = pch.measure(startup, flags, source, name, targets[variant], root, output_group="archive")
                 report['phases'][name] = row
                 if not name.startswith('warmup'):
                     row['selected_compiles'] = local_compile_times(profile, sources)
@@ -164,7 +178,8 @@ def main():
                     expected_pch = int(variant == 'candidate')
                     if (counts.get('CppCompile') != count or counts.get('ChromiumPython', 0)
                             or counts.get('ChromiumProjectPch', 0) != expected_pch
-                            or counts.get('ChromiumPchClosure', 0) != expected_pch):
+                            or counts.get('ChromiumPchClosure', 0) != expected_pch
+                            or counts.get('ChromiumPchPrefix', 0) != expected_pch * int(component.get('prefix_guard', False))):
                         raise ValueError('Measured pass contains missing selected or extra supporting actions')
                 hashes = {key: hashlib.sha256(path.read_bytes()).hexdigest() for key, path in objects[variant].items()}
                 current = row['archive_sha256'], hashes

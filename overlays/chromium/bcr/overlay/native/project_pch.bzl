@@ -174,9 +174,11 @@ def _compile_impl(ctx):
         disallow_dynamic_library = True,
     )
     library = linking_outputs.library_to_link
+    archives = depset([file for file in [library.static_library, library.pic_static_library] if file])
     return [
         CcInfo(compilation_context = ctx.attr.context[CcInfo].compilation_context, linking_context = linking_context),
-        DefaultInfo(files = depset([file for file in [library.static_library, library.pic_static_library] if file])),
+        DefaultInfo(files = archives),
+        OutputGroupInfo(archive = archives),
     ]
 
 chromium_pch_compile = rule(

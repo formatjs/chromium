@@ -800,3 +800,30 @@ and profile size. The report requires a complete code trace in addition to
 existing fresh-state, actual-local-execution and six-producer/validator gates.
 Profile analysis now counts in its elapsed time; the full BB workflow duration
 remains the final one-hour gate. 212 tests pass. No timing success claimed yet.
+
+### Generated V8 PCH candidate
+
+246 of 248 generated V8 initializers share the same 73 opening includes. The
+candidate precompiles that ordered prefix; two exceptions compile normally.
+A declared action checks every eligible source's opening includes before the
+producer runs. Existing content validation checks the pinned 1,099-header closure.
+
+Direct recompiles preserve all 246 original opt-exec objects. A separate Bazel
+sandbox gate preserves all 248 objects and the complete archive against the
+unchanged target in the same configuration. Expanded consumer flags/environment
+match after expected PCH additions. Archive SHA-256:
+`92861f441c27d045b914fdd4276a33fdabfebbdc10d382bc0d3907141c8fb022`.
+Comparing generated-source objects across fastbuild/opt-exec configurations is
+invalid here: `__FILE__` embeds their different paths. The same-context gate
+covers this, rather than rewriting paths or accepting object differences.
+
+Three local sample files use 40.74 compiler CPU seconds without PCH versus
+23.53 plus 8.47 for its producer. Shared-host feasibility evidence only; no BB
+or whole-cold speedup claim. 215 tests pass. Full-cohort BB ABBA wiring forces
+all 248 compiles, PCH producer, prefix check and closure check each candidate pass.
+
+Component diagnostics request the public `archive` output group. Default
+`cc_library` output selection also forces transitive dependency compiles, adding
+about 1,429 unnecessary actions to this comparison's graph. Both variants still
+produce the complete cohort archive. Final strict-cold Chromium packaging keeps
+its complete target and cache policy. Other supported triples remain unmeasured.

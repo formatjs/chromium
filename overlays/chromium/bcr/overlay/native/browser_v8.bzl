@@ -7,6 +7,7 @@ load(":masm.bzl", "chromium_masm")
 load(":public_dependency.bzl", "chromium_snapshot_dependencies")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
+load(":v8_generated_pch.bzl", "v8_generated_pch")
 load(":v8_pch.bzl", "v8_base_pch")
 
 def native_browser_v8():
@@ -59,6 +60,8 @@ def native_browser_v8():
         replacement = None
         if original == "//v8:v8_base_without_compiler":
             replacement = v8_base_pch(library, common, library["srcs"])
+        elif original == "//v8:torque_generated_initializers":
+            replacement = v8_generated_pch(library, common, library["srcs"])
         if replacement:
             sources = select({
                 "//native/tool_configuration:project_pch": [],
