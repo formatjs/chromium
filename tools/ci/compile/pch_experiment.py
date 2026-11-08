@@ -1,10 +1,11 @@
-"""Compare declared PCH against the same Blink cohort at fixed resources."""
+"""Compare declared Blink compiler variants at fixed resources."""
 
 import argparse
 import ast
 import hashlib
 import json
 import math
+import posixpath
 from pathlib import Path
 import shutil
 import subprocess
@@ -26,9 +27,9 @@ TARGETS = {'baseline': '//' + PACKAGE + ':baseline-linux-amd64',
            'pch': '//' + PACKAGE + ':linux-amd64'}
 
 
-def owned_objects(rows, execution_root, owner, split=False):
+def owned_objects(rows, execution_root, owner, split=False, package=PACKAGE):
     """Only delete unique, inventoried objects owned by this probe."""
-    prefixes = ['/' + PACKAGE + '/_objs/' + owner + suffix + '/'
+    prefixes = ['/' + package + '/_objs/' + owner + suffix + '/'
                 for suffix in (('_pch', '_plain') if split else ('',))]
     files = [execution_root / item for row in rows for item in row]
     if len(files) != len(SOURCES) or len(set(files)) != len(files):
@@ -87,6 +88,59 @@ def normalized_commands(rows, pch_path=None, eligible_sources=None):
     return result
 
 
+def verify_include_reduction(baseline, candidate):
+    """Only remove Chromium-owned search paths; keep flags and search order."""
+    def separate(arguments):
+        flags, includes = [], []
+        iterator = iter(arguments)
+        for argument in iterator:
+            if argument in ('-I', '-iquote', '-isystem', '-iframework'):
+                includes.append((argument, next(iterator)))
+            elif argument.startswith('-I'):
+                includes.append(('-I', argument[2:]))
+            else:
+                flags.append(argument)
+        return flags, includes
+
+    def owned(path):
+        path = posixpath.normpath(path)
+        if path.startswith('bazel-out/'):
+            parts = path.split('/', 3)
+            if len(parts) == 4 and parts[2] == 'bin':
+                path = parts[3]
+        root = 'external/+chromium_dependencies+chromium'
+        return path == root or path.startswith(root + '/')
+
+    if baseline.keys() != candidate.keys():
+        raise ValueError('Include candidate changes source inventory')
+    counts = set()
+    for source, (before, before_environment) in baseline.items():
+        after, after_environment = candidate[source]
+        before_flags, before_paths = separate(before)
+        after_flags, after_paths = separate(after)
+        if before_flags != after_flags or before_environment != after_environment:
+            raise ValueError('Include candidate changes compiler flags or environment')
+        remaining = iter(before_paths)
+        removed = []
+        for wanted in after_paths:
+            for entry in remaining:
+                if entry == wanted:
+                    break
+                removed.append(entry)
+            else:
+                raise ValueError('Include candidate adds or reorders search paths')
+        removed.extend(remaining)
+        if not removed or any(not owned(path) for _, path in removed):
+            raise ValueError('Include candidate must only remove Chromium search paths')
+        counts.add((len(before_paths), len(after_paths)))
+    if len(counts) != 1:
+        raise ValueError('Expected one include context for the fixed cohort')
+    before, after = counts.pop()
+    return {'baseline_paths': before, 'candidate_paths': after,
+            'removed_paths': before - after, 'retained_order_verified': True,
+            'other_flags_and_environments_equal': True}
+
+
 def verify_command_compilers(commands, output_base, expected):
     """Verify compiler inputs before Bazel materializes its execution root."""
     for compiler_path in {arguments[0] for arguments, _ in commands.values()}:
@@ -143,14 +197,21 @@ def measure(startup, flags, source, name, target, directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--project-header', action='store_true',
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--include-context', action='store_true')
+    mode.add_argument('--project-header', action='store_true',
                         help='Use the captured header only on original consumers')
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--sandbox-base', type=Path, required=True)
     parser.add_argument('--compiler-archive', type=Path, required=True)
     args = parser.parse_args()
-    candidate_owner = 'blink_project_pch_compile_probe' if args.project_header else OWNER
-    targets = dict(TARGETS)
+    candidate_owner = ('blink_include_context_probe' if args.include_context else
+                       'blink_project_pch_compile_probe' if args.project_header else OWNER)
+    candidate_variant = 'candidate' if args.include_context else 'pch'
+    package = 'tools/ci/compile/include_context' if args.include_context else PACKAGE
+    targets = ({'baseline': '//' + package + ':baseline-linux-amd64',
+                candidate_variant: '//' + package + ':linux-amd64'}
+               if args.include_context else dict(TARGETS))
     eligible = None
     if args.project_header:
         assignments = ast.parse((ROOT / 'tools/ci/compile/project_pch_headers.bzl').read_text()).body
@@ -172,6 +233,9 @@ def main():
               'revision': revision, 'machine': machine, 'jobs': capacity, 'cpu_budget': capacity,
               'memory_sample_interval_seconds': 5, 'source_count': len(SOURCES),
               'complete': False, 'phases': {}}
+    if args.include_context:
+        report['measurement'] = 'Warm support; all selected compiles rebuilt; GN include context; not cold proof'
+        report['sandbox_directory_reuse'] = False
     if args.project_header:
         report['project_header'] = metadata['HEADER']
         report['pch_consumer_count'] = len(eligible)
@@ -211,20 +275,22 @@ def main():
                  '--define=CHROMIUM_NATIVE_TOOLS=1',
                  '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution',
                  '--define=CHROMIUM_COMPILE_PROBE_SCAN=1', '--define=CHROMIUM_BINDINGS_WORKERS=4']
-        if args.project_header:
+        if args.project_header or args.include_context:
             flags.append('--noreuse_sandbox_directories')
         try:
             execution_root = Path(subprocess.check_output(
                 [*startup, 'info', 'execution_root'], cwd=source, text=True).strip())
             files = {}
             commands = {}
-            pch_target = '//' + PACKAGE + ':' + candidate_owner + '_pch'
-            pch_rows = query(startup, flags, source, '[f.path for f in target.files.to_list()]', pch_target)
-            pch_relative, = pch_rows[0]
-            pch = execution_root / pch_relative
-            if ('..' in pch.parts or not pch.is_relative_to(execution_root / 'bazel-out')
-                    or '/' + PACKAGE + '/' not in pch.as_posix() or pch.suffix != '.pch'):
-                raise ValueError('PCH output outside probe inventory')
+            pch = pch_relative = None
+            if not args.include_context:
+                pch_target = '//' + PACKAGE + ':' + candidate_owner + '_pch'
+                pch_rows = query(startup, flags, source, '[f.path for f in target.files.to_list()]', pch_target)
+                pch_relative, = pch_rows[0]
+                pch = execution_root / pch_relative
+                if ('..' in pch.parts or not pch.is_relative_to(execution_root / 'bazel-out')
+                        or '/' + PACKAGE + '/' not in pch.as_posix() or pch.suffix != '.pch'):
+                    raise ValueError('PCH output outside probe inventory')
             raw_pch = None
             if args.project_header:
                 raw_rows = query(startup, flags, source,
@@ -237,34 +303,39 @@ def main():
                         or raw_pch.name != candidate_owner + '_pch.raw.pch'):
                     raise ValueError('Raw PCH outside probe inventory')
             for variant in targets:
-                owner = OWNER + '_baseline' if variant == 'baseline' else candidate_owner
-                target = '//' + PACKAGE + ':' + owner
+                owner = ((candidate_owner if args.include_context else OWNER) + '_baseline'
+                         if variant == 'baseline' else candidate_owner)
+                target = '//' + package + ':' + owner
                 rows = query(startup, flags, source,
                              '[f.path for a in target.actions if a.mnemonic == "CppCompile" for f in a.outputs.to_list() if f.path.endswith(".o")]', target)
                 files[variant] = owned_objects(rows, execution_root, owner,
-                                               split=args.project_header and variant == 'pch')
+                                               split=args.project_header and variant == 'pch', package=package)
                 rows, = query(startup, flags, source,
                               '[(a.argv, a.env) for a in target.actions if a.mnemonic == "CppCompile"]', target)
                 commands[variant] = normalized_commands(
                     rows, pch_relative if variant == 'pch' else None, eligible_sources=eligible)
-            if commands['baseline'] != commands['pch']:
-                raise ValueError('PCH consumer changes other compiler flags or environment')
-            report['consumer_commands_equivalent'] = True
+            if args.include_context:
+                report['include_reduction'] = verify_include_reduction(
+                    commands['baseline'], commands[candidate_variant])
+            else:
+                if commands['baseline'] != commands[candidate_variant]:
+                    raise ValueError('PCH consumer changes other compiler flags or environment')
+                report['consumer_commands_equivalent'] = True
             report['compiler_context_sha256'] = hashlib.sha256(json.dumps(commands['baseline'], sort_keys=True).encode()).hexdigest()
             report['actual_binary_sha256'] = verify_compiler(root / 'output-base')
             verify_command_compilers(commands['baseline'], root / 'output-base', report['actual_binary_sha256'])
             reference = None
-            for name, variant in [('warmup-baseline', 'baseline'), ('warmup-pch', 'pch'),
-                                  ('baseline-1', 'baseline'), ('pch-1', 'pch'),
-                                  ('pch-2', 'pch'), ('baseline-2', 'baseline')]:
+            for name, variant in [('warmup-baseline', 'baseline'), ('warmup-' + candidate_variant, candidate_variant),
+                                  ('baseline-1', 'baseline'), (candidate_variant + '-1', candidate_variant),
+                                  (candidate_variant + '-2', candidate_variant), ('baseline-2', 'baseline')]:
                 if not name.startswith('warmup'):
                     for file in files[variant].values():
                         file.unlink()
-                    if variant == 'pch':
+                    if variant == candidate_variant and pch is not None:
                         pch.unlink()
                         if raw_pch is not None:
                             raw_pch.unlink()
-                print('PCH experiment: ' + name, flush=True)
+                print('Compile experiment: ' + name, flush=True)
                 row, profile = measure(startup, flags, source, name, targets[variant], root)
                 report['phases'][name] = row
                 if not name.startswith('warmup'):
@@ -274,7 +345,7 @@ def main():
                     if counts.get('CppCompile') != len(SOURCES) or counts.get('ChromiumPython', 0):
                         raise ValueError('Measured pass recompiles supporting actions')
                     pch_mnemonic = 'ChromiumProjectPch' if args.project_header else 'ChromiumPch'
-                    if counts.get(pch_mnemonic, 0) != (1 if variant == 'pch' else 0):
+                    if counts.get(pch_mnemonic, 0) != int(variant == candidate_variant and not args.include_context):
                         raise ValueError('PCH must rebuild exactly once in each candidate pass')
                     if counts.get('ChromiumPchClosure', 0) != int(args.project_header and variant == 'pch'):
                         raise ValueError('Project PCH closure must validate each fresh candidate')

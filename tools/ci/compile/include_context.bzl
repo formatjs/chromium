@@ -27,6 +27,8 @@ def _keep(path, repository, own):
 
 def _headers_impl(ctx):
     context = ctx.attr.library[CcInfo].compilation_context
+    if not ctx.attr.projected:
+        return [DefaultInfo(files = depset()), CcInfo(compilation_context = context)]
     owner = ctx.attr.library.label
     own = {paths.normalize(paths.join(owner.workspace_root, owner.package, path)): True for path in ctx.attr.includes}
     selected = {}
@@ -50,33 +52,36 @@ _headers = rule(
     attrs = {
         "library": attr.label(mandatory = True, providers = [CcInfo]),
         "includes": attr.string_list(),
+        "projected": attr.bool(default = True),
     },
 )
 
 def blink_include_context_probe(name, libraries):
     """Measure a smaller search list before considering production changes."""
     library = libraries["//third_party/blink/renderer/core:core"]
-    _headers(
-        name = name + "_headers",
-        library = "@chromium//native:" + library["name"],
-        includes = INCLUDE_ROOTS,
-    )
-    cc_library(
-        name = name,
-        srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
-        copts = library["copts"],
-        local_defines = library["defines"],
-        deps = [":" + name + "_headers"],
-        additional_compiler_inputs = [
-            "@chromium//:base/component_export.h",
-            "@chromium//:skia/config/SkUserConfig.h",
-            "@chromium//:skia/config/sk_ref_cnt_ext_debug.h",
-            "@chromium//:skia/config/sk_ref_cnt_ext_release.h",
-            "@chromium//:skia/ext/skia_histogram.h",
-            "@chromium//native:blink_core_forwarders/third_party/re2/src/re2/re2.h",
-        ],
-        features = ["cc_include_scanning"],
-        linkstatic = True,
-        tags = ["manual"],
-        target_compatible_with = ["@platforms//os:linux", "@platforms//cpu:x86_64"],
-    )
+    for variant, projected in [(name, True), (name + "_baseline", False)]:
+        _headers(
+            name = variant + "_headers",
+            projected = projected,
+            library = "@chromium//native:" + library["name"],
+            includes = INCLUDE_ROOTS,
+        )
+        cc_library(
+            name = variant,
+            srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
+            copts = library["copts"],
+            local_defines = library["defines"],
+            deps = [":" + variant + "_headers"],
+            additional_compiler_inputs = [
+                "@chromium//:base/component_export.h",
+                "@chromium//:skia/config/SkUserConfig.h",
+                "@chromium//:skia/config/sk_ref_cnt_ext_debug.h",
+                "@chromium//:skia/config/sk_ref_cnt_ext_release.h",
+                "@chromium//:skia/ext/skia_histogram.h",
+                "@chromium//native:blink_core_forwarders/third_party/re2/src/re2/re2.h",
+            ],
+            features = ["cc_include_scanning"],
+            linkstatic = True,
+            tags = ["manual"],
+            target_compatible_with = ["@platforms//os:linux", "@platforms//cpu:x86_64"],
+        )

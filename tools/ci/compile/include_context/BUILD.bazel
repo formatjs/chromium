@@ -13,3 +13,8 @@ linux_amd64_browser(
     name = "linux-amd64",
     srcs = [":blink_include_context_probe"],
 )
+
+linux_amd64_browser(
+    name = "baseline-linux-amd64",
+    srcs = [":blink_include_context_probe_baseline"],
+)
