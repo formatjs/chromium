@@ -1209,3 +1209,84 @@ have positive local compiler subprocess spans. The fourteen fallback sources
 also have positive execution spans in the retry profile. Final report:
 `/tmp/chromium-full-core-pch-correctness.json`. Original object/archive gates pass.
 Experiment and profiler fix pushed through `3867b98`.
+
+### Native PCH integration and reproducibility fix
+
+Opt-in native core integration keeps default compile commands unchanged. All
+2,398 replacement commands match the original native flags/environment after
+explicit PCH options; the two main-repository quote roots are gone. Original
+owner emits no duplicate compile/archive actions. Replacement archive retains
+original library position and object order. Public include roots, defines,
+headers, dependency libraries/flags/order match the header-only donor context.
+Audits `/tmp/chromium-native-pch-preflight.json`,
+`/tmp/chromium-native-pch-link-audit.json`.
+
+Before timestamp/content changes, all 2,398 native objects/archive and actual
+local compiler executions pass; two raw producers and validators execute, with
+zero supporting C++/Python work. Archive remains
+`187c9d4d3f119abe2a5c01adda4e47d449d35bef9e08079af1a8136950a020c5`.
+Report `/tmp/chromium-native-pch-correctness.json`. Warm run 1,028.564 s,
+critical path 238.04 s; not an A/B comparison or cold proof. Live JVM stack showed
+reused sandbox cleanup and compiler execution.
+
+Pinned-compiler counterexample found that original PCH bytes encode header
+mtimes and reject unchanged contents after a timestamp change. Shared flags now
+use `-Xclang -fno-pch-timestamp` plus
+`-fpch-validate-input-files-content` on producer/consumer. Reproducibility check
+passes different checkout roots/mtimes and rejects same-size changed headers at
+original or zero mtime. No input-validation bypass. Earlier timing samples needed
+remeasurement with this fix; the results below supersede them.
+Checked-in probe `tools/ci/compile/pch_reproducibility.py`; report
+`/tmp/chromium-checked-in-pch-reproducibility/report.json`.
+The generic `-fvalidate-ast-input-files-content` driver argument was unused;
+use the PCH-specific driver option verified above.
+
+Native 1,030-source binding preflight preserves original flags/environment;
+a separate header donor avoids future owner/producer cycles. Full sandboxed
+binding object/archive bytes now pass as recorded below. IDL PCH also preserves three original core
+objects under normal cross-context validation:
+`/tmp/chromium-cross-context-idl-pilot/report.json`. No broader sharing adopted.
+
+199 Python tests pass. Cold CLI accepts guarded `--blink-pch` and records actual
+producer/closure counts; cache policy remains unchanged. Local host reached
+691,202 free inodes. Only the warm fixture's disposable sandbox tree (281,795
+inodes) was removed after successful Bazel shutdown. Compiled outputs and
+original cold references remain intact.
+
+
+### Content-validated PCH: component proof and BB remeasurement
+
+Revision `76db9ca`: all 3,428 original objects (2,398 core, 1,030 bindings), both
+archives, compiler command/environment guards and actual compiler subprocess
+spans pass. Three PCH producers and three closure validators execute; no supporting
+Python actions. Report `/tmp/chromium-native-content-correctness.json`. Warm build
+1,246.775 s is neither controlled timing nor cold proof.
+
+Full browser link audit compares 143,433 arguments. Exactly 3,428 paths change to
+source-matched, byte-verified replacement objects; every other argument, order,
+environment and execution platform remains unchanged. Component public contexts
+and dependency linking inputs also pass. Reports
+`/tmp/chromium-full-link-audit/report.json`,
+`/tmp/chromium-native-binding-link-audit.json`. This audit does not execute linking.
+
+BB invocation `1c28e743-b208-4196-8fb7-1160ff67278e` completed successfully;
+collector `42462316250`. Content-validated ABBA means: baseline 93.356606 s,
+candidate 73.403438 s, **21.3731% less wall**, **30.3692% less compiler CPU**.
+All 256 actual source executions, original objects/archive and command guards
+pass in every measured phase. Each candidate rebuilds both PCH producers and
+validators. Actual compiler `d94fff11...`; reproducibility test passes across
+checkout roots/mtimes and rejects modified same-size headers, including zero mtime.
+Machine: 19 CPU AMD EPYC, 35,262,926,848 bytes RAM, 8 GiB heap, 14 GB action budget,
+private 8 GiB RAM sandbox, directory reuse disabled. Supporting outputs are warm;
+this is not a full browser or cold timing claim. Summary
+`/tmp/chromium-content-pch-bb-summary.json`.
+
+`df648ef` routes both verified components under `CHROMIUM_BLINK_PCH=1` and enables
+that opt-in only in the strict-cold experiment. 199 Python tests, buildifier and
+whitespace checks pass. Pushed to `perf/strict-cold-blink-pch`; full archive, cold
+elapsed time, ABI and rendering remain unverified.
+
+Eager-template instantiation pilot preserves three original objects and reduces
+recorded template instantiation counts. Timing was uncontrolled. No adoption;
+full byte gates and controlled BB comparison required. Report
+`/tmp/chromium-native-eager-pilot/report.json`.
