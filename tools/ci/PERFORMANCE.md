@@ -753,3 +753,26 @@ The first four fresh-state targets pass while Darwin repeatedly completes the
 bounded producer. The final clean-runner cohort passes all five builds without
 repeating bindings. Serial mode bounds resource use and preserves outputs;
 it alone did not fix the earlier repeated work.
+
+### Combined native PCH cold trial
+
+`--project-pch --blink-pch --native-tools` routes the validated V8 base,
+Content browser and module bindings candidates alongside core and core bindings.
+Default compiler/archive actions remain identical. Enabled wrappers add no
+original-owner compiles; all 3,450 added candidate compile commands stay unchanged.
+The actual archive graph reaches six PCH producers and validators.
+
+The full browser link keeps every flag and object order, replacing only 6,878
+object paths. Every replacement matches its original object bytes. Actual
+relink produces the original browser SHA-256:
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
+Supporting outputs are reused for this correctness check; no cold timing claim.
+Reports: `/tmp/chromium-project-pch-integration-report.json`,
+`/tmp/chromium-project-pch-graph-report.json`,
+`/tmp/chromium-project-pch-browser-link/report.json`.
+Linux ARM64 package loading, buildifier and 202 tests pass.
+
+The next strict-cold trial requires all six producers and validators to execute,
+in addition to existing fresh-state/local-sandbox/cache-policy gates. Missing
+or extra PCH actions reject the result. It retains the same resource limits and
+records an unslimmed streaming profile. No successful cold result yet.

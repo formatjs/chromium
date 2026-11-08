@@ -44,3 +44,4 @@ def v8_base_pch(library, common, sources):
         target_compatible_with = compatibility,
         tags = ["manual"],
     )
+    return ":" + name + "_pch"

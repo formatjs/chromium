@@ -55,8 +55,19 @@ def native_browser_v8():
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_asm"]
+        sources = [p for p in library["srcs"] if p not in c_sources and p not in asm_sources and p not in masm_sources] + masm_objects
+        replacement = None
         if original == "//v8:v8_base_without_compiler":
-            v8_base_pch(library, common, library["srcs"])
+            replacement = v8_base_pch(library, common, library["srcs"])
+        if replacement:
+            sources = select({
+                "//native/tool_configuration:project_pch": [],
+                "//conditions:default": sources,
+            })
+            common["deps"] = select({
+                "//native/tool_configuration:project_pch": [replacement] + common["deps"],
+                "//conditions:default": common["deps"],
+            })
         if library["kind"] == "executable":
             if original.split("(")[0] == "//v8:mksnapshot":
                 chromium_snapshot_dependencies(
@@ -77,7 +88,7 @@ def native_browser_v8():
         else:
             cc_library(
                 name = library["name"],
-                srcs = [p for p in library["srcs"] if p not in c_sources and p not in asm_sources and p not in masm_sources] + masm_objects,
+                srcs = sources,
                 copts = library["copts"],
                 **common
             )

@@ -39,7 +39,8 @@ class LocalColdBuildTest(unittest.TestCase):
             command = ['/verified-bazel', '--nosystem_rc', '--nohome_rc', '--noworkspace_rc',
                        '--bazelrc=' + str(root / 'source/.bazelrc'), 'build']
 
-            def measure(changes=None, runners=None, fresh=True, success=True, compiles=16, client_command=None):
+            def measure(changes=None, runners=None, fresh=True, success=True, compiles=16, client_command=None,
+                        expected_pch_count=0, pch_count=0, validator_count=0):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -48,20 +49,29 @@ class LocalColdBuildTest(unittest.TestCase):
                             if value is not None
                         ]}}]}},
                     {'buildMetrics': {'actionSummary': {
-                        'actionData': [{'mnemonic': 'CppCompile', 'actionsExecuted': str(compiles)}],
+                        'actionData': [{'mnemonic': 'CppCompile', 'actionsExecuted': str(compiles)},
+                                       {'mnemonic': 'ChromiumProjectPch', 'actionsExecuted': str(pch_count)},
+                                       {'mnemonic': 'ChromiumPchClosure', 'actionsExecuted': str(validator_count)}],
                         'runnerCount': runners if runners is not None else [
                             {'name': 'linux-sandbox', 'count': compiles}, {'name': 'internal', 'count': 2}],
                     }}},
                 ]
                 events.write_text('\n'.join(json.dumps(record) for record in records))
                 result = local_cold_report(events, 500, success, root, cache, fresh,
-                                           command if client_command is None else client_command)
+                                           command if client_command is None else client_command,
+                                           expected_pch_count=expected_pch_count)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
             result = measure()
             self.assertTrue(result['cold_result_verified'])
             self.assertTrue(result['local_execution_verified'])
+            self.assertTrue(measure(expected_pch_count=6, pch_count=6, validator_count=6)['cold_result_verified'])
+            for pch_count, validator_count in [(0, 0), (6, 0), (0, 6), (5, 6), (7, 6), (6, 5), (6, 7)]:
+                with self.subTest(pch_count=pch_count, validator_count=validator_count):
+                    missing = measure(expected_pch_count=6, pch_count=pch_count, validator_count=validator_count)
+                    self.assertFalse(missing['cold_result_verified'])
+                    self.assertFalse(missing['local_execution_verified'])
             self.assertNotIn('actionCacheStatistics', result['build_metrics']['actionSummary'])
             self.assertTrue(measure({'system_rc': None, 'home_rc': None, 'workspace_rc': None,
                                      'bazelrc': None})['cold_result_verified'])

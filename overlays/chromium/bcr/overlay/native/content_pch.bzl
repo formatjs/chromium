@@ -42,3 +42,4 @@ def content_browser_pch(library, common, sources):
         target_compatible_with = compatibility,
         tags = ["manual"],
     )
+    return ":" + name + "_pch"

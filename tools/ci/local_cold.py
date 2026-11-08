@@ -49,7 +49,8 @@ def machine_limits():
             'reported_processor_model': model, 'memory_limit_bytes': memory, 'system': platform.platform()}
 
 
-def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None):
+def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
+                      expected_pch_count=0):
     report = cold_build_report(events, elapsed, success,
                                expected_output_base=directory / 'output-base',
                                output_base_was_fresh=fresh)
@@ -99,8 +100,18 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     # fresh state and actual sandbox executions instead of assuming zero hits.
     report['local_policy_verified'] = policy
     report['client_configuration_verified'] = client_verified
+    action_data = report.get('build_metrics', {}).get('actionSummary', {}).get('actionData', [])
+    report['project_pch_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
+                                      if row['mnemonic'] == 'ChromiumProjectPch')
+    report['pch_closure_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
+                                      if row['mnemonic'] == 'ChromiumPchClosure')
+    report['expected_pch_count'] = expected_pch_count
+    report['requested_pch_actions_verified'] = (not expected_pch_count or
+        (report['project_pch_actions'] == expected_pch_count and
+         report['pch_closure_actions'] == expected_pch_count))
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
-                                         and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0)
+                                         and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
+                                         and report['requested_pch_actions_verified'])
     report['local_execution_verified'] = report['cold_result_verified']
     report['cache_state'].update({
         'local_action_cache': False if policy else 'unverified',
@@ -123,6 +134,7 @@ def main():
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
+    parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
     parser.add_argument('--blink-pch', action='store_true', help='Opt into validated native Blink PCH')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--compiler-archive', type=Path, help='Explicit SHA-pinned experimental compiler dependency')
@@ -130,6 +142,8 @@ def main():
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
+    if args.project_pch and not args.blink_pch:
+        parser.error('--project-pch requires --blink-pch')
     if args.blink_pch and (not args.native_tools or args.platform != 'linux-amd64'):
         parser.error('--blink-pch requires --native-tools on linux-amd64')
     if args.profile and args.profile.exists():
@@ -211,7 +225,7 @@ def main():
                    '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                    '--//tools/ci:revision=' + args.revision,
                    '--build_event_json_file=' + str(events), '--nobuild_event_json_file_path_conversion',
-                   '--profile=' + str(profile), '--record_full_profiler_data',
+                   '--profile=' + str(profile), '--record_full_profiler_data', '--noslim_profile',
                    '--execution_log_compact_file=' + str(directory / 'execution.log'),
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
         if args.sandbox_base:
@@ -221,6 +235,8 @@ def main():
                             '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution'])
         if args.blink_pch:
             command.append('--define=CHROMIUM_BLINK_PCH=1')
+        if args.project_pch:
+            command.append('--define=CHROMIUM_PROJECT_PCH=1')
         if args.binding_workers != 1:
             command.append('--define=CHROMIUM_BINDINGS_WORKERS=' + str(args.binding_workers))
         if args.platform.startswith('windows-'):
@@ -257,14 +273,15 @@ def main():
             code = process.wait()
         raise
     finally:
-        report = local_cold_report(events, time.monotonic() - started, success, directory, cache, fresh, command)
+        report = local_cold_report(events, time.monotonic() - started, success, directory, cache, fresh, command,
+                                   expected_pch_count=6 if args.project_pch else 3 if args.blink_pch else 0)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,
-                       'blink_pch_requested': args.blink_pch,
+                       'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
                        'compiler_dependency': compiler_dependency,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
@@ -272,11 +289,6 @@ def main():
                                                   if args.sandbox_base else None),
                        'bazel_sha256': BAZEL_SHA256,
                        'build_uid': os.geteuid(), 'machine': machine_limits()})
-        action_data = report.get('build_metrics', {}).get('actionSummary', {}).get('actionData', [])
-        report['project_pch_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
-                                           if row['mnemonic'] == 'ChromiumProjectPch')
-        report['pch_closure_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
-                                          if row['mnemonic'] == 'ChromiumPchClosure')
         report['elapsed_seconds'] = time.monotonic() - started
         report['under_one_hour'] = report['local_execution_verified'] and report['elapsed_seconds'] < 3600
         (directory / 'cold-build.json').write_text(json.dumps(report, indent=2) + '\n')

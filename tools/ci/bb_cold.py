@@ -22,10 +22,13 @@ def main():
     parser.add_argument('--revision', required=True)
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--native-tools', action='store_true')
+    parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
     parser.add_argument('--blink-pch', action='store_true')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--trained-compiler', action='store_true')
     args = parser.parse_args()
+    if args.project_pch and not args.blink_pch:
+        parser.error('--project-pch requires --blink-pch')
     if args.blink_pch and not args.native_tools:
         parser.error('--blink-pch requires --native-tools')
     destination = args.directory.resolve()
@@ -36,7 +39,7 @@ def main():
     cache.mkdir(parents=True, exist_ok=True)
     report = {'revision': args.revision, 'platform': 'linux-amd64',
               'machine': machine_limits(), 'cold_result_verified': False,
-              'blink_pch_requested': args.blink_pch,
+              'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
               'trained_compiler': args.trained_compiler, 'binding_workers': args.binding_workers,
               'under_one_hour': False, 'runner': 'BuildBuddy workflow; RBE disabled',
               'os_page_cache': 'uncontrolled; workflow VM may be restored from a snapshot'}
@@ -76,6 +79,8 @@ def main():
                 command.append('--native-tools')
             if args.blink_pch:
                 command.append('--blink-pch')
+            if args.project_pch:
+                command.append('--project-pch')
             with subprocess.Popen(command) as process:
                 while True:
                     try:

@@ -91,8 +91,18 @@ def native_content():
             )
             cpp_sources.remove(gpu_internals)
             common["deps"] = common["deps"] + [":content_gpu_internals"]
+        replacement = None
         if original == "//content/browser:browser":
-            content_browser_pch(library, common, cpp_sources)
+            replacement = content_browser_pch(library, common, cpp_sources)
+        if replacement:
+            cpp_sources = select({
+                "//native/tool_configuration:project_pch": [],
+                "//conditions:default": cpp_sources,
+            })
+            common["deps"] = select({
+                "//native/tool_configuration:project_pch": [replacement] + common["deps"],
+                "//conditions:default": common["deps"],
+            })
         cc_library(
             name = library["name"],
             srcs = cpp_sources,

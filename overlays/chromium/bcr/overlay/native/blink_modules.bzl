@@ -50,14 +50,25 @@ def native_blink_modules():
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
+        sources = [p for p in library["srcs"] if p not in c_sources]
+        replacement = None
         if original == "//third_party/blink/renderer/bindings/modules/v8:v8":
-            blink_bindings_pch(library, common, plain_sources = [
+            replacement = blink_bindings_pch(library, common, plain_sources = [
                 ":gen/third_party/blink/renderer/bindings/modules/v8/init_idl_interfaces.cc",
                 ":gen/third_party/blink/renderer/bindings/modules/v8/properties_per_feature_installer.cc",
             ])
+        if replacement:
+            sources = select({
+                "//native/tool_configuration:project_pch": [],
+                "//conditions:default": sources,
+            })
+            common["deps"] = select({
+                "//native/tool_configuration:project_pch": [replacement] + common["deps"],
+                "//conditions:default": common["deps"],
+            })
         cc_library(
             name = library["name"],
-            srcs = [p for p in library["srcs"] if p not in c_sources],
+            srcs = sources,
             copts = library["copts"],
             **common
         )
