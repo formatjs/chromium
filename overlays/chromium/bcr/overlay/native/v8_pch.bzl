@@ -26,6 +26,7 @@ def v8_base_pch(library, common, sources):
         header = ISOLATE_HEADER,
         extras = extras,
         paths = ISOLATE_HEADER_PATHS,
+        closure_inputs = True,
         copts = library["copts"] + ["-isysroot", ".", "-ffile-prefix-map=./="],
         local_defines = library["defines"],
         target_compatible_with = compatibility,

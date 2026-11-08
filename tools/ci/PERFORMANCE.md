@@ -800,3 +800,21 @@ and profile size. The report requires a complete code trace in addition to
 existing fresh-state, actual-local-execution and six-producer/validator gates.
 Profile analysis now counts in its elapsed time; the full BB workflow duration
 remains the final one-hour gate. 212 tests pass. No timing success claimed yet.
+
+### PCH producer dependency trial
+
+Five existing Blink/V8 producers can declare their validated header closures
+instead of whole compilation contexts. Blink producer inputs fall from roughly
+78k–80k to 1.9k–2.4k. Actual aquery removes 312,440 input edges across these five
+producers, including 152,267 generated-file edges. Compiler arguments, environment,
+execution requirements and complete toolchain inputs stay unchanged.
+
+Sandbox qualification preserves exact raw PCH, validated PCH and depfile bytes.
+Content retains its full context: its parent-relative Skia include needs directory
+layout absent from the file-only closure. Global pruning failed that check and
+was rejected. No include rewriting or directory fabrication.
+
+This trial keeps the previous compiler and six PCHs. Only qualified producer
+prerequisites change; required whole-browser outputs and cache policy stay the
+same. Earlier producer readiness is a hypothesis, not a measured cold speedup.
+212 tests pass. Other supported triples remain unmeasured.
