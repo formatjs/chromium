@@ -1324,3 +1324,31 @@ the strict-cold run is active. Collector handles the module report (`f163015`);
 
 Strict-cold `df648ef` invocation
 `036230d4-e2be-4d7f-8446-50c4a2cc0d59` remains running. Goal unachieved.
+
+### Content browser PCH pilot (not adopted)
+
+Original profile's largest remaining target groups include Content browser and
+V8. Recorded source spans are incomplete under slim profiling and combine host
+and target contexts; they are not compiler CPU or a native-build forecast.
+`/tmp/chromium-original-compile-hotspots.json`.
+
+Content browser has 1,161 original compiler actions. `bind.h` appears in 1,060
+original dependency lists, but three hot-source traces show much larger parse
+spans for `render_frame_host_impl.h`. That header appears in 307 units. All three
+standalone baseline and PCH objects match original bytes with compiler `d94fff11...`.
+PCH is 270,724,780 bytes, timestamp-free with normal content validation. Inclusive
+trace spans overlap; standalone timing is uncontrolled. Reports
+`/tmp/chromium-content-phase-probe/report.json`,
+`/tmp/chromium-content-pch-pilot/report.json`.
+
+Manual native candidate preserves all 1,161 compiler commands after explicit PCH
+options: 307 consumers, 854 plain. Donor resolves all 4,579 non-LLVM imported
+headers. Source metadata has 1,162 entries; existing separate GPU source owner
+must remain separate. Original and candidate CcInfo both retain `alwayslink=True`.
+Generic PCH helper now accepts that attribute (default false for existing Blink
+static libraries); archive verifier accepts Bazel `.lo` outputs. 201 tests pass.
+Full 1,161-source sandboxed byte gate is running; changes remain uncommitted and
+no Content routing is enabled. Original archive SHA-256
+`8312d5e8f58898e13099a739f66c1a25a9c72034290a687c24422824c3a1b72f`.
+Preflight `/tmp/chromium-content-pch-preflight.json`; pending final report
+`/tmp/chromium-content-pch-correctness.json`.
