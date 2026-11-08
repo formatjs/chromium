@@ -28,6 +28,9 @@ validation. Removing only the verified PCH would hide a cached producer.
 - Standard PCH on BB: 100.382 s versus 98.334 s mean, 2.04% wall reduction.
 - String PCH on BB: 101.804 s versus 95.299 s mean, 6.39% wall and 10.91% compiler
   CPU reduction. Actual runner: 19 CPU AMD EPYC, 35,262,926,848 bytes RAM.
+- Larger variant on BB: 100.708 s versus 77.278 s mean, 23.27% wall and 30.99%
+  compiler CPU reduction. Baselines 102.030/99.387 s; candidates 77.981/76.576 s.
+  Both PCH producers and closure validators rerun each candidate phase.
 - Larger variant locally: 58.227 s versus 45.619 s mean, 21.65% wall and 28.55%
   compiler CPU reduction. Baselines 59.111/57.343 s; candidates 45.919/45.318 s.
   16 CPU quota, 48 GiB machine, 6 GiB JVM, 24 GB action budget, private 8 GiB RAM
@@ -47,7 +50,16 @@ full-build proportion.
 Evidence:
 
 - `/tmp/chromium-source-aware-pch-bb-summary.json`
+- `/tmp/chromium-hybrid-pch-bb-summary.json`
 - `/tmp/chromium-hybrid-pch-256-correctness.json`
 - `/tmp/chromium-hybrid-pch-command-proof.json`
 - `/tmp/chromium-hybrid-pch-ram-abba-001/report.json`
 - `/tmp/chromium-clang-phase-probe-001/report.json`
+
+The manual full-core probe expands correctness checks to 2,398 sources. Its
+candidate membership agrees with all original compiler depfiles. Membership
+alone does not establish object compatibility. Original component archive
+reference, assembled from saved original objects in native order:
+`187c9d4d3f119abe2a5c01adda4e47d449d35bef9e08079af1a8136950a020c5`.
+Probe targets add two implicit main-repository quote roots; production integration
+must preserve the original native repository context.

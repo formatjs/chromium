@@ -353,9 +353,15 @@ _hybrid_compile = rule(
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
 
-def blink_hybrid_pch_probe(name, libraries, target_compatible_with):
+def blink_hybrid_pch_probe(name, libraries, target_compatible_with, sources = None, document_sources = None, string_sources = None):
     """Use larger PCH only on sources preserving original object bytes."""
     library = libraries["//third_party/blink/renderer/core:core"]
+    sources = BATCH_SOURCES[:256] if sources == None else sources
+    document_sources = DOCUMENT_SOURCES if document_sources == None else document_sources
+    string_sources = ELIGIBLE_SOURCES if string_sources == None else string_sources
+    if any([source not in sources for source in document_sources + string_sources]):
+        fail("PCH source outside probe")
+    labels = {source: "@chromium//native" + source if source.startswith(":") else "@chromium//:" + source for source in sources}
     headers = name + "_headers"
     inputs = [
         "@chromium//:base/component_export.h",
@@ -388,7 +394,7 @@ def blink_hybrid_pch_probe(name, libraries, target_compatible_with):
         )
     cc_library(
         name = name + "_baseline",
-        srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
+        srcs = [labels[source] for source in sources],
         copts = library["copts"],
         local_defines = library["defines"],
         deps = [":" + headers],
@@ -400,14 +406,14 @@ def blink_hybrid_pch_probe(name, libraries, target_compatible_with):
     )
     _hybrid_compile(
         name = name,
-        document_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source in DOCUMENT_SOURCES],
-        string_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source in ELIGIBLE_SOURCES and source not in DOCUMENT_SOURCES],
-        plain_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source not in ELIGIBLE_SOURCES],
+        document_sources = [labels[source] for source in sources if source in document_sources],
+        string_sources = [labels[source] for source in sources if source in string_sources and source not in document_sources],
+        plain_sources = [labels[source] for source in sources if source not in string_sources and source not in document_sources],
         document_pch = ":" + name + "_document_pch",
         string_pch = ":" + name + "_string_pch",
         document_headers = [":" + name + "_document_inputs"],
         string_headers = [":" + name + "_string_inputs"],
-        object_order = [source.split("/")[-1][:-3] + ".pic.o" for source in BATCH_SOURCES[:256]],
+        object_order = [source.split("/")[-1][:-3] + ".pic.o" for source in sources],
         library = ":" + headers,
         extra_inputs = inputs,
         copts = library["copts"],

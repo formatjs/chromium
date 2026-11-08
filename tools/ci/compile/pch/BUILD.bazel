@@ -1,5 +1,6 @@
 load("@chromium//native:blink_core_sources.bzl", "LIBRARIES")
 load("//tools/ci:browser_targets.bzl", "linux_amd64_browser")
+load("//tools/ci/compile:full_core_pch_sources.bzl", FULL_DOCUMENT_SOURCES = "DOCUMENT_SOURCES", FULL_STRING_SOURCES = "STRING_SOURCES")
 load("//tools/ci/compile:pch.bzl", "blink_hybrid_pch_probe", "blink_pch_probe", "blink_project_pch_probe")
 
 package(default_visibility = ["//visibility:public"])
@@ -54,4 +55,21 @@ linux_amd64_browser(
 linux_amd64_browser(
     name = "hybrid-baseline-linux-amd64",
     srcs = [":blink_hybrid_pch_compile_probe_baseline"],
+)
+
+blink_hybrid_pch_probe(
+    name = "blink_full_core_pch_probe",
+    document_sources = FULL_DOCUMENT_SOURCES,
+    libraries = LIBRARIES,
+    sources = [source[3:] if source.startswith("//:") else source for source in LIBRARIES["//third_party/blink/renderer/core:core"]["srcs"]],
+    string_sources = FULL_STRING_SOURCES,
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+linux_amd64_browser(
+    name = "full-core-linux-amd64",
+    srcs = [":blink_full_core_pch_probe"],
 )
