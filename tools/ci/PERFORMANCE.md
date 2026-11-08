@@ -939,3 +939,19 @@ all 1,042 UI, 1,430 Profile and 1,161 Content objects, each archive, and the com
 9,350-object browser relink pass against frozen original outputs. Narrow local
 ABBA results do not predict complete cold timing. Other four triples remain
 cold-unmeasured. BOLT remains excluded pending full compiler/package validation.
+
+### Held shared V8 compiler PCH cohort
+
+The V8 compiler owner already depends on v8_base_without_compiler. Its Isolate.h
+cohort can try the existing base PCH while retaining its own compiler context,
+flags and original source order. No new producer or closure validator is added;
+project mode still expects ten of each. Of 188 compiler sources, 177 candidates
+use PCH; turboshaft/types.cc and ten non-importers stay plain.
+
+A separate producer preserves all 178 importer objects with that one fallback.
+A 12-source local ABBA including each separate producer saves 18.27% CPU; this
+is pilot evidence only. The same twelve objects also match using the existing
+base PCH, whose input bytes remain unchanged. All 178 importer objects also match using the shared base PCH: 177 consumers
+plus one plain fallback. Its bytes remain unchanged. Full-cohort performance,
+188-object sandbox/archive, V8 host-tool and browser link gates remain pending.
+218 tests pass. This cohort is excluded from the ten-PCH cold trial.
