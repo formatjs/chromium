@@ -33,7 +33,7 @@ def main():
         parser.error('--blink-pch requires --native-tools')
     destination = args.directory.resolve()
     destination.mkdir(parents=True, exist_ok=False)
-    profile = destination / 'cold-profile.json'
+    profile = destination / 'cold-profile.json.gz'
     # Workflow snapshots may retain this download cache. Nothing else is reused.
     cache = Path.home() / '.cache/chromium-strict-cold-downloads'
     cache.mkdir(parents=True, exist_ok=True)
@@ -41,6 +41,8 @@ def main():
               'machine': machine_limits(), 'cold_result_verified': False,
               'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
               'trained_compiler': args.trained_compiler, 'binding_workers': args.binding_workers,
+              'profile_format': 'gzip; standard Bazel slim trace; full BEP and execution log',
+              'profile_complete_verified': False,
               'under_one_hour': False, 'runner': 'BuildBuddy workflow; RBE disabled',
               'os_page_cache': 'uncontrolled; workflow VM may be restored from a snapshot'}
     print(json.dumps(report), flush=True)
@@ -107,19 +109,25 @@ def main():
             report['elapsed_seconds'] = time.monotonic() - started
             report['under_one_hour'] = bool(report['cold_result_verified']
                                            and report['elapsed_seconds'] < 3600)
-            if profile.exists():
-                try:
-                    summary = trace_summary(profile)
-                    (destination / 'trace-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
-                except (ValueError, EOFError) as error:
-                    report['profile_error'] = str(error)
             if not report['cold_result_verified']:
                 log = trial / 'build.log'
                 if log.exists():
                     with log.open('rb') as stream:
                         stream.seek(max(0, log.stat().st_size - 12000))
                         print(stream.read().decode(errors='replace'), flush=True)
+            if profile.exists():
+                try:
+                    summary = trace_summary(profile, allow_partial=not report['cold_result_verified'])
+                    report['profile_bytes'] = profile.stat().st_size
+                    report['profile_complete_verified'] = bool(summary['trace_complete'] and summary['event_count']
+                        and sum(row['compile_spans'] for row in summary['compiler_work'].values()) > 0)
+                    (destination / 'trace-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+                except (ValueError, EOFError) as error:
+                    report['profile_error'] = str(error)
         finally:
+            report['elapsed_seconds'] = time.monotonic() - started
+            report['under_one_hour'] = bool(report['cold_result_verified'] and report['profile_complete_verified']
+                                           and report['elapsed_seconds'] < 3600)
             # Raw BEP/commands stay private; BB retains the streaming profile.
             (destination / 'cold-build.json').write_text(json.dumps(report, indent=2) + '\n')
             print(json.dumps(report), flush=True)

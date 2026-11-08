@@ -175,6 +175,12 @@ def main():
     roots = [directory / name for name in ['source', 'output-base', 'install-base', 'bazel-root']]
     fresh = all(not path.exists() for path in roots)
     assert fresh
+    from tools.ci.storage_probe import filesystem_snapshot
+    storage_paths = {'output': directory}
+    if args.sandbox_base:
+        storage_paths['sandbox'] = args.sandbox_base
+    storage_initial = filesystem_snapshot(storage_paths)
+    storage_minimum = {name: row['available_bytes'] for name, row in storage_initial.items()}
     success, code, error, cancelled = False, None, None, False
     process = None
     command = None
@@ -216,6 +222,7 @@ def main():
                    '--local_resources=cpu=' + str(args.jobs),
                    '--local_resources=memory=' + str(args.action_memory_mb),
                    '--spawn_strategy=linux-sandbox', '--nouse_action_cache',
+                   '--curses=no', '--color=no', '--terminal_columns=10000',
                    '--remote_executor=', '--remote_cache=', '--remote_accept_cached=false',
                    '--noremote_upload_local_results', '--disk_cache=', '--repo_contents_cache=',
                    '--repository_cache=' + str(cache),
@@ -225,7 +232,7 @@ def main():
                    '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                    '--//tools/ci:revision=' + args.revision,
                    '--build_event_json_file=' + str(events), '--nobuild_event_json_file_path_conversion',
-                   '--profile=' + str(profile), '--record_full_profiler_data', '--noslim_profile',
+                   '--profile=' + str(profile), '--record_full_profiler_data',
                    '--execution_log_compact_file=' + str(directory / 'execution.log'),
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
         if args.sandbox_base:
@@ -249,8 +256,12 @@ def main():
                                        stdout=log, stderr=subprocess.STDOUT)
             while process.poll() is None:
                 elapsed = time.monotonic() - started
+                storage = filesystem_snapshot(storage_paths)
+                for name, row in storage.items():
+                    storage_minimum[name] = min(storage_minimum[name], row['available_bytes'])
                 (directory / 'progress.json').write_text(json.dumps({'elapsed_seconds': elapsed,
-                    'platform': args.platform, 'bazel_pid_in_namespace': process.pid}) + '\n')
+                    'platform': args.platform, 'bazel_pid_in_namespace': process.pid,
+                    'storage': storage, 'profile_bytes': profile.stat().st_size if profile.exists() else 0}) + '\n')
                 if args.max_seconds and elapsed >= args.max_seconds:
                     cancelled = True
                     process.send_signal(signal.SIGINT)
@@ -283,6 +294,8 @@ def main():
                        'binding_workers': args.binding_workers,
                        'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
                        'compiler_dependency': compiler_dependency,
+                       'storage_initial': storage_initial, 'storage_final': filesystem_snapshot(storage_paths),
+                       'minimum_sampled_available_bytes': storage_minimum,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
                        'sandbox_capacity_bytes': (shutil.disk_usage(args.sandbox_base).total

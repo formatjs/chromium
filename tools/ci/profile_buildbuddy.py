@@ -357,7 +357,7 @@ def collect(identifier):
                 for invocation in invocations for artifact in invocation.get('artifacts', []))
             profiles = [artifact for invocation in invocations
                         for artifact in invocation.get('artifacts', [])
-                        if artifact.get('name', '').endswith('/cold-profile.json')]
+                        if artifact.get('name', '').endswith(('/cold-profile.json', '/cold-profile.json.gz'))]
             if len(profiles) == 1:
                 cold_profile = profiles[0]['uri']
         reports = [artifact for invocation in invocations

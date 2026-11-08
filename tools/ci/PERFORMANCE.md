@@ -776,3 +776,27 @@ The next strict-cold trial requires all six producers and validators to execute,
 in addition to existing fresh-state/local-sandbox/cache-policy gates. Missing
 or extra PCH actions reject the result. It retains the same resource limits and
 records an unslimmed streaming profile. No successful cold result yet.
+
+### Compressed-profile strict-cold retry
+
+The combined trial `0fefa722` fails after 2,616.91 protocol seconds with Bazel
+exit 36 and a clipped sandbox output-copy error. Its wrapper then raises
+`MemoryError` while eagerly reading the raw trace. Uploading that trace also
+fails. No archive or passing cold timing result exists.
+
+A fresh BB diagnostic with the same 16-CPU/32GB/200GB requests exposes
+99,913,961,472 disk bytes. Workspace, `/tmp`, home and artifacts share one device.
+That rules out moving temporary paths as a capacity fix. It does not prove the
+failed VM's exact disk usage or output-copy cause.
+
+The retry uses a standard compressed Bazel profile. Normal short-span
+coalescing stays enabled; full BEP counts and compact execution logging remain.
+Compiler options, six PCH producers, toolchains and cache policy stay unchanged.
+The streaming collector preserves all metrics from the 1,022,314-event completed
+reference and handles a 46,638,712-event compressed trace with 29,992KiB peak RSS.
+Failure logs print before profile analysis. Wider UI output avoids clipping the
+cause. Five-second samples record output/sandbox capacity, free bytes/inodes
+and profile size. The report requires a complete code trace in addition to
+existing fresh-state, actual-local-execution and six-producer/validator gates.
+Profile analysis now counts in its elapsed time; the full BB workflow duration
+remains the final one-hour gate. 212 tests pass. No timing success claimed yet.
