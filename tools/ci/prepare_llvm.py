@@ -142,9 +142,10 @@ def main():
         if version != 'bazel 9.3.0rc2':
             raise ValueError('Compiler preparation needs upstream Bazel 9.3.0rc2: ' + version)
         report['bazel_version'] = version
+        startup = [bazel, '--host_jvm_args=-Xmx8g']
         events = ROOT / '.compiler-preparation/events.json'
         subprocess.run([
-            bazel, '--host_jvm_args=-Xmx8g', 'build', '--config=remote', '--config=release',
+            *startup, 'build', '--config=remote', '--config=release',
             '--jobs=128', '--discard_analysis_cache', '--noannounce_rc',
             '--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
             '--repo_env=BAZEL_WINDOWS_SDK_EULA=1', '--remote_download_outputs=toplevel',
@@ -164,7 +165,7 @@ def main():
         destination.with_suffix(destination.suffix + '.sha256').write_text(digest + '\n')
         report.update(archive_prepared=True, archive=destination.name, archive_sha256=digest)
         if args.compare:
-            subprocess.run([bazel, 'shutdown'], cwd=workspace, check=True)
+            subprocess.run([*startup, 'shutdown'], cwd=workspace, check=True)
             comparison = args.directory.resolve() / 'comparison'
             subprocess.run([
                 sys.executable, '-m', 'tools.ci.compile.private_ram', '--size-gib', '8', '--',
