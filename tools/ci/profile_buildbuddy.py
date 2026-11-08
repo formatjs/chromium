@@ -19,6 +19,7 @@ from tools.ci.trace_events import TraceEvents
 
 
 RPC_URL = 'https://formatjs.buildbuddy.io/rpc/BuildBuddyService/'
+MAX_TRACE_SUMMARY_BYTES = 32 * 1024 * 1024
 LOCAL_SPAWN_MNEMONICS = (
     'CppCompile', 'CppLink', 'CppArchive', 'ChromiumPython',
     'ChromiumProjectPch', 'ChromiumPchClosure', 'Rustc', 'RustBindgen',
@@ -393,9 +394,9 @@ def collect(identifier):
             if len(summaries) == 1:
                 with api_request('GetFile', {'uri': summaries[0]['uri']},
                                  os.environ['BUILDBUDDY_API_KEY']) as response:
-                    payload = response.read(4 * 1024 * 1024 + 1)
-                if len(payload) > 4 * 1024 * 1024:
-                    raise ValueError('Profile summary exceeds 4 MiB')
+                    payload = response.read(MAX_TRACE_SUMMARY_BYTES + 1)
+                if len(payload) > MAX_TRACE_SUMMARY_BYTES:
+                    raise ValueError('Profile summary exceeds 32 MiB')
                 result['cold_profile'] = json.loads(payload)
     for child in outer.get('childInvocations', []):
         child_id = child['invocationId']
@@ -410,7 +411,7 @@ def collect(identifier):
                 profile['summary'] = trace_summary(_ProfileDownload(response))
             del profile['uri']
         result['children'].append(summary)
-    if cold_profile and not any(child['profiles'] for child in result['children']):
+    if cold_profile and 'cold_profile' not in result and not any(child['profiles'] for child in result['children']):
         with api_request('GetFile', {'uri': cold_profile}, os.environ['BUILDBUDDY_API_KEY']) as response:
             result['cold_profile'] = trace_summary(_ProfileDownload(response), allow_partial=True)
     if cold_prefix == 'Chromium strict cold build ':
