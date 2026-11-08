@@ -1174,3 +1174,32 @@ were observed. This is not a claim that all scanner inventories are identical.
 Evidence: `/tmp/chromium-full-core-deps/summary.json`,
 `/tmp/chromium-full-core-original-objects.json`,
 `/tmp/chromium-full-core-archive-actions.json`.
+
+### Full-core byte gate passes after conservative fallbacks
+
+Initial sandboxed probe produced all 2,398 objects in 840.813 s with warm support
+and analysis/cache validation included; this is not a timing comparison.
+Fourteen document imports changed object bytes. Moving those sources to string
+PCH preserves every original object. Final partition: 1,374 document / 930 string /
+94 original. Retry executed exactly 14 C++ actions plus archive and workspace
+status. Full archive is byte-identical, with native member order preserved:
+`187c9d4d3f119abe2a5c01adda4e47d449d35bef9e08079af1a8136950a020c5`.
+Proof `/tmp/chromium-full-core-pch-final-byte-proof.json`.
+
+The main-repository probe adds quote roots `.` and `bazel-out/k8-fastbuild/bin`.
+Other native flags and environment match after explicit PCH normalization.
+Production integration must preserve the original native repository context;
+the probe is not enabled in default browser builds. Strict-cold, full payload,
+ABI and rendering gates remain outstanding.
+
+Generated binding depfiles identify 1,030 `idl_types.h` consumers; core has 1,800.
+Three real binding compiler traces preserve original bytes and spend most time
+in the frontend. A direct IDL PCH pilot preserves those same three objects.
+Separate binding macro context is required; no full sandboxed binding cohort or
+performance claim. Reports `/tmp/chromium-bindings-phase-probe-001/report.json`,
+`/tmp/chromium-bindings-idl-pilot/report.json`,
+`/tmp/chromium-bindings-hot-headers.json`.
+
+Full-core trace is 452 MB compressed. Whole-file JSON loading exhausted memory;
+streaming relevant events and indexing source/thread intervals keeps verification
+bounded. Existing accepted 256-source timings remain exactly unchanged.
