@@ -1001,3 +1001,24 @@ The full-trace BB comparison remains running at
 `69c98ab0-c7fc-45e5-bfbc-7995d7b13341`, revision
 `dc7b35d05e55e9957a63372e4b1cf855032be93e`. Older slim-profile runs failed the
 execution proof and are not accepted timing results.
+
+
+### BB full-trace PCH result
+
+BB invocation `69c98ab0-c7fc-45e5-bfbc-7995d7b13341` completed successfully.
+Actual runner: 19 CPU AMD EPYC, 35,262,926,848 bytes RAM. Baseline passes:
+101.629 s, 99.136 s. PCH passes: 99.186 s, 97.482 s, each including a fresh PCH.
+Means: 100.382 s versus 98.334 s, 2.04% wall reduction. Compiler CPU means:
+1580.242 s versus 1515.046 s, 4.13% reduction. Each pass executed exactly 256
+local compiles, candidate passes one PCH, no supporting compiles or generators.
+All 256 source subprocess traces and original object/archive bytes passed.
+Consumer commands matched after PCH/output normalization; compiler hash was
+`d94fff11dc9347aa4d1c8d1a2b51e35935bab730a187e6d2280c979a7d103e38`.
+This is a warm-support cohort result, not a full cold-build measurement.
+Summary: `/tmp/chromium-pch-bb-dc7-summary.json`; collector run `42445679118`.
+
+The guarded WTF string PCH prototype compiled the same 256 sources in real
+sandboxes. Its 140-header depfile validation passed. Exactly 255 original objects
+matched; `fullscreen_request_type.pic.o` changed section/function order and
+constant symbol numbering. Archive differs. Header rejected for rollout;
+byte guards remain strict. Report: `/tmp/chromium-project-pch-256-correctness.json`.
