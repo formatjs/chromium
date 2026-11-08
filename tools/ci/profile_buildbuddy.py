@@ -338,6 +338,9 @@ def collect(identifier):
     elif pattern == ['Chromium compiler preparation']:
         report_key = 'compiler_preparation'
         report_path = 'compiler-preparation/report.json'
+    elif pattern == ['Chromium LLVM BOLT feasibility']:
+        report_key = 'compiler_preparation'
+        report_path = 'llvm-bolt/report.json'
     elif pattern == ['Chromium representative LLVM compiler preparation']:
         report_key = 'compiler_preparation'
         report_path = 'llvm-compiler/report.json'
