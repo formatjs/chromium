@@ -852,8 +852,9 @@ Supporting state stays warm; these timings do not establish full cold speedup.
 
 Strict-cold integration `2c0c81a` combines this opt-in with the SHA-pinned compiler,
 native tool sharing and 19 jobs. Fresh-state and cache-disable checks stay
-unchanged. It has not run. Public compiler prerelease publication awaits explicit
-approval after automatic approval review rejected publication authorization.
+unchanged. That public-index configuration has not run. The compiler prerelease
+is now published after explicit user approval; the live combined trial below
+uses the same archive through the private dependency handoff.
 The strict-cold under-one-hour goal remains unmet; other four triples' strict-cold
 timings remain unmeasured.
 
@@ -863,7 +864,7 @@ binary hashes are selected, and four-worker bindings declare all 5,574 outputs.
 This disposable analysis fixture uses verified local archive URLs; it publishes
 nothing and executes zero build actions.
 
-While compiler release approval remains pending, an independent
+An independent
 [full worker-only strict-cold trial](https://formatjs.buildbuddy.io/invocation/c37119b8-bbea-4d36-b30f-82c8a2cdb53e)
 at `c92f1eb` is running. It retains the original published compiler and tests
 the validated generator change with the full archive target and existing
@@ -876,7 +877,7 @@ at `f70d82a` succeeds using BuildBuddy's supported managed workflow API auth.
 It fetches the pinned compiler archive from its existing CI artifact store and
 checks exact size/SHA256. Credentials are neither printed nor extracted from RC
 files. No public release is required for this benchmark; the earlier public
-publication request is now optional.
+publication request was separately approved and completed.
 
 Protocol `b45e37c` accepts that explicit compiler archive input, checks cached
 archives too, generates a root LLVM index from a committed upstream template,
@@ -893,3 +894,19 @@ is running alongside the worker-only trial in separate workflows. Each requests
 the current 16-CPU/32GB tier. This overlap prevents an isolated full-build wall
 A/B claim; it does not relax timing, cache-policy or artifact acceptance gates.
 Neither trial has produced a verified complete result yet.
+
+## Published experimental compiler and scheduling probe
+
+[Experimental compiler prerelease](https://github.com/formatjs/chromium/releases/tag/llvm-23.1.2-cxx-training-1)
+contains the 39,193,174-byte archive, checksum and provenance. Anonymous download
+SHA256 matches `adbc348d20518481b44be46c21440c8aec541572014a86614248c3db2b46cc5c`.
+Publication does not change either running cold trial.
+
+The scheduling probe compares jobs equal to CPU capacity against twice that
+capacity, keeping the Bazel CPU resource budget fixed. It reruns only 257 owned
+compiles in ABBA order; every object and archive must match. Supporting state
+stays warm. The initial probe failed during target loading because its bounded
+source API was missing. Revision `ecc5308` restores that API; real Bazel analysis
+confirms exactly 257 unique owned outputs, and 183 Python tests pass. The
+[retry](https://formatjs.buildbuddy.io/invocation/93ece4b2-8324-4b01-9023-c11d15225d6c)
+is pending. No scheduling improvement is established.
