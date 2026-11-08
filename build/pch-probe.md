@@ -37,3 +37,9 @@ path directly. Regression reproduces that failure, then passes after the fix.
 
 Remaining gates: fixed-resource BB timing, complete browser payload, ABI/rendering
 and strict-cold duration. Other four triples' strict-cold timings remain unmeasured.
+
+Both initial timing reports were rejected: BEP counted all 256 compiles, but slim
+profiles omitted individual action/subprocess detail. The harness now requests
+`--noslim_profile`; a real recompile of the previously omitted source records
+its local subprocess and preserves object bytes. Execution and byte guards stay
+strict. Full ABBA must rerun before accepting any speedup.

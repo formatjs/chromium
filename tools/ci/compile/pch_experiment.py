@@ -102,7 +102,7 @@ def measure(startup, flags, source, name, target, directory):
     log = directory / (name + '.log')
     command = [*startup, 'build', *flags, '--build_event_json_file=' + str(events),
                '--nobuild_event_json_file_path_conversion', '--profile=' + str(profile),
-               '--record_full_profiler_data', target]
+               '--record_full_profiler_data', '--noslim_profile', target]
     started = time.monotonic()
     available = []
     next_progress = started + 30
