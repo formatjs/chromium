@@ -88,6 +88,31 @@ class PchExperimentTest(unittest.TestCase):
                 with self.subTest(other=other), self.assertRaises(ValueError):
                     pch_experiment.owned_objects([[valid[0], prefix + other]], root, 'probe', split=True)
 
+    def test_include_reduction_preserves_registry_toolchain_and_flag_order(self):
+        root = 'external/+chromium_dependencies+chromium/'
+        def rows(paths, define='-DVALUE=1', environment=None):
+            return {'source.cc': (['clang++', define, *paths, '-c', 'source.cc'], environment or {'PATH': '/pinned'})}
+        registry = '-Iexternal/abseil-cpp+/include'
+        original = rows(['-I' + root + 'native/../base/private', registry,
+                         '-iquote', 'bazel-out/k8-fastbuild/bin/' + root + 'native/private',
+                         '-isystem', 'external/llvm-toolchain/include'])
+        candidate = rows([registry, '-isystem', 'external/llvm-toolchain/include'])
+        self.assertEqual(pch_experiment.verify_include_reduction(original, candidate), {
+            'baseline_paths': 4, 'candidate_paths': 2, 'removed_paths': 2,
+            'retained_order_verified': True, 'other_flags_and_environments_equal': True,
+        })
+        invalid = [
+            rows([]),
+            rows([registry, '-Iextra', '-isystem', 'external/llvm-toolchain/include']),
+            rows(['-isystem', 'external/llvm-toolchain/include', registry]),
+            rows([registry, '-isystem', 'external/llvm-toolchain/include'], define='-DVALUE=2'),
+            rows([registry, '-isystem', 'external/llvm-toolchain/include'], environment={'PATH': '/foreign'}),
+            {},
+        ]
+        for changed in invalid:
+            with self.subTest(changed=changed), self.assertRaises(ValueError):
+                pch_experiment.verify_include_reduction(original, changed)
+
     def test_deletion_inventory_rejects_foreign_duplicate_and_traversal_paths(self):
         root = Path('/private/benchmark/execroot/_main')
         owner = 'probe'
