@@ -7,6 +7,7 @@ load(":masm.bzl", "chromium_masm")
 load(":public_dependency.bzl", "chromium_snapshot_dependencies")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
+load(":v8_pch.bzl", "v8_base_pch")
 
 def native_browser_v8():
     for name, tool in TOOLS.items():
@@ -54,6 +55,8 @@ def native_browser_v8():
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_asm"]
+        if original == "//v8:v8_base_without_compiler":
+            v8_base_pch(library, common, library["srcs"])
         if library["kind"] == "executable":
             if original.split("(")[0] == "//v8:mksnapshot":
                 chromium_snapshot_dependencies(
