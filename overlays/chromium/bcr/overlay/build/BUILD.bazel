@@ -2,7 +2,10 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(["buildflag_header.bzl"])
+exports_files([
+    "buildflag_header.bzl",
+    "precompile.h",
+])
 
 cc_library(
     name = "buildflag",
