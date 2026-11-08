@@ -1,6 +1,6 @@
 load("@chromium//native:blink_core_sources.bzl", "LIBRARIES")
 load("//tools/ci:browser_targets.bzl", "linux_amd64_browser")
-load("//tools/ci/compile:pch.bzl", "blink_pch_probe")
+load("//tools/ci/compile:pch.bzl", "blink_pch_probe", "blink_project_pch_probe")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -21,4 +21,18 @@ linux_amd64_browser(
 linux_amd64_browser(
     name = "baseline-linux-amd64",
     srcs = [":blink_pch_compile_probe_baseline"],
+)
+
+blink_project_pch_probe(
+    name = "blink_project_pch_compile_probe",
+    libraries = LIBRARIES,
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+linux_amd64_browser(
+    name = "project-linux-amd64",
+    srcs = [":blink_project_pch_compile_probe"],
 )

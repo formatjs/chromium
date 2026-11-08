@@ -35,3 +35,13 @@ A graph audit finds 100 large captured source groups covering 20,892 inventoried
 compile actions. This is potential reach, not compatibility or timing proof.
 A production producer must derive defines from existing dependencies rather than
 its consumer target, avoiding a dependency cycle. Default builds stay unchanged.
+
+## Sandboxed WTF string result
+
+Prototype now validates the actual depfile before copying its PCH and declares
+all 140 resolved project headers on consumers. A real sandboxed build executed
+256 compiles, one PCH producer and one closure validator. No supporting compiles
+or generators reran. Exactly 255 original objects matched. The remaining
+`fullscreen_request_type.pic.o` changed ELF function/section order and local
+constant symbol numbering. Archive differs. Reject this header for rollout;
+no byte-gate exception. Report: `/tmp/chromium-project-pch-256-correctness.json`.
