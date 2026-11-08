@@ -5,6 +5,8 @@ load(":project_pch.bzl", "chromium_pch_compile", "chromium_project_pch")
 load(":v8_pch_data.bzl", "ISOLATE_HEADER", "ISOLATE_HEADER_PATHS", "ISOLATE_SOURCES")
 
 def v8_base_pch(library, common, sources):
+    if "V8_TARGET_ARCH_X64" not in library["defines"]:
+        return
     name = library["name"]
     context = name + "_pch_context"
     eligible = {source: True for source in ISOLATE_SOURCES}
