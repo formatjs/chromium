@@ -1688,3 +1688,20 @@ A scan of all 44,770 original main-configuration C++ commands finds no duplicate
 after removing only output/dependency-file destinations. Source, remaining
 arguments and environment must match exactly. Further compile deduplication has
 no demonstrated opportunity in this scan; nothing was adopted from it.
+
+### Eager PCH follow-up
+
+A local twelve-source ABBA pilot covers all six current producers with the new
+274f compiler. Every producer is rebuilt each pass; per-process `wait4` CPU
+includes production cost. Baseline objects match original bytes throughout.
+`-fpch-instantiate-templates` changes
+`content/browser/accessibility/browser_accessibility_state_impl.cc` in both
+candidate passes. The observed differences are in string data and ELF metadata;
+text sections match. This fails the byte-preservation gate, without establishing
+a program-semantics bug. No global adoption.
+
+Other five cohorts pass their two-source samples and show small exploratory
+CPU reductions (2.7–5.2%, including producer). Shared-host local timing and two
+sources per cohort do not justify adoption. Full byte gates and controlled BB
+measurement remain necessary. Report:
+`/tmp/chromium-eager-pch-six-pilot-001/report.json`.
