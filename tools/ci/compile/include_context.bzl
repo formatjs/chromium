@@ -5,6 +5,7 @@ load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":batch_sources.bzl", BATCH_SOURCES = "SOURCES")
+load(":include_context_roots.bzl", "INCLUDE_ROOTS")
 
 def _logical_path(path):
     path = paths.normalize(path)
@@ -58,7 +59,7 @@ def blink_include_context_probe(name, libraries):
     _headers(
         name = name + "_headers",
         library = "@chromium//native:" + library["name"],
-        includes = library["includes"],
+        includes = INCLUDE_ROOTS,
     )
     cc_library(
         name = name,
