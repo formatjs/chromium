@@ -30,6 +30,16 @@ EXPERIMENTS = {
     },
 }
 
+# Failed relocation input, retained only to diagnose the loaded-image guard.
+EXPERIMENTS['722e9b7c34c222071feaffed904e5bc2b9aba89b'] = {
+    'name': 'llvm-with-relocations',
+    'sha256': '9e8ed3ed09c3438e6a568778014309fa54ade790b09e67e005e7c7094ae81c2a',
+    'size': 282458312,
+    'uri': ('bytestream://remote.buildbuddy.io/bb-snapshot/'
+            'ea99aeae9a2016c04e6c62748864afce336069e47b420523a08803c1b0682571/'
+            'blobs/9e8ed3ed09c3438e6a568778014309fa54ade790b09e67e005e7c7094ae81c2a/282458312'),
+}
+
 BOLT_REVISION = '8b5a3e46bef60e25664d77e217b7930ac866bca5'
 BOLT_TOOLS = {
     'llvm-unstripped': {
