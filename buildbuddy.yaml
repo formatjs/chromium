@@ -1,5 +1,21 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium dependency fetch diagnostic
+    container_image: ubuntu-24.04
+    user: buildbuddy
+    timeout: 10m
+    resource_requests:
+      cpu: 4
+      memory: 8GB
+      disk: 20GB
+    triggers:
+      push:
+        branches: ["perf/dependency-fetch-diagnostic"]
+    steps:
+      - run: >-
+          python3 -m tools.ci.dependency_fetch_probe
+          --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/dependency-fetch"
+
   - name: Chromium header include experiment
     container_image: ubuntu-24.04
     user: buildbuddy
