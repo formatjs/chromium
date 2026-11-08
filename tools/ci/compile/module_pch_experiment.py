@@ -76,6 +76,7 @@ def main():
                  '--remote_accept_cached=false', '--noremote_upload_local_results', '--disk_cache=',
                  '--repo_contents_cache=', '--repository_cache=' + str(cache),
                  '--bes_backend=', '--bes_results_url=',
+                 '--downloader_config=' + str(source / 'tools/ci/download_mirrors.cfg'),
                  '--extra_execution_platforms=//platforms:buildbuddy_linux_amd64',
                  '--define=CHROMIUM_NATIVE_TOOLS=1', '--define=CHROMIUM_BLINK_PCH=1',
                  '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution',
