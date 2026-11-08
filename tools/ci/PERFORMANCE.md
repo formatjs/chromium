@@ -860,3 +860,20 @@ The combined candidate's cold verifier now requires seven PCH producers, seven
 closure validators and one prefix guard. Missing or extra prefix checks reject
 cold proof; 215 tests pass. The isolated six-PCH BB trial retains its original
 verifier and remains separate.
+
+### Content producer directory dependency
+
+Content's relative Skia include needs native/content_forwarders to exist.
+Its pinned project closure normalizes that path, so the earlier global
+input-scope attempt omitted the directory. Declare one existing forwarder
+header explicitly, as the other scanned source sets already do.
+
+Actual sandboxed full/scoped runs preserve raw PCH, validated PCH and depfile
+bytes against the frozen baseline. Both producer and validator execute uncached
+under linux-sandbox in each variant. Aquery inputs fall 79,542 to 6,309, removing
+73,233 edges, including 28,172 generated inputs. No new input paths; compiler
+arguments, environment, execution requirements and complete toolchain files match.
+Consumer declarations, compiler flags, source selection and link order are unchanged.
+
+215 tests pass. This qualifies the input change; full strict-cold timing, archive,
+ABI and rendering remain unproven. The current seven-PCH cold run predates it.

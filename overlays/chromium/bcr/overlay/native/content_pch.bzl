@@ -15,6 +15,7 @@ def content_browser_pch(library, common, sources):
         "@platforms//cpu:x86_64",
         "@llvm//constraints/libc:gnu.2.31",
     ]
+
     extras = common.get("additional_compiler_inputs", [])
     cc_library(name = context, copts = library["copts"], tags = ["manual"], **common)
     producer = name + "_frame_host_pch"
@@ -22,8 +23,10 @@ def content_browser_pch(library, common, sources):
         name = producer,
         library = ":" + context,
         header = "//:" + FRAME_HOST_HEADER,
-        extras = extras,
+        # Relative Skia includes traverse this existing forwarder directory.
+        extras = extras + [":content_forwarders/third_party/re2/src/re2/re2.h"],
         paths = FRAME_HOST_HEADER_PATHS,
+        closure_inputs = True,
         copts = library["copts"] + ["-isysroot", ".", "-ffile-prefix-map=./="],
         local_defines = library["defines"],
         target_compatible_with = compatibility,
