@@ -14,6 +14,8 @@ import urllib.request
 
 from tools.ci.chromium import ROOT
 from tools.ci.prepare_llvm import SOURCE_REVISION, SOURCE_SHA256, SOURCE_URL, build_flags, source_workspace
+from tools.ci.llvm_bolt_support import RUNTIME_TARGET, install_relocations
+from tools.ci.llvm_elf import compare_relinked_compiler
 
 
 RAW_TARGET = '//toolchain/bootstrap/stage3:llvm_unstripped_for_bolt'
@@ -68,12 +70,65 @@ def inspect_compiler(compiler, directory):
             'stripped_driver_sha256': sha, 'original_driver_bytes_match': True}
 
 
+def compiler_actions(startup, flags, workspace, name):
+    path = ROOT / '.compiler-preparation' / (name + '.actions.txt')
+    query_flags = flags + ['--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build']
+    expression = '[(a.mnemonic,a.argv,a.env,[f.path for f in a.outputs.to_list()]) for a in target.actions if a.mnemonic in ["CppCompile","CppHeaderParsing","CppLTOBackend","CppLink","CppLTOIndexing"]]'
+    with path.open('w') as output:
+        subprocess.run([*startup, 'cquery', *query_flags, '--output=starlark',
+                        '--starlark:expr=' + expression, 'deps(labels(actual, ' + RAW_TARGET + '))'],
+                       cwd=workspace, stdout=output, check=True)
+    result = {}
+    for line in path.read_text().splitlines():
+        for mnemonic, arguments, environment, outputs in ast.literal_eval(line):
+            key = mnemonic, tuple(outputs)
+            value = arguments, environment
+            if key in result and result[key] != value:
+                raise ValueError('Ambiguous LLVM action inventory')
+            result[key] = value
+    if sum(key[0] == 'CppCompile' for key in result) < 1000:
+        raise ValueError('Incomplete LLVM compiler action inventory')
+    return result
+
+
+def verify_relocation_actions(before, after):
+    if before.keys() != after.keys():
+        raise ValueError('Relocation preparation changes LLVM action inventory')
+    changes = []
+    for key, (arguments, environment) in before.items():
+        updated, updated_environment = after[key]
+        if (arguments, environment) == (updated, updated_environment):
+            continue
+        if (key[0] not in ('CppLink', 'CppLTOIndexing') or updated_environment != environment
+                or updated.count('-Wl,--emit-relocs') != 1
+                or [value for value in updated if value != '-Wl,--emit-relocs'] != arguments):
+            raise ValueError('Relocation preparation changes compiler commands beyond final link metadata')
+        changes.append(key[0])
+    if changes.count('CppLink') != 1:
+        raise ValueError('Expected exactly one changed final LLVM compiler link')
+    return {'actions_checked': len(before), 'compile_commands_environment_unchanged': True,
+            'changed_link_actions': changes, 'only_added_option': '-Wl,--emit-relocs'}
+
+
+def copy_runtime(startup, flags, workspace, directory):
+    query_flags = flags + ['--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build']
+    output = subprocess.check_output([*startup, 'cquery', *query_flags, '--output=files', RUNTIME_TARGET],
+                                     cwd=workspace, text=True).splitlines()
+    matches = [workspace / path for path in output if Path(path).name == 'libbolt_rt_instr.a']
+    if len(matches) != 1 or not matches[0].is_file() or matches[0].is_symlink():
+        raise ValueError('Expected one native BOLT instrumentation runtime archive')
+    destination = directory / 'libbolt_rt_instr.a'
+    shutil.copyfile(matches[0], destination)
+    return destination
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--training-inputs', type=Path, required=True)
     parser.add_argument('--source-archive', type=Path)
     parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--relocations', action='store_true')
     args = parser.parse_args()
     if not args.prepare_only and not os.environ.get('BUILDBUDDY_CI_RUNNER_ABSPATH'):
         parser.error('BOLT preparation requires a BuildBuddy workflow runner')
@@ -125,6 +180,31 @@ def main():
             raise ValueError('Missing BOLT preparation artifact')
         report['compiler_verification'] = inspect_compiler(args.directory / 'llvm-unstripped', args.directory)
         report['bolt_version'] = subprocess.check_output([str(args.directory / 'llvm-bolt'), '--version'], text=True)
+        if args.relocations:
+            before = compiler_actions(startup, flags, workspace, 'bolt-baseline')
+            report['source_override'] = install_relocations(workspace)
+            after = compiler_actions(startup, flags, workspace, 'bolt-relocations')
+            report['compiler_action_verification'] = verify_relocation_actions(before, after)
+            subprocess.run([*startup, 'build', *flags, RAW_TARGET, RUNTIME_TARGET], cwd=workspace, check=True)
+            files = subprocess.check_output([*startup, 'cquery', *query_flags, '--output=files', RAW_TARGET],
+                                            cwd=workspace, text=True).splitlines()
+            if len(files) != 1 or not (workspace / files[0]).is_file() or (workspace / files[0]).is_symlink():
+                raise ValueError('Expected one LLVM compiler with relocation metadata')
+            relocated = args.directory / 'llvm-with-relocations'
+            shutil.copyfile(workspace / files[0], relocated)
+            relocated.chmod(0o755)
+            verification = compare_relinked_compiler(args.directory / 'llvm-unstripped', relocated)
+            if not verification['symbol_table_present'] or not verification['text_relocation_sections']:
+                raise ValueError('BOLT compiler input lacks symbols or text relocations')
+            report['relocation_verification'] = verification
+            runtime = copy_runtime(startup, flags, workspace, args.directory)
+            members = json.loads(subprocess.check_output(
+                ['llvm-readobj', '--elf-output-style=JSON', '--file-headers', str(runtime)],
+                executable=relocated, text=True))
+            if not members or any(row['FileSummary']['Format'] != 'elf64-x86-64' for row in members):
+                raise ValueError('BOLT instrumentation runtime contains non-native objects')
+            for artifact in [relocated, runtime]:
+                artifacts[artifact.name] = {'sha256': digest(artifact), 'bytes': artifact.stat().st_size}
         report.update(complete=True, artifacts=artifacts)
     except Exception as error:
         report['error'] = str(error)

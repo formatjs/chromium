@@ -16,7 +16,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--bolt-feasibility', action='store_true')
+    parser.add_argument('--bolt-relocations', action='store_true')
     args = parser.parse_args()
+    if args.bolt_relocations and not args.bolt_feasibility:
+        parser.error('--bolt-relocations requires --bolt-feasibility')
     if not os.environ.get('BUILDBUDDY_CI_RUNNER_ABSPATH'):
         parser.error('Compiler preparation requires a BuildBuddy workflow runner')
     bazel = os.environ.get('BAZEL', 'bazel')
@@ -38,6 +41,8 @@ def main():
     subprocess.run([*startup, 'shutdown'], cwd=ROOT, check=True)
     preparation = 'tools.ci.prepare_llvm_bolt' if args.bolt_feasibility else 'tools.ci.prepare_llvm'
     mode = [] if args.bolt_feasibility else ['--mode', 'chromium']
+    if args.bolt_relocations:
+        mode.append('--relocations')
     subprocess.run([sys.executable, '-m', preparation, *mode,
                     '--training-inputs', str(parents.pop()), '--directory', str(args.directory)],
                    cwd=ROOT, check=True)
