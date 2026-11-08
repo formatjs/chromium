@@ -823,8 +823,36 @@ An additional analysis guard verifies the actual compiler binary hash and
 identical expanded commands before measurement.
 
 The [trained compiler comparison](https://formatjs.buildbuddy.io/invocation/f330b1a3-51e4-46e4-963d-aae14ff9033d)
-at `27c08bd` is running. Supporting state stays warm; it is not cold-build proof.
-No replacement compiler has been adopted. Full browser payload, ABI and rendering
-validation remain required before adoption. Keep the current 16-CPU/32GiB tier;
-no larger hardware test is authorized. The strict-cold under-one-hour goal
-remains unmet.
+at `27c08bd` completes successfully. Four measured passes execute exactly six
+local compiles each. Baseline wall times are 34.13/40.00s; candidate times are
+28.00/28.15s. Means fall from 37.07s to 28.08s (24.3%). Compiler CPU means fall
+from 131.96s to 101.02s (23.4%). Six objects and three archives match every pass;
+expanded commands and environments match. Supporting state stays warm. This is
+not cold-build proof or a full-browser speedup estimate.
+
+The downloaded archive's 365 entries match upstream except `bin/llvm`; builtin
+headers, tool symlinks and all other files match. Compiler binary hashes differ
+as required. No replacement compiler has been adopted on main. Full browser
+payload, ABI and rendering validation remain required. Keep the current
+16-CPU/32GiB tier; no larger hardware test is authorized.
+
+## Bounded Blink workers
+
+The generator experiment at `2200a93` adds an explicit upstream worker-count
+argument. Opt-in counts 2/4 reserve matching Bazel CPUs and 1/2GiB of action
+memory; default remains serial. No global CPU-count override. Real action
+analysis confirms four-worker arguments and all 5,574 outputs. Pinned-source
+patch application, Python compilation, buildifier and 179 tests pass.
+
+On the local 16-CPU-quota host, measured serial ABBA passes take 208.14/203.41s;
+four-worker passes take 53.87/52.64s. Means fall from 205.78s to 53.25s (74.1%
+action wall time). All 5,574 files match in both warmups and all measured passes.
+Process observation finds one serial generator or four workers plus parent.
+Supporting state stays warm; these timings do not establish full cold speedup.
+
+Strict-cold integration `2c0c81a` combines this opt-in with the SHA-pinned compiler,
+native tool sharing and 19 jobs. Fresh-state and cache-disable checks stay
+unchanged. It has not run. Public compiler prerelease publication awaits explicit
+approval after automatic approval review rejected publication authorization.
+The strict-cold under-one-hour goal remains unmet; other four triples' strict-cold
+timings remain unmeasured.
