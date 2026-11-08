@@ -88,6 +88,46 @@ class PchExperimentTest(unittest.TestCase):
                 with self.subTest(other=other), self.assertRaises(ValueError):
                     pch_experiment.owned_objects([[valid[0], prefix + other]], root, 'probe', split=True)
 
+    def test_distinct_pch_inputs_and_original_fallback_are_verified(self):
+        sources = ('document.cc', 'string.cc', 'plain.cc')
+        baseline = [(['clang++', '-DVALUE=1', '-c', source, '-o', source + '.o'], {}) for source in sources]
+        mapping = {'document.cc': 'document.pch', 'string.cc': 'string.pch'}
+        eligible = set(mapping)
+        candidate = [(args + (['-isysroot', '.', '-ffile-prefix-map=./=', '-include-pch', mapping[source]]
+                              if source in mapping else []), environment)
+                     for source, (args, environment) in zip(sources, baseline)]
+        with mock.patch.object(pch_experiment, 'SOURCES', sources):
+            expected = pch_experiment.normalized_commands(baseline, eligible_sources=eligible)
+            self.assertEqual(expected, pch_experiment.normalized_commands(candidate, mapping, eligible))
+            for wrong in [{'document.cc': 'string.pch', 'string.cc': 'document.pch'},
+                          {'document.cc': 'document.pch'}]:
+                with self.subTest(mapping=wrong), self.assertRaises(ValueError):
+                    pch_experiment.normalized_commands(candidate, wrong, eligible)
+            root = Path('/private/execroot/_main')
+            prefix = 'bazel-out/k8-fastbuild/bin/tools/ci/compile/pch/_objs/'
+            paths = [prefix + 'probe_' + group + '/' + source + '.o'
+                     for group, source in zip(('document', 'string', 'plain'), sources)]
+            self.assertEqual(len(pch_experiment.owned_objects([paths], root, 'probe',
+                                                            groups=('document', 'string', 'plain'))), 3)
+            with self.assertRaises(ValueError):
+                pch_experiment.owned_objects([paths], root, 'probe', groups=('document', 'plain'))
+
+    def test_hybrid_baseline_inventory_stays_flat(self):
+        root = Path('/private/execroot/_main')
+        package = 'tools/ci/compile/pch'
+        prefix = 'bazel-out/k8-fastbuild/bin/' + package + '/_objs/'
+        flat = [prefix + 'probe_baseline/' + source + '.o' for source in ['a', 'b', 'c']]
+        grouped = [prefix + 'probe_' + group + '/' + source + '.o'
+                   for group, source in zip(('document', 'string', 'plain'), ('a', 'b', 'c'))]
+        with mock.patch.object(pch_experiment, 'SOURCES', ('a.cc', 'b.cc', 'c.cc')):
+            self.assertEqual(len(pch_experiment.probe_objects([flat], root, 'probe_baseline', package,
+                                                            'baseline', hybrid=True)), 3)
+            self.assertEqual(len(pch_experiment.probe_objects([grouped], root, 'probe', package,
+                                                            'candidate', hybrid=True)), 3)
+            with self.assertRaises(ValueError):
+                pch_experiment.probe_objects([grouped], root, 'probe_baseline', package,
+                                            'baseline', hybrid=True)
+
     def test_include_reduction_preserves_registry_toolchain_and_flag_order(self):
         root = 'external/+chromium_dependencies+chromium/'
         def rows(paths, define='-DVALUE=1', environment=None):

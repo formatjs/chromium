@@ -50,3 +50,8 @@ linux_amd64_browser(
     name = "hybrid-linux-amd64",
     srcs = [":blink_hybrid_pch_compile_probe"],
 )
+
+linux_amd64_browser(
+    name = "hybrid-baseline-linux-amd64",
+    srcs = [":blink_hybrid_pch_compile_probe_baseline"],
+)

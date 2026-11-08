@@ -386,6 +386,18 @@ def blink_hybrid_pch_probe(name, libraries, target_compatible_with):
             local_defines = library["defines"],
             target_compatible_with = target_compatible_with,
         )
+    cc_library(
+        name = name + "_baseline",
+        srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
+        copts = library["copts"],
+        local_defines = library["defines"],
+        deps = [":" + headers],
+        additional_compiler_inputs = inputs,
+        features = ["cc_include_scanning"],
+        linkstatic = True,
+        tags = ["manual"],
+        target_compatible_with = target_compatible_with,
+    )
     _hybrid_compile(
         name = name,
         document_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source in DOCUMENT_SOURCES],
