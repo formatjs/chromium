@@ -1,0 +1,64 @@
+diff --git a/third_party/blink/renderer/bindings/scripts/generate_bindings.py b/third_party/blink/renderer/bindings/scripts/generate_bindings.py
+--- a/third_party/blink/renderer/bindings/scripts/generate_bindings.py
++++ b/third_party/blink/renderer/bindings/scripts/generate_bindings.py
+@@ -69,12 +69,18 @@
+         default=False,
+         help=('run everything in a single process, which makes debugging '
+               'easier'))
++    parser.add_argument('--worker_processes', type=int, default=None,
++                        help='maximum number of generator worker processes')
+     parser.add_argument('tasks',
+                         nargs='+',
+                         choices=valid_tasks,
+                         help='types to generate')
+ 
+     options = parser.parse_args()
++
++    if options.worker_processes is not None:
++        if options.worker_processes < 1 or options.single_process:
++            parser.error('--worker_processes must be positive and cannot use --single_process')
+ 
+     return options
+ 
+@@ -110,7 +116,8 @@
+         enable_style_format=options.format_generated_files,
+         enable_code_generation_tracing=options.enable_code_generation_tracing)
+ 
+-    task_queue = bind_gen.TaskQueue(single_process=options.single_process)
++    task_queue = bind_gen.TaskQueue(single_process=options.single_process,
++                                    worker_processes=options.worker_processes)
+ 
+     for task in options.tasks:
+         dispatch_table[task](task_queue)
+diff --git a/third_party/blink/renderer/bindings/scripts/bind_gen/task_queue.py b/third_party/blink/renderer/bindings/scripts/bind_gen/task_queue.py
+--- a/third_party/blink/renderer/bindings/scripts/bind_gen/task_queue.py
++++ b/third_party/blink/renderer/bindings/scripts/bind_gen/task_queue.py
+@@ -24,7 +24,7 @@
+         args: typing.List[typing.Any]
+         kwargs: typing.Dict[str, typing.Any]
+ 
+-    def __init__(self, single_process=False):
++    def __init__(self, single_process=False, worker_processes=None):
+         """
+         Args:
+             single_process: True makes the instance will not create nor use a
+@@ -32,13 +32,18 @@
+                 This is useful for debugging.
+         """
+         assert isinstance(single_process, bool)
++        if worker_processes is not None:
++            if (not isinstance(worker_processes, int) or worker_processes < 1
++                    or single_process):
++                raise ValueError("worker_processes needs a positive count and parallel mode")
+         if single_process:
+             self._single_process = True
+             self._pool_size = 1
+             self._pool = None
+         else:
+             self._single_process = False
+-            self._pool_size = multiprocessing.cpu_count()
++            self._pool_size = (worker_processes if worker_processes is not None
++                               else multiprocessing.cpu_count())
+             if sys.platform == 'win32':
+                 # TODO(crbug.com/1190269) - we can't use more than 56
+                 # cores on Windows or Python3 may hang.
