@@ -156,6 +156,7 @@ class BuildProfileTest(unittest.TestCase):
             ('Chromium V8 PCH comparison', 'v8-pch/report.json', 'pch_experiment'),
             ('Chromium compiler preparation', 'compiler-preparation/report.json', 'compiler_preparation'),
             ('Chromium compiler comparison', 'compiler-comparison/report.json', 'compiler_preparation'),
+            ('Chromium representative LLVM compiler preparation', 'llvm-compiler/report.json', 'compiler_preparation'),
             ('Chromium header include experiment', 'private-includes/report.json', 'include_experiment'),
             ('Chromium private include experiment', 'private-includes/report.json', 'include_experiment'),
         ]:
@@ -198,6 +199,28 @@ class BuildProfileTest(unittest.TestCase):
         self.assertNotIn('cold_build', result)
         self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
         self.assertNotIn(uri, json.dumps(result))
+
+    def test_interrupted_component_warmup_profile_is_collected_without_raw_paths(self):
+        report = {'complete': False, 'active_phase': 'warmup-baseline', 'phases': {}}
+        trace = '{"traceEvents":[{"ph":"X","cat":"action processing","name":"Compiling private/a.cc","ts":0,"dur":20,"args":{"mnemonic":"CppCompile","command":"DO_NOT_EXPORT"}},'
+        artifacts = {'invocation': [{'artifacts': [
+            {'name': 'command-0/module-pch/report.json', 'uri': 'report-uri'},
+            {'name': 'command-0/module-pch/warmup-baseline.profile.gz', 'uri': 'trace-uri'},
+        ]}]}
+        with mock.patch.object(profile_buildbuddy, 'rpc', return_value={'invocation': [
+                {'pattern': ['Chromium module PCH comparison']}]}), \
+                mock.patch.object(profile_buildbuddy, 'api_request', side_effect=[
+                    io.BytesIO(json.dumps(artifacts).encode()), io.BytesIO(json.dumps(report).encode()),
+                    io.BytesIO(trace.encode())]), \
+                mock.patch.dict(os.environ, {'BUILDBUDDY_API_KEY': 'read-only-test-key'}):
+            result = profile_buildbuddy.collect('workflow')
+        self.assertFalse(result['incomplete_pch_profile']['summary']['trace_complete'])
+        self.assertEqual(result['incomplete_pch_profile']['summary']['event_count'], 1)
+        self.assertEqual(result['incomplete_pch_profile']['phase'], 'warmup-baseline')
+        self.assertEqual(result['pch_experiment'], report)
+        self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
+        self.assertNotIn('private/', json.dumps(result))
+        self.assertNotIn('trace-uri', json.dumps(result))
 
     def test_incomplete_profiles_require_explicit_diagnostic_mode(self):
         with tempfile.TemporaryDirectory() as temporary:
