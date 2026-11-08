@@ -125,7 +125,7 @@ class Build:
         actual = {item['arguments'][0] for item in commands.values()}
         if actual != {driver}:
             raise ValueError('Expected indexed stage-0 compiler; got ' + ', '.join(sorted(actual)))
-        self.compiler_binary_sha256 = digest(self.execution_root / driver)
+        self.compiler_binary_sha256 = digest(self.root / 'output-base' / driver)
         return commands
 
     def build(self, phase, measured):
