@@ -1,5 +1,23 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium compiler private handoff
+    container_image: ubuntu-24.04
+    user: buildbuddy
+    allow_concurrent_runs: false
+    timeout: 5m
+    resource_requests:
+      cpu: 1
+      memory: 2GB
+      disk: 8GB
+    triggers:
+      push:
+        branches: ["perf/compiler-private-handoff"]
+    steps:
+      - run: |
+          python3 -m tools.ci.compiler_archive \
+            --revision 366173ffc47d1a12a92c32d542c39c24b80fea28 \
+            --destination "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compiler-dependency/llvm-23.1.2-linux-amd64-cxx.tar.zst"
+
   - name: Chromium strict cold build linux-amd64
     container_image: ubuntu-24.04
     user: buildbuddy
