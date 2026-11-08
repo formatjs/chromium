@@ -6,6 +6,10 @@ on:
         description: Full source commit SHA to profile
         required: true
         type: string
+      download_compiler_archive:
+        description: Fetch pinned C++ compiler experiment archive (revision 366173f only)
+        type: boolean
+        default: false
       baseline:
         description: Optional green commit for browser payload byte comparison
         required: false
@@ -63,6 +67,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BUILD_SHA: ${{ inputs.revision }}
         run: python3 -m tools.ci.profile_buildbuddy --revision "$BUILD_SHA" --directory "$RUNNER_TEMP/build-profile"
+      - name: Fetch pinned compiler experiment
+        if: inputs.download_compiler_archive
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_RO_PUBLIC_KEY }}
+          BUILD_SHA: ${{ inputs.revision }}
+        run: >-
+          python3 -m tools.ci.compiler_archive --revision "$BUILD_SHA"
+          --destination "$RUNNER_TEMP/build-profile/llvm-23.1.2-linux-amd64-cxx.tar.zst"
       - name: Compare browser payload bytes
         if: inputs.baseline != ''
         env:
