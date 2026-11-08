@@ -1064,3 +1064,46 @@ otherwise a validator-only rerun could mask producer cache reuse. Real controlle
 preflight passes 256/256 inventories and command equality. 192 Python tests pass.
 Revision `f880290c5b6413d37fd534fafb056801d7b0f7b6` starts the same guarded
 comparison on BB with private RAM sandboxes. No full cold result yet.
+
+### Source-aware PCH BB confirmation
+
+Invocation `a257bf76-44c4-447b-8817-b39fcc00e00f`, revision
+`f880290c5b6413d37fd534fafb056801d7b0f7b6`, completed guarded ABBA. Actual guest:
+19 CPU AMD EPYC, 35,262,926,848 bytes RAM, private 8 GiB RAM sandboxes, 8 GiB JVM,
+14 GB action budget; sandbox directory reuse disabled on both variants.
+Baseline passes 100.525 s and 103.083 s; PCH passes 95.374 s and 95.224 s.
+Means 101.804 s versus 95.299 s: 6.39% wall reduction, 10.91% compiler CPU reduction.
+Each pass executed 256 compiles; candidates a fresh raw PCH and closure check.
+All original objects/archive and all 256 source execution traces passed.
+Compiler commands/environment matched after explicit PCH/output normalization;
+actual compiler remained d94fff11dc9347aa4d1c8d1a2b51e35935bab730a187e6d2280c979a7d103e38.
+Supporting actions were warm; this is not a full cold result.
+Summary `/tmp/chromium-source-aware-pch-bb-summary.json`; collector `42448992021`.
+
+### Complete GN include context
+
+The legacy Blink library table retains 14 include roots. The checked-in full GN
+snapshot retains 63 flattened roots, including public dependency configs.
+A projection using only 14 failed on PartitionAlloc; the corrected projection
+uses all 63, preserving registry/toolchain and forwarder interfaces. Search paths
+shrink 941 to 782. All 256 original objects and the archive match. The first disk
+comparison is not accepted: a borrowed PCH baseline had an extra relocation root.
+
+A native baseline now matches all non-include flags/environment exactly. Local
+private-RAM ABBA completed: baselines 67.338 s, 60.730 s; candidates 55.269 s,
+55.922 s. Means 64.034 s versus 55.596 s: 13.18% wall reduction, 2.10% compiler CPU
+reduction. Baseline drift remains. 16 CPU quota, 48 GiB machine, 6 GiB JVM, 24 GB
+action budget, private 8 GiB RAM sandboxes; no directory reuse. Each phase ran
+256 actual compiles, no supporting compiles/generators, and checked all original
+bytes and source subprocess spans. This is warm-support local evidence.
+Summary `/tmp/chromium-include-context-ram-summary.json`.
+
+193 Python tests and real command/output/compiler controller preflight pass.
+Revision `c2797977220790ee01dd4e276991109eea59a2dd` starts BB confirmation,
+invocation `cbd5fd84-8e5f-41ab-8287-9c814eb9b3b1`. Existing collector routes the
+header include experiment to `private-includes/report.json` / `include_experiment`.
+
+A stronger PCH prototype is testing 116 previously byte-compatible document
+consumers, 125 validated string consumers and 15 original compiles. HTML marquee
+keeps the smaller PCH because document PCH reordered its trace sections. Strict
+object/archive byte guards remain; no default browser integration or cold proof.
