@@ -1,4 +1,5 @@
 import gzip
+import hashlib
 import io
 import json
 import os
@@ -49,6 +50,40 @@ class BuildProfileTest(unittest.TestCase):
         self.assertEqual(result['ChromiumProjectPch']['subprocess_task_seconds'], 3)
         self.assertEqual(result['ChromiumPchClosure']['subprocess_task_seconds'], 0.5)
         self.assertNotIn('private/', json.dumps(result))
+
+    def test_target_timing_preserves_configuration_boundaries_without_labels(self):
+        target = '@@private_repo//private/package:target'
+        events = [
+            {'cat': 'action processing', 'ts': 1000000, 'dur': 2000000,
+             'out': 'bazel-out/target-config/bin/private/output.o',
+             'args': {'mnemonic': 'CppCompile', 'target': target}},
+            {'cat': 'action processing', 'ts': 4000000, 'dur': 1000000,
+             'out': 'bazel-out/target-config/bin/private/other.o',
+             'args': {'mnemonic': 'CppCompile', 'target': target[1:]}},
+            {'cat': 'action processing', 'ts': 9000000, 'dur': 1000000,
+             'out': 'bazel-out/exec-config/bin/private/output.o',
+             'args': {'mnemonic': 'CppCompile', 'target': target}},
+        ]
+        rows = profile_buildbuddy.target_timings(events)
+        self.assertEqual(len(rows), 2)
+        row = next(row for row in rows if row['observed_spans'] == 2)
+        self.assertEqual(row['first_start_seconds'], 1)
+        self.assertEqual(row['last_end_seconds'], 5)
+        self.assertEqual(row['observed_task_seconds'], 3)
+        self.assertEqual(row['target_sha256'], hashlib.sha256(target.lstrip('@').encode()).hexdigest())
+        self.assertNotIn('private', json.dumps(rows))
+        self.assertNotIn('target-config', json.dumps(rows))
+
+    def test_pch_schema_detects_missing_mnemonic_without_exporting_paths(self):
+        result = profile_buildbuddy.pch_event_schema([
+            {'name': 'ChromiumProjectPch private/header.raw.pch', 'cat': 'action processing',
+             'ph': 'X', 'dur': 1000000, 'args': {'target': 'private/target'}},
+            {'name': 'Compiling private/source.cc', 'out': 'private/_pch_plain/source.o', 'ph': 'X'},
+        ])
+        self.assertEqual(result['matching_events'], 1)
+        self.assertEqual(result['completed_duration_spans'], 1)
+        self.assertEqual(result['mnemonic_present'], 0)
+        self.assertNotIn('private', json.dumps(result))
 
     def test_strict_cold_timing_requires_complete_outer_workflow_within_hour(self):
         outer = {'success': True, 'invocationStatus': 'COMPLETE_INVOCATION_STATUS',

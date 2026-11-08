@@ -2,8 +2,10 @@
 
 import argparse
 from bisect import bisect_right
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 import gzip
+import hashlib
 import json
 import math
 import os
@@ -17,6 +19,13 @@ from tools.ci.buildbuddy_artifacts import API_URL, COLD_WORKFLOW_PREFIXES, api_r
 
 
 RPC_URL = 'https://formatjs.buildbuddy.io/rpc/BuildBuddyService/'
+LOCAL_SPAWN_MNEMONICS = (
+    'CppCompile', 'CppLink', 'CppArchive', 'ChromiumPython',
+    'ChromiumProjectPch', 'ChromiumPchClosure', 'Rustc', 'RustBindgen',
+    'ChromiumBindgenLayout', 'ChromiumRustcCfg', 'ChromiumToolRuntime',
+    'Genrule', 'RunBinary', 'CcAutoconfCheck', 'CcAutoconfHdr', 'CcStage0Compile',
+)
+
 
 
 def rpc(method, body):
@@ -104,8 +113,7 @@ def local_action_work(events):
     for event in events:
         mnemonic = event.get('args', {}).get('mnemonic')
         if (event.get('cat') != 'action processing'
-                or mnemonic not in ('CppCompile', 'CppLink', 'ChromiumPython',
-                                    'ChromiumProjectPch', 'ChromiumPchClosure')):
+                or mnemonic not in LOCAL_SPAWN_MNEMONICS):
             continue
         group = ('BlinkBindings' if mnemonic == 'ChromiumPython'
                  and '/gen/third_party/blink/renderer/bindings/' in event.get('out', '')
@@ -140,6 +148,44 @@ def local_action_work(events):
         if event['ts'] >= start and event['ts'] + event['dur'] <= end + 1000:
             groups[group][field] += event['dur'] / 1e6
     return groups
+
+
+def target_timings(events):
+    """Group observed spans by hashed target/configuration; keep labels private."""
+    groups = {}
+    for event in events:
+        arguments = event.get('args', {})
+        mnemonic, target = arguments.get('mnemonic'), arguments.get('target')
+        if event.get('cat') != 'action processing' or mnemonic not in LOCAL_SPAWN_MNEMONICS or not target:
+            continue
+        output = event.get('out', '')
+        configuration = output.split('/')[1] if output.startswith('bazel-out/') else ''
+        target_hash = hashlib.sha256(target.lstrip('@').encode()).hexdigest()
+        configuration_hash = hashlib.sha256(configuration.encode()).hexdigest() if configuration else ''
+        key = target_hash, configuration_hash, mnemonic
+        start, end = event['ts'] / 1e6, (event['ts'] + event['dur']) / 1e6
+        row = groups.setdefault(key, {'observed_spans': 0, 'observed_task_seconds': 0,
+                                      'first_start_seconds': start, 'last_end_seconds': end})
+        row['observed_spans'] += 1
+        row['observed_task_seconds'] += event['dur'] / 1e6
+        row['first_start_seconds'] = min(row['first_start_seconds'], start)
+        row['last_end_seconds'] = max(row['last_end_seconds'], end)
+    return [dict(target_sha256=target, configuration_sha256=configuration,
+                 mnemonic=mnemonic, **row)
+            for (target, configuration, mnemonic), row in sorted(groups.items())]
+
+
+def pch_event_schema(events):
+    """Detect PCH spans whose metadata format differs from native C++ spans."""
+    matches = [event for event in events if event.get('name', '').startswith(
+        ('ChromiumProjectPch', 'ChromiumPchClosure')) or event.get('out', '').endswith('.pch')]
+    return {'matching_events': len(matches),
+            'completed_duration_spans': sum(event.get('ph') == 'X' and event.get('dur', 0) > 0
+                                            for event in matches),
+            'categories': dict(Counter(event.get('cat', '') for event in matches)),
+            'phase_types': dict(Counter(event.get('ph', '') for event in matches)),
+            'mnemonic_present': sum(bool(event.get('args', {}).get('mnemonic')) for event in matches),
+            'argument_keys': sorted({key for event in matches for key in event.get('args', {})})}
 
 
 def trace_summary(path, allow_partial=False):
@@ -208,6 +254,8 @@ def trace_summary(path, allow_partial=False):
     return {'trace_complete': complete, 'event_count': len(events),
             'compiler_work': compiler_work(durations),
             'local_action_work': local_action_work(durations),
+            'target_timings': target_timings(durations),
+            'pch_event_schema': pch_event_schema(events),
             'phases': phase_summary,
             'longest_events': [{key: event.get(key) for key in fields} for event in longest],
             'tasks': tasks, 'counters': counters}
