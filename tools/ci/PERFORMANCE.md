@@ -955,3 +955,18 @@ base PCH, whose input bytes remain unchanged. All 178 importer objects also matc
 plus one plain fallback. Its bytes remain unchanged. Full-cohort performance,
 188-object sandbox/archive, V8 host-tool and browser link gates remain pending.
 218 tests pass. This cohort is excluded from the ten-PCH cold trial.
+
+The shared compiler cohort now passes actual Linux sandbox compilation of all
+188 owner objects and its deterministic archive. All 9,538 combined Chrome
+compiler contexts preserve flags, include order, defines and environment after
+PCH additions. The ten-producer graph preserves link flags and object order.
+All 9,538 Chrome replacement objects and 1,014 snapshot-tool replacement objects
+match their originals. Complete relinks reproduce Chrome SHA-256
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`
+and snapshot tool SHA-256
+`965ee9de41d0843dd49080e11f644da51904c2629c892a3f0672dd1502f3b89c`.
+
+A separate-producer full 178-source local ABBA uses 1358.894 CPU seconds without
+PCH versus 1007.318 with PCH (25.87%), including each producer. This does not
+measure the shared producer or full BB cold build. Shared-cohort full archive,
+ABI/rendering and cold performance remain unproven; current cold trial excludes it.
