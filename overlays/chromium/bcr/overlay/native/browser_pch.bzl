@@ -31,6 +31,7 @@ def browser_project_pch(library, common, sources, copts):
         header = "//:" + header,
         extras = extras,
         paths = paths,
+        closure_inputs = True,
         copts = copts + ["-isysroot", ".", "-ffile-prefix-map=./="],
         local_defines = library["defines"],
         target_compatible_with = compatibility,

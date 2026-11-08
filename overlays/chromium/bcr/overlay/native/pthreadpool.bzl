@@ -1,6 +1,6 @@
 """Captured pthreadpool profile using Chromium's base::PostJob adapter."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":pthreadpool_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_pthreadpool():

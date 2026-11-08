@@ -1,6 +1,6 @@
 """Original geometry/range implementations and complete native Mojo bindings."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":geometry_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_geometry():

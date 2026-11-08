@@ -1,6 +1,6 @@
 """Compile Chromium's complete Linux base library with native actions."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":base_bind_pch.bzl", "base_bind_pchs")
 load(":base_sources.bzl", "COPTS", "DEFINES", "HEADERS", "SOURCES")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")

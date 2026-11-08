@@ -1029,3 +1029,38 @@ and complete browser/mksnapshot relinks match their frozen references. It reuses
 the existing Isolate PCH, adds no producer, and keeps eleven compiler sources
 plain. Shared-cohort BB/cold performance and complete artifact ABI/rendering
 remain unverified.
+
+### Broad Bind.h routing preparation
+
+A separate opt-in wrapper prepares 17,894 compatible Bind.h records across 2,616
+owners in 22 native declaration families. The membership file excludes the 41
+optimization-mode mismatches and 192 manual/binary-owner records. It includes
+both existing member-pointer language modes. These are prepared candidates,
+not executed or qualified rollout counts.
+
+The wrapper retains each original cc_library by default. With the explicit
+Base Bind flag, supported C++ owners use a separate compilation context and
+ordered archive cohort; the original rule retains its headers, dependencies
+and link options. Existing UI/Profile/Content partitions retain their disjoint
+PCH groups. Mixed-language sources, selectors, duplicate object names, private
+implementation dependencies and nocopts remain on their original rules.
+
+Full source-byte qualification is still running against the actual Bazel PCH
+artifacts. Broad default/enabled compiler-context audits, reachable producer
+counts, complete object/link checks and cold timing remain pending. No broader
+source is copied into the fixture held by the existing combined correctness
+job. Other four triples remain cold-unmeasured.
+
+The three newer UI/Profile/public-RFH producers also prepare narrower declared
+inputs: pinned project header closures plus the complete SDK. The public RFH
+producer retains its forwarder directory anchor. Producer commands, effective
+environments and raw/validated PCH and depfile bytes must match the previous
+full-context producers in real sandbox executions. This gate is pending; no
+input-pruning performance claim is established.
+
+An independent original V8 depfile survey finds 199 remaining Isolate.h records
+across native and host configurations, including previously known exceptions.
+Most are generated class definitions: the base library depends on that owner,
+so directly reusing its Isolate PCH there would introduce a dependency cycle.
+The remaining builtin-generator candidates need their own context and byte
+qualification. No additional V8 source is routed from this survey.

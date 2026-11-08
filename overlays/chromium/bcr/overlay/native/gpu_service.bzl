@@ -1,7 +1,7 @@
 """Captured GPU service, command decoders, Dawn wire and libyuv."""
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":generated_files.bzl", "CAPTURED_FILES")
 load(":gpu_service_sources.bzl", "ACTIONS", "LIBRARIES", "METADATA", "SHARED_HEADERS")
 load(":python_action.bzl", "chromium_python_action")

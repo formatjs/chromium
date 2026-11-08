@@ -1,7 +1,7 @@
 """Captured Ozone platforms, GL initialization and desktop integration."""
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":ozone_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":python_action.bzl", "chromium_python_action")
 load(":resource_copy.bzl", "chromium_resource_copy")

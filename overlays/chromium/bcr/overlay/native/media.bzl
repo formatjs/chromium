@@ -1,6 +1,6 @@
 """Captured Chromium media pipeline, parsers, storage and Symphonia bridge."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 load(":media_sources.bzl", "ACTIONS", "BRIDGES", "LIBGAV1_DEFINES", "LIBRARIES", "SHARED_HEADERS")
 load(":public_dependency.bzl", "chromium_public_dependency")

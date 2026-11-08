@@ -2,8 +2,8 @@
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:defs.bzl", "py_binary")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":browser_pch.bzl", "browser_project_pch")
 load(":browser_sources.bzl", "ACTIONS", "ASSET_GROUPS", "BRIDGES", "COPIES", "LIBRARIES", "RUNTIME_FILES", "SHARED_HEADERS", "TOOLS")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")

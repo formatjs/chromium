@@ -1,7 +1,7 @@
 """Captured Linux UI and Chromium GL wrapper closure."""
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":linux_ui_sources.bzl", "ACTIONS", "LIBRARIES", "RUNTIME_DEPS", "SHARED_HEADERS")
 load(":python_action.bzl", "chromium_python_action")
 

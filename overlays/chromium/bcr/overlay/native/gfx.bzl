@@ -1,6 +1,6 @@
 """Full captured Linux ui/gfx closure with native codecs, DRM and sync."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":gfx_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS")
 load(":python_action.bzl", "chromium_python_action")
 

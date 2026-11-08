@@ -1,8 +1,7 @@
 """Complete Linux network closure, native generators, DNS and SQL support."""
 
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
-load(":base_bind_consumers.bzl", "base_bind_cohort")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":network_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":protobuf_config.bzl", "chromium_protobuf_library")
 load(":python_action.bzl", "chromium_python_action")
@@ -35,16 +34,6 @@ def native_network():
         else:
             common["hdrs"] = library["hdrs"]
             common["includes"] = library["includes"]
-        if library["name"] == "network_211be4e8e759f7c4":
-            replacement = base_bind_cohort(common)
-            common["srcs"] = select({
-                "//native/tool_configuration:base_bind_pch": [],
-                "//conditions:default": common["srcs"],
-            })
-            common["deps"] = select({
-                "//native/tool_configuration:base_bind_pch": [replacement] + common["deps"],
-                "//conditions:default": common["deps"],
-            })
         rule(**common)
     for name, original in {
         "net": "//net:net",

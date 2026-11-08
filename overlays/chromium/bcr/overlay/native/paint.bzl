@@ -1,6 +1,6 @@
 """Complete captured compositor paint closure, using Chromium's native providers."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":paint_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_paint():

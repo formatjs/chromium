@@ -1,8 +1,8 @@
 """Content browser, renderer and service dependencies."""
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:py_info.bzl", "PyInfo")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":content_pch.bzl", "content_browser_pch")
 load(":content_sources.bzl", "ACTIONS", "COPIES", "LIBRARIES", "METADATA", "SHARED_HEADERS", "TOOLS")
 load(":generated_files.bzl", "CAPTURED_FILES")

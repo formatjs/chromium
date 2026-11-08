@@ -1,6 +1,6 @@
 """Captured GPU command protocol, shared-image formats and GLES2 interfaces."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":gpu_protocol_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_gpu_protocol():

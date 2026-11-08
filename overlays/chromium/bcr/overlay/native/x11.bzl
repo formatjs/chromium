@@ -1,6 +1,6 @@
 """Captured Chromium X11 protocol and platform-event libraries."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":python_action.bzl", "chromium_python_action")
 load(":resource_copy.bzl", "chromium_resource_copy")
 load(":x11_sources.bzl", "ACTIONS", "COPIES", "LIBRARIES", "SHARED_HEADERS")

@@ -1,6 +1,6 @@
 """Complete captured Chromium Skia graph with its original configuration."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 load(":python_action.bzl", "chromium_python_action")
 load(":skia_sources.bzl", "ACTIONS", "BRIDGES", "LIBRARIES", "PUBLIC_DEFINES", "SHARED_HEADERS")

@@ -1,6 +1,6 @@
 """Blink core and its original code generators."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":blink_core_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":blink_pch.bzl", "blink_bindings_pch", "blink_core_pch")
 load(":python_action.bzl", "chromium_python_action")

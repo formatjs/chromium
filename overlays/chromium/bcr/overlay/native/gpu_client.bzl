@@ -1,6 +1,6 @@
 """Captured GPU clients, raster command producers and Viz common types."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":gpu_client_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_gpu_client():
