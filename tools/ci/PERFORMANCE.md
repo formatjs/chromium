@@ -1203,3 +1203,9 @@ performance claim. Reports `/tmp/chromium-bindings-phase-probe-001/report.json`,
 Full-core trace is 452 MB compressed. Whole-file JSON loading exhausted memory;
 streaming relevant events and indexing source/thread intervals keeps verification
 bounded. Existing accepted 256-source timings remain exactly unchanged.
+
+Streaming full-profile verification completed: all 2,398 original source executions
+have positive local compiler subprocess spans. The fourteen fallback sources
+also have positive execution spans in the retry profile. Final report:
+`/tmp/chromium-full-core-pch-correctness.json`. Original object/archive gates pass.
+Experiment and profiler fix pushed through `3867b98`.
