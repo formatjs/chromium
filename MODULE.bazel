@@ -228,6 +228,18 @@ inject_repo(sources, "macos_sdk")
 
 use_repo(sources, "angle", "chromium", "chromium_angle", "chromium_angle_metal_shaders", "chromium_anonymous_tokens", "chromium_breakpad", "chromium_catapult", "chromium_cdm_api", "chromium_cld3", "chromium_content_analysis_sdk", "chromium_crabbyavif", "chromium_cros_system_api", "chromium_darwin_arm64", "chromium_dawn", "chromium_devtools_esbuild", "chromium_devtools_frontend", "chromium_directx_headers", "chromium_dom_distiller_js", "chromium_dxc", "chromium_egl_registry", "chromium_eigen3", "chromium_emoji_segmenter", "chromium_farmhash", "chromium_federated_compute", "chromium_ffmpeg", "chromium_fontconfig", "chromium_freetype", "chromium_gemmlowp", "chromium_google_toolbox_for_mac", "chromium_harfbuzz", "chromium_icu", "chromium_ink", "chromium_ink_stroke_modeler", "chromium_jpeg", "chromium_kde_protocols", "chromium_leveldatabase", "chromium_libaddressinput", "chromium_libdrm", "chromium_libgav1", "chromium_libphonenumber", "chromium_libsrtp", "chromium_libsync", "chromium_libyuv", "chromium_linux_arm64", "chromium_material_color_utilities", "chromium_microsoft_webauthn", "chromium_mig", "chromium_msvc_atl_libraries", "chromium_msvc_dia", "chromium_neon_2_sse", "chromium_opengl_registry", "chromium_openscreen", "chromium_ots", "chromium_pciutils", "chromium_pdfium", "chromium_platform_headers", "chromium_platform_headers_arm64", "chromium_platform_headers_cross", "chromium_platform_runtime", "chromium_platform_runtime_arm64", "chromium_protobuf_javascript", "chromium_pthreadpool", "chromium_quiche", "chromium_readability", "chromium_ruy", "chromium_search_engines_data", "chromium_skia", "chromium_smhasher", "chromium_sqlite", "chromium_swiftshader", "chromium_tflite", "chromium_v8", "chromium_vma", "chromium_vulkan_loader", "chromium_vulkan_tools", "chromium_vulkan_utility", "chromium_vulkan_validation", "chromium_wayland_protocols", "chromium_webp", "chromium_webrtc", "chromium_windows_amd64", "chromium_windows_arm64", "chromium_windows_debuggers", "chromium_windows_sdk_runtime", "chromium_wuffs", "chromium_xcomposite", "chromium_xdg_utils", "chromium_xnnpack", "chromium_xtst", "compact_enc_det", "dragonbox", "fp16", "ipcz", "linux-syscall-support", "nspr", "nss", "perfetto", "skia", "v8")
 
+llvm_prebuilt = use_extension("@llvm//extensions:llvm_toolchain_minimal.bzl", "llvm_toolchain_minimal")
+llvm_prebuilt.index(file = "//build:llvm-cxx-compiler-index.json")
+use_repo(
+    llvm_prebuilt,
+    "llvm-toolchain-minimal-darwin-amd64",
+    "llvm-toolchain-minimal-darwin-arm64",
+    "llvm-toolchain-minimal-linux-amd64",
+    "llvm-toolchain-minimal-linux-arm64",
+    "llvm-toolchain-minimal-windows-amd64",
+    "llvm-toolchain-minimal-windows-arm64",
+)
+
 register_toolchains("@llvm//toolchain:all")
 
 # Keep host tools on the default platform; let tests match the target ABI.
