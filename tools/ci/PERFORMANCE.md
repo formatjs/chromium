@@ -1741,3 +1741,30 @@ header/include scope. The previous include prototype retained 782 search paths
 from a 941-path baseline and yielded no meaningful BB gain; repeating that partial
 change is not a strategy. Correct GN path mapping and full resolution/byte gates
 remain necessary. No cache-policy or hardware changes.
+
+### Generator scratch placement: no substantial measured gain
+
+An opt-in prototype keeps the runner's existing `copy2` staging inside the
+private 8 GiB sandbox instead of `/tmp`. Files remain isolated copies, with
+mode/mtime preserved; no shared scratch or output cache. Production stays unchanged.
+
+Replay five real actions with the original hermetic Python 3.11 and empty action
+environment: Node compression, Mojo bindings, DevTools TypeScript, Chromium
+TypeScript and ESLint. All 3,779 original outputs match byte-for-byte on each of
+four ABBA passes. Scratch cleanup and input isolation pass. Supporting inputs
+come from a completed build; this is local differential evidence, not a cold
+build or Bazel sandbox benchmark.
+
+First Node disk pass spends 6.17 s copying versus 0.44 s in RAM, but its final
+disk repeat spends only 0.46 s. Input warmup confounds the initial result.
+Across all five actions, final disk repeats total 39.41 s versus RAM's 38.64 s
+mean; CPU totals are 70.32 s versus 69.74 s. This is not a controlled whole-build
+speedup. Do not enable the prototype or spend another strict-cold BB run on this
+evidence alone. Raw measurements: `/tmp/chromium-generator-stage-replay-001/report.json`.
+
+A separate one-source include-root feasibility test reduces 939 search entries
+to 45 and preserves the object and dependency path set in four passes. Local CPU
+falls 4.43%. It uses an existing depfile to identify candidate roots and needs
+special handling for symlink aliases and parent-relative includes. This is not a
+safe general rule transformation, nor permission to reuse dependency results in
+strict-cold builds. It remains unshipped.
