@@ -46,7 +46,29 @@ diff --git a/toolchain/bootstrap/fdo_profile.bzl b/toolchain/bootstrap/fdo_profi
              inputs = depset(
                  [source],
                  transitive = [ctx.attr.srcs[DefaultInfo].files],
-@@ -217,9 +228,14 @@
+@@ -184,6 +195,12 @@
+         variables = link_variables,
+     ))
+     link_args.add_all(objects)
++    runtime_libraries = depset()
++    if ctx.attr.language == "c++":
++        runtime_libraries = cc_toolchain.static_runtime_lib(feature_configuration = feature_configuration)
++        if not runtime_libraries.to_list():
++            fail("C++ training requires the toolchain's static runtime libraries")
++        link_args.add_all(runtime_libraries)
+ 
+     link_profraw = ctx.actions.declare_file(ctx.label.name + ".link.profraw")
+     link_executable = cc_common.get_tool_for_action(
+@@ -194,7 +211,7 @@
+         executable = link_executable,
+         arguments = [link_args],
+         env = _profile_environment(feature_configuration, ACTION_NAMES.cpp_link_executable, link_variables, link_profraw),
+-        inputs = objects,
++        inputs = depset(objects, transitive = [runtime_libraries]),
+         tools = cc_toolchain.all_files,
+         outputs = [
+             binary_file,
+@@ -217,9 +234,14 @@
      implementation = _llvm_fdo_profile_workload_impl,
      attrs = {
          "srcs": attr.label(
