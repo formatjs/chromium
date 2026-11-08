@@ -12,6 +12,27 @@ from tools.ci.profile_buildbuddy import compiler_work, summarize, trace_summary
 
 
 class BuildProfileTest(unittest.TestCase):
+    def test_local_subprocess_attribution_excludes_unrelated_threads_and_private_paths(self):
+        events = [
+            {'cat': 'action processing', 'ts': 0, 'dur': 10000000, 'tid': 1,
+             'args': {'mnemonic': 'CppCompile', 'command': 'DO_NOT_EXPORT'}},
+            {'cat': 'action processing', 'ts': 1000000, 'dur': 2000000, 'tid': 2,
+             'out': 'private/gen/third_party/blink/renderer/bindings/core/v8/output.cc',
+             'args': {'mnemonic': 'ChromiumPython'}},
+            {'name': 'subprocess.run', 'ts': 1000000, 'dur': 8000000, 'tid': 1},
+            {'name': 'sandbox.createFileSystem', 'ts': 0, 'dur': 500000, 'tid': 1},
+            {'name': 'subprocess.run', 'ts': 1100000, 'dur': 1500000, 'tid': 2},
+            {'name': 'subprocess.run', 'ts': 1000000, 'dur': 1000000, 'tid': 3},
+            {'name': 'subprocess.run', 'ts': 11000000, 'dur': 1000000, 'tid': 1},
+        ]
+        result = profile_buildbuddy.local_action_work(events)
+        self.assertEqual(result['CppCompile'], {'action_spans': 1, 'action_task_seconds': 10,
+                                              'max_action_seconds': 10, 'subprocess_task_seconds': 8,
+                                              'sandbox_task_seconds': 0.5})
+        self.assertEqual(result['BlinkBindings']['subprocess_task_seconds'], 1.5)
+        self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
+        self.assertNotIn('private/', json.dumps(result))
+
     def test_strict_cold_timing_requires_complete_outer_workflow_within_hour(self):
         outer = {'success': True, 'invocationStatus': 'COMPLETE_INVOCATION_STATUS',
                  'durationUsec': '3550000000'}

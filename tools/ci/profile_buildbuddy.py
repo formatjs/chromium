@@ -98,6 +98,45 @@ def compiler_work(events):
     return groups
 
 
+def local_action_work(events):
+    """Attribute local subprocess and sandbox spans without exporting paths."""
+    groups, threads = {}, {}
+    for event in events:
+        mnemonic = event.get('args', {}).get('mnemonic')
+        if (event.get('cat') != 'action processing'
+                or mnemonic not in ('CppCompile', 'CppLink', 'ChromiumPython')):
+            continue
+        group = ('BlinkBindings' if mnemonic == 'ChromiumPython'
+                 and '/gen/third_party/blink/renderer/bindings/' in event.get('out', '')
+                 else mnemonic)
+        row = groups.setdefault(group, {'action_spans': 0, 'action_task_seconds': 0,
+                                       'max_action_seconds': 0, 'subprocess_task_seconds': 0,
+                                       'sandbox_task_seconds': 0})
+        seconds = event['dur'] / 1e6
+        row['action_spans'] += 1
+        row['action_task_seconds'] += seconds
+        row['max_action_seconds'] = max(row['max_action_seconds'], seconds)
+        threads.setdefault(event.get('tid'), []).append((event['ts'], event['ts'] + event['dur'], group))
+    indices = {}
+    for thread, intervals in threads.items():
+        intervals.sort()
+        indices[thread] = ([item[0] for item in intervals], intervals)
+    for event in events:
+        field = {'subprocess.run': 'subprocess_task_seconds',
+                 'sandbox.createFileSystem': 'sandbox_task_seconds'}.get(event.get('name'))
+        index = indices.get(event.get('tid'))
+        if field is None or index is None:
+            continue
+        starts, intervals = index
+        position = bisect_right(starts, event['ts']) - 1
+        if position < 0:
+            continue
+        start, end, group = intervals[position]
+        if event['ts'] >= start and event['ts'] + event['dur'] <= end + 1000:
+            groups[group][field] += event['dur'] / 1e6
+    return groups
+
+
 def trace_summary(path, allow_partial=False):
     with path.open('rb') as source:
         opener = gzip.open if source.read(2) == b'\x1f\x8b' else open
@@ -163,6 +202,7 @@ def trace_summary(path, allow_partial=False):
                                'sample_max': max(samples), 'unit': unit}
     return {'trace_complete': complete, 'event_count': len(events),
             'compiler_work': compiler_work(durations),
+            'local_action_work': local_action_work(durations),
             'phases': phase_summary,
             'longest_events': [{key: event.get(key) for key in fields} for event in longest],
             'tasks': tasks, 'counters': counters}
