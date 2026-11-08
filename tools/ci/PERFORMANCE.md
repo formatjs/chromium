@@ -1656,3 +1656,10 @@ is not strict-cold proof. 212 tests pass; the comparison is running.
 
 No new public compiler release or compiler adoption. Strict-cold d3c6d7fd keeps
 its original compiler and continues independently.
+
+A broader local correctness check also passes: 30 deterministic holdouts, six
+each from V8, Content, Blink core, core bindings and modules. Neither training
+source is selected. Unchanged recorded commands use the new driver; outputs
+match the original cold build objects exactly. This is warm direct compiler
+replay, not a sandboxed timing result or full-browser correctness proof.
+Report: `/tmp/chromium-representative-llvm-holdout-001/report.json`.
