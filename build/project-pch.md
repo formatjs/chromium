@@ -56,10 +56,17 @@ Evidence:
 - `/tmp/chromium-hybrid-pch-ram-abba-001/report.json`
 - `/tmp/chromium-clang-phase-probe-001/report.json`
 
-The manual full-core probe expands correctness checks to 2,398 sources. Its
-candidate membership agrees with all original compiler depfiles. Membership
-alone does not establish object compatibility. Original component archive
+The manual full-core probe passes all 2,398 original objects and the complete
+archive: 1,374 document PCH, 930 string PCH, 94 original compiles. Fourteen
+document imports changed objects; all fourteen preserve original bytes with
+string PCH. Candidate membership agrees with all original compiler depfiles. Original component archive
 reference, assembled from saved original objects in native order:
 `187c9d4d3f119abe2a5c01adda4e47d449d35bef9e08079af1a8136950a020c5`.
 Probe targets add two implicit main-repository quote roots; production integration
 must preserve the original native repository context.
+
+Full-core evidence: `/tmp/chromium-full-core-pch-final-byte-proof.json`.
+Generated bindings: three pinned-compiler traces preserve original objects;
+all three also match with a direct `idl_types.h` PCH pilot. No sandboxed full
+binding cohort or timing claim yet. That header appears in all 1,030 original
+binding depfiles and 1,800 core depfiles.
