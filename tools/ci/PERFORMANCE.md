@@ -1022,3 +1022,45 @@ sandboxes. Its 140-header depfile validation passed. Exactly 255 original object
 matched; `fullscreen_request_type.pic.o` changed section/function order and
 constant symbol numbering. Archive differs. Header rejected for rollout;
 byte guards remain strict. Report: `/tmp/chromium-project-pch-256-correctness.json`.
+
+
+### Larger PCH and sandbox overhead follow-up
+
+Allocator PCH (68 project headers) preserves all 256 original objects and the
+cohort archive in real sandboxes. Timing benefit remains unmeasured. Experimental
+commit `dd25b5d`, report `/tmp/chromium-allocator-pch-256-correctness.json`.
+
+A source-aware prototype compiles only existing `document.h` consumers with the
+PCH (117 sources); 139 sources keep original flags. It preserves original archive
+member order. One object still differs: `html_marquee_element.pic.o` swaps two
+cppgc trace function sections. Reject document PCH even for existing consumers.
+Commit `292b904`, report `/tmp/chromium-source-aware-document-pch-256-correctness.json`.
+Producer profile: 209.614 s action, 205.533 s sandbox input filtering, 3.932 s
+compiler subprocess. This identifies a local input-setup hotspot, not yet an
+isolated sandbox-option gain or a cause of BB cold timing. A correctness-only
+WTF string retry uses 241 original consumers, 15 unchanged sources and fresh
+sandbox directories; its timing must not be compared directly with other runs.
+
+
+### Source-aware WTF string PCH passes local ABBA
+
+Restrict PCH to 241 original WTF string consumers; 15 sources retain original
+flags. All 256 original objects and the archive match. All normalized compiler
+commands/environments match, including the 15 plain sources. Actual trained LLVM
+binary hash remains d94fff11dc9347aa4d1c8d1a2b51e35935bab730a187e6d2280c979a7d103e38.
+
+Full local ABBA (16 CPU quota, 48 GiB machine, 6 GiB JVM, 24 GB action budget,
+disk sandboxes, directory reuse disabled on both variants): baseline 83.375 s,
+80.355 s; PCH 73.362 s, 66.572 s. Means 81.865 s versus 69.967 s: 14.53% wall
+reduction. Compiler CPU means 730.337 s versus 612.262 s: 16.17% reduction.
+Every measured pass executed all 256 compiles and retained all source subprocess
+traces. Candidates also executed fresh raw PCH and closure validation. Supporting
+compiles/generators did not rerun. All original object/archive bytes passed.
+Report `/tmp/chromium-source-aware-string-abba-001/report.json`.
+
+The BB controller now inventories both object groups, compares actual compiler
+commands and verifies raw PCH outputs. Candidates remove raw and verified PCH;
+otherwise a validator-only rerun could mask producer cache reuse. Real controller
+preflight passes 256/256 inventories and command equality. 192 Python tests pass.
+Revision `f880290c5b6413d37fd534fafb056801d7b0f7b6` starts the same guarded
+comparison on BB with private RAM sandboxes. No full cold result yet.
