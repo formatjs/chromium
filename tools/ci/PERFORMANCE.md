@@ -1574,3 +1574,28 @@ compile-only C++ preprocessed workload, retaining the existing linked generic
 corpus and instrumentation stages. No new compiler is trained, benchmarked or
 published yet; current published compiler still uses its original generic
 training corpus.
+
+### Combined PCH strict-cold integration
+
+`867a161` enables the three manual cohorts only through `--project-pch`, alongside
+existing core/core-binding PCH. Default actions stay identical. The new wrappers
+remove their original compiles and retain all 3,450 candidate commands. Full
+archive analysis reaches six producers and six validators.
+
+Actual relink replaces 6,878 objects across all five owners, checks each against
+its original bytes, and produces the original complete browser SHA-256
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
+All 143,433 link arguments retain order after exact object-path substitution.
+This reuses original supporting outputs; it establishes correctness, not cold
+performance. ARM64 package loading, buildifier and 202 tests pass. Reports:
+`/tmp/chromium-project-pch-integration-report.json`,
+`/tmp/chromium-project-pch-graph-report.json`,
+`/tmp/chromium-project-pch-browser-link/report.json`.
+
+[Strict-cold trial 0fefa722](https://formatjs.buildbuddy.io/invocation/0fefa722-614a-46fd-8b2d-8b337e770cb2)
+is running from `perf/strict-cold-project-pch-001`. Actual runner remains 19 CPUs,
+35,262,926,848 bytes RAM. Fresh-state and cache policy stay unchanged. Full
+workflow checkout/setup takes 42.95 s and counts toward the one-hour acceptance
+gate. Final proof also requires exact executed PCH/validator counts; missing or
+extra actions reject it. No completed cold result yet. Other four triples remain
+unmeasured for strict-cold performance.
