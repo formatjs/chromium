@@ -24,6 +24,8 @@ LOCAL_SPAWN_MNEMONICS = (
     'ChromiumProjectPch', 'ChromiumPchClosure', 'Rustc', 'RustBindgen',
     'ChromiumBindgenLayout', 'ChromiumRustcCfg', 'ChromiumToolRuntime',
     'Genrule', 'RunBinary', 'CcAutoconfCheck', 'CcAutoconfHdr', 'CcStage0Compile',
+    'Bison', 'GlibMkenums', 'PerfettoBuildflags', 'AomRtcdGen',
+    'LibvpxRtcdHeader', 'CopyToDirectory',
 )
 
 
@@ -156,7 +158,7 @@ def target_timings(events):
     for event in events:
         arguments = event.get('args', {})
         mnemonic, target = arguments.get('mnemonic'), arguments.get('target')
-        if event.get('cat') != 'action processing' or mnemonic not in LOCAL_SPAWN_MNEMONICS or not target:
+        if event.get('cat') != 'action processing' or not mnemonic or not target:
             continue
         output = event.get('out', '')
         configuration = output.split('/')[1] if output.startswith('bazel-out/') else ''

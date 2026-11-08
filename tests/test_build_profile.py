@@ -74,6 +74,17 @@ class BuildProfileTest(unittest.TestCase):
         self.assertNotIn('private', json.dumps(rows))
         self.assertNotIn('target-config', json.dumps(rows))
 
+    def test_custom_header_generator_keeps_target_timing(self):
+        rows = profile_buildbuddy.target_timings([
+            {'cat': 'action processing', 'ts': 1000000, 'dur': 3000000,
+             'out': 'bazel-out/private-config/bin/header.h',
+             'args': {'mnemonic': 'CustomHeaderGenerator', 'target': '//private:header'}},
+        ])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]['mnemonic'], 'CustomHeaderGenerator')
+        self.assertEqual(rows[0]['last_end_seconds'], 4)
+        self.assertNotIn('private', json.dumps(rows))
+
     def test_pch_schema_detects_missing_mnemonic_without_exporting_paths(self):
         result = profile_buildbuddy.pch_event_schema([
             {'name': 'ChromiumProjectPch private/header.raw.pch', 'cat': 'action processing',
