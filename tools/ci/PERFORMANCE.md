@@ -1466,3 +1466,42 @@ finishes at 251.31 s, libc++ header copy at 248.75 s; seven other copy actions
 remain unrecorded. Latest observed header generator remains 2,030.45 s. Partial
 trace cannot establish all prerequisites ready or diagnose scheduler delay.
 `/tmp/chromium-pch-direct-prerequisite-timing.json`.
+
+### Lazy Bats registration and first-party source archive fallback
+
+Both initial component comparisons stop during setup: V8 `32719b0a...` on the
+unused Bats archive, module `19a24537...` on Perfetto. Neither reaches a measured
+compiler pass. Bazel-lib 3.3.1 combines Bats registration and downloaded scripts
+in one repository, so unrelated toolchain analysis fetches Bats.
+
+`8300874` separates metadata-only registration from the original downloaded Bats
+core. Registered toolchain name stays unchanged; actual Bats execution retains
+all four original source archives and helper libraries. A real regression probe
+reproduces the original failure with an HTTP 410 trap, verifies patched unrelated
+analysis makes zero Bats requests with its archive absent, then executes a Bats
+test loading support/assert/file. All four archives are fetched only for that
+last phase and match original SHA-256 pins. Checked-in probe:
+
+```sh
+python3 -m tools.ci.bats_toolchain_probe \
+  --directory /tmp/chromium-bats-toolchain-check \
+  --repository-cache /path/to/fetched-archives \
+  --bazel /path/to/bazel-9.2.0
+```
+
+Report `/tmp/chromium-checked-in-bats-toolchain-probe/report.json`. It intentionally
+reuses dependency archives, not compiled results, and makes no cold timing claim.
+202 Python tests, BCR staging validation, buildifier and root module-extension
+resolution pass. Existing module pins remain unchanged.
+
+GitHub's archive backend serves byte-identical Bats (159,353 bytes) and Perfetto
+(46,815,029 bytes) archives. Narrow fallback rules retain upstream URLs and digest
+checks. A real fresh-cache Bazel fetch with upstream github.com blocked verifies
+both pinned digests. Mirrored URLs omit filename extensions, so Bats explicitly
+declares `tar.gz`; the source rule now forwards standard `archive_type` metadata,
+which Perfetto declares. Report `/tmp/chromium-codeload-only-gate-003/report.json`.
+The strict-cold command also uses these downloader rules; cache policy is unchanged.
+
+V8 retry at `8300874`: `66e795b1-0abc-4811-b92d-6e05ee3efe23`.
+Module cherry-pick `cc7d5d8`: `4a7e7772-4683-4122-a1ad-b042545f29cc`.
+Both are running. No component timing or completed strict-cold result yet.
