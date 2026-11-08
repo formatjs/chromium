@@ -560,3 +560,17 @@ exports_files([
     "grit_resources.py",
     "grit_resource_inputs.bzl",
 ])
+
+filegroup(
+    name = "llvm_training_inputs",
+    srcs = [
+        ":llvm_training_content",
+        ":llvm_training_v8",
+    ],
+    tags = ["manual"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+        "@llvm//constraints/libc:gnu.2.31",
+    ],
+)

@@ -6,6 +6,7 @@ load("@rules_python//python:py_info.bzl", "PyInfo")
 load(":content_pch.bzl", "content_browser_pch")
 load(":content_sources.bzl", "ACTIONS", "COPIES", "LIBRARIES", "METADATA", "SHARED_HEADERS", "TOOLS")
 load(":generated_files.bzl", "CAPTURED_FILES")
+load(":llvm_training.bzl", "TRAINING_PLATFORM", "chromium_training_source")
 load(":python_action.bzl", "ChromiumFilesInfo", "ChromiumGeneratedFilesInfo", "chromium_python_action")
 load(":resource_copy.bzl", "chromium_resource_copy")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
@@ -93,6 +94,16 @@ def native_content():
             common["deps"] = common["deps"] + [":content_gpu_internals"]
         if original == "//content/browser:browser":
             content_browser_pch(library, common, cpp_sources)
+            chromium_training_source(
+                name = "llvm_training_content",
+                src = "//:content/browser/browser_interface_binders.cc",
+                library = ":" + library["name"],
+                copts = library["copts"],
+                local_defines = library["defines"],
+                extras = common.get("additional_compiler_inputs", []),
+                target_compatible_with = TRAINING_PLATFORM,
+                tags = ["manual"],
+            )
         cc_library(
             name = library["name"],
             srcs = cpp_sources,

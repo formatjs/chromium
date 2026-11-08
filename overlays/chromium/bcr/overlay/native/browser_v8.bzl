@@ -3,6 +3,7 @@
 load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":browser_v8_sources.bzl", "ACTIONS", "LIBRARIES", "PUBLIC_DEFINES", "SHARED_HEADERS", "TOOLS")
+load(":llvm_training.bzl", "TRAINING_PLATFORM", "chromium_training_source")
 load(":masm.bzl", "chromium_masm")
 load(":public_dependency.bzl", "chromium_snapshot_dependencies")
 load(":python_action.bzl", "chromium_python_action")
@@ -57,6 +58,16 @@ def native_browser_v8():
             common["deps"] = common["deps"] + [":" + library["name"] + "_asm"]
         if original == "//v8:v8_base_without_compiler":
             v8_base_pch(library, common, library["srcs"])
+            chromium_training_source(
+                name = "llvm_training_v8",
+                src = "@chromium_v8//:v8/src/maglev/maglev-graph-builder.cc",
+                library = ":" + library["name"],
+                copts = library["copts"],
+                local_defines = library["defines"],
+                extras = ["//testing/gtest:include/gtest/gtest_prod.h"],
+                target_compatible_with = TRAINING_PLATFORM,
+                tags = ["manual"],
+            )
         if library["kind"] == "executable":
             if original.split("(")[0] == "//v8:mksnapshot":
                 chromium_snapshot_dependencies(
