@@ -18,7 +18,7 @@ actions:
           python3 -m tools.ci.compiler_archive \
             --revision 366173ffc47d1a12a92c32d542c39c24b80fea28 --destination "$archive"
           python3 -m tools.ci.compile.private_ram --size-gib 8 -- \
-            python3 -m tools.ci.compile.pch_experiment --compiler-archive "$archive" \
+            python3 -m tools.ci.compile.pch_experiment --compiler-archive "$archive" --project-header \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/local-pch" --sandbox-base '{sandbox}'
 
   - name: Chromium local compile pipeline

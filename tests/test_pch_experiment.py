@@ -53,6 +53,41 @@ class PchExperimentTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 pch_experiment.normalized_commands([candidate[0], candidate[0]], 'probe.pch')
 
+    def test_project_gate_only_changes_existing_header_consumers(self):
+        baseline = [(['clang++', '-DVALUE=1', '-c', source, '-o', source + '.o',
+                     '-isysroot', '.'], {}) for source in ['first.cc', 'second.cc']]
+        candidate = [([*baseline[0][0], '-ffile-prefix-map=./=', '-include-pch', 'project.pch'], {}),
+                     (baseline[1][0][:-2], {})]
+        eligible = {'first.cc'}
+        with mock.patch.object(pch_experiment, 'SOURCES', ('first.cc', 'second.cc')):
+            expected = pch_experiment.normalized_commands(baseline, eligible_sources=eligible)
+            self.assertEqual(expected, pch_experiment.normalized_commands(candidate, 'project.pch', eligible))
+            for rows in [baseline,
+                         [candidate[0], (baseline[1][0] + ['-include-pch', 'project.pch'], {})],
+                         [(candidate[0][0][:-1] + ['wrong.pch'], {}), candidate[1]]]:
+                with self.assertRaises(ValueError):
+                    pch_experiment.normalized_commands(rows, 'project.pch', eligible)
+            for index, flag in [(0, '-ffile-prefix-map=./='), (0, '-DVALUE=1')]:
+                changed = [(list(a), dict(e)) for a, e in candidate]
+                changed[index][0].remove(flag)
+                if flag.startswith('-ffile-prefix-map'):
+                    with self.assertRaises(ValueError):
+                        pch_experiment.normalized_commands(changed, 'project.pch', eligible)
+                else:
+                    self.assertNotEqual(expected, pch_experiment.normalized_commands(changed, 'project.pch', eligible))
+
+    def test_split_inventory_never_deletes_another_target(self):
+        root = Path('/private/benchmark/execroot/_main')
+        prefix = 'bazel-out/k8-fastbuild/bin/tools/ci/compile/pch/_objs/'
+        valid = [prefix + 'probe_pch/first.pic.o', prefix + 'probe_plain/second.pic.o']
+        with mock.patch.object(pch_experiment, 'SOURCES', ('first.cc', 'second.cc')):
+            self.assertEqual(set(pch_experiment.owned_objects([valid], root, 'probe', split=True)),
+                             {'first.pic.o', 'second.pic.o'})
+            for other in ['probe/second.pic.o', 'other_plain/second.pic.o', 'probe_plain/../second.pic.o',
+                          'probe_plain/first.pic.o']:
+                with self.subTest(other=other), self.assertRaises(ValueError):
+                    pch_experiment.owned_objects([[valid[0], prefix + other]], root, 'probe', split=True)
+
     def test_deletion_inventory_rejects_foreign_duplicate_and_traversal_paths(self):
         root = Path('/private/benchmark/execroot/_main')
         owner = 'probe'

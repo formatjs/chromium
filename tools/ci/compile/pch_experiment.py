@@ -26,25 +26,27 @@ TARGETS = {'baseline': '//' + PACKAGE + ':baseline-linux-amd64',
            'pch': '//' + PACKAGE + ':linux-amd64'}
 
 
-def owned_objects(rows, execution_root, owner):
+def owned_objects(rows, execution_root, owner, split=False):
     """Only delete unique, inventoried objects owned by this probe."""
-    prefix = '/' + PACKAGE + '/_objs/' + owner + '/'
+    prefixes = ['/' + PACKAGE + '/_objs/' + owner + suffix + '/'
+                for suffix in (('_pch', '_plain') if split else ('',))]
     files = [execution_root / item for row in rows for item in row]
     if len(files) != len(SOURCES) or len(set(files)) != len(files):
         raise ValueError('Expected one unique object per selected source')
     result = {}
     for file in files:
+        matched = [prefix for prefix in prefixes if prefix in file.as_posix()]
         if (not file.is_relative_to(execution_root / 'bazel-out')
-                or prefix not in file.as_posix() or '..' in file.parts or file.suffix != '.o'):
+                or len(matched) != 1 or '..' in file.parts or file.suffix != '.o'):
             raise ValueError('Compiler output outside probe inventory')
-        key = file.as_posix().split(prefix, 1)[1]
+        key = file.as_posix().split(matched[0], 1)[1]
         if key in result:
             raise ValueError('Ambiguous compiler output name')
         result[key] = file
     return result
 
 
-def normalized_commands(rows, pch_path=None):
+def normalized_commands(rows, pch_path=None, eligible_sources=None):
     """Preserve source, flags, include order and environment across variants."""
     result = {}
     for original, environment in rows:
@@ -52,15 +54,25 @@ def normalized_commands(rows, pch_path=None):
         if '-c' not in arguments or '-o' not in arguments:
             raise ValueError('Expanded C++ compile command required')
         source = arguments[arguments.index('-c') + 1]
-        if pch_path is None:
+        uses_pch = pch_path is not None and (eligible_sources is None or source in eligible_sources)
+        if not uses_pch:
             if '-include-pch' in arguments:
-                raise ValueError('Unexpected PCH in baseline command')
+                raise ValueError('Unexpected PCH on source: ' + source)
         else:
             if arguments.count('-include-pch') != 1:
                 raise ValueError('Expected one explicit PCH input')
             index = arguments.index('-include-pch')
             if arguments[index + 1] != pch_path:
                 raise ValueError('Compiler uses a different PCH')
+            del arguments[index:index + 2]
+            if eligible_sources is not None:
+                if arguments.count('-ffile-prefix-map=./=') != 1:
+                    raise ValueError('Expected exact PCH filename mapping')
+                arguments.remove('-ffile-prefix-map=./=')
+        if eligible_sources is not None and '-isysroot' in arguments:
+            index = arguments.index('-isysroot')
+            if arguments[index + 1] != '.':
+                raise ValueError('Unexpected PCH relocation root')
             del arguments[index:index + 2]
         for option in ['-o', '-MF', '-MT']:
             if option in arguments:
@@ -131,10 +143,24 @@ def measure(startup, flags, source, name, target, directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--project-header', action='store_true',
+                        help='Use the captured header only on original consumers')
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--sandbox-base', type=Path, required=True)
     parser.add_argument('--compiler-archive', type=Path, required=True)
     args = parser.parse_args()
+    candidate_owner = 'blink_project_pch_compile_probe' if args.project_header else OWNER
+    targets = dict(TARGETS)
+    eligible = None
+    if args.project_header:
+        assignments = ast.parse((ROOT / 'tools/ci/compile/project_pch_headers.bzl').read_text()).body
+        metadata = {node.targets[0].id: ast.literal_eval(node.value) for node in assignments
+                    if isinstance(node, ast.Assign)}
+        eligible = {'external/+chromium_dependencies+chromium/' + value
+                    for value in metadata['ELIGIBLE_SOURCES']}
+        if not eligible or not set(metadata['ELIGIBLE_SOURCES']).issubset(SOURCES):
+            raise ValueError('Project PCH consumers outside fixed cohort')
+        targets['pch'] = '//' + PACKAGE + ':project-linux-amd64'
     verify_ram_sandbox(args.sandbox_base)
     args.directory.mkdir(parents=True, exist_ok=False)
     machine = machine_limits()
@@ -146,6 +172,10 @@ def main():
               'revision': revision, 'machine': machine, 'jobs': capacity, 'cpu_budget': capacity,
               'memory_sample_interval_seconds': 5, 'source_count': len(SOURCES),
               'complete': False, 'phases': {}}
+    if args.project_header:
+        report['project_header'] = metadata['HEADER']
+        report['pch_consumer_count'] = len(eligible)
+        report['sandbox_directory_reuse'] = False
     cache = Path.home() / '.cache/chromium-strict-cold-downloads'
     cache.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='chromium-pch-experiment-') as temporary:
@@ -181,27 +211,42 @@ def main():
                  '--define=CHROMIUM_NATIVE_TOOLS=1',
                  '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution',
                  '--define=CHROMIUM_COMPILE_PROBE_SCAN=1', '--define=CHROMIUM_BINDINGS_WORKERS=4']
+        if args.project_header:
+            flags.append('--noreuse_sandbox_directories')
         try:
             execution_root = Path(subprocess.check_output(
                 [*startup, 'info', 'execution_root'], cwd=source, text=True).strip())
             files = {}
             commands = {}
-            pch_target = '//' + PACKAGE + ':' + OWNER + '_pch'
+            pch_target = '//' + PACKAGE + ':' + candidate_owner + '_pch'
             pch_rows = query(startup, flags, source, '[f.path for f in target.files.to_list()]', pch_target)
             pch_relative, = pch_rows[0]
             pch = execution_root / pch_relative
             if ('..' in pch.parts or not pch.is_relative_to(execution_root / 'bazel-out')
                     or '/' + PACKAGE + '/' not in pch.as_posix() or pch.suffix != '.pch'):
                 raise ValueError('PCH output outside probe inventory')
-            for variant in TARGETS:
-                owner = OWNER + ('_baseline' if variant == 'baseline' else '')
+            raw_pch = None
+            if args.project_header:
+                raw_rows = query(startup, flags, source,
+                                 '[f.path for a in target.actions if a.mnemonic == "ChromiumProjectPch" for f in a.outputs.to_list() if f.path.endswith(".raw.pch")]', pch_target)
+                raw_relative, = raw_rows[0]
+                raw_pch = execution_root / raw_relative
+                if (not raw_pch.is_relative_to(execution_root / 'bazel-out')
+                        or '..' in raw_pch.parts
+                        or '/' + PACKAGE + '/' not in raw_pch.as_posix()
+                        or raw_pch.name != candidate_owner + '_pch.raw.pch'):
+                    raise ValueError('Raw PCH outside probe inventory')
+            for variant in targets:
+                owner = OWNER + '_baseline' if variant == 'baseline' else candidate_owner
                 target = '//' + PACKAGE + ':' + owner
                 rows = query(startup, flags, source,
                              '[f.path for a in target.actions if a.mnemonic == "CppCompile" for f in a.outputs.to_list() if f.path.endswith(".o")]', target)
-                files[variant] = owned_objects(rows, execution_root, owner)
+                files[variant] = owned_objects(rows, execution_root, owner,
+                                               split=args.project_header and variant == 'pch')
                 rows, = query(startup, flags, source,
                               '[(a.argv, a.env) for a in target.actions if a.mnemonic == "CppCompile"]', target)
-                commands[variant] = normalized_commands(rows, pch_relative if variant == 'pch' else None)
+                commands[variant] = normalized_commands(
+                    rows, pch_relative if variant == 'pch' else None, eligible_sources=eligible)
             if commands['baseline'] != commands['pch']:
                 raise ValueError('PCH consumer changes other compiler flags or environment')
             report['consumer_commands_equivalent'] = True
@@ -217,8 +262,10 @@ def main():
                         file.unlink()
                     if variant == 'pch':
                         pch.unlink()
+                        if raw_pch is not None:
+                            raw_pch.unlink()
                 print('PCH experiment: ' + name, flush=True)
-                row, profile = measure(startup, flags, source, name, TARGETS[variant], root)
+                row, profile = measure(startup, flags, source, name, targets[variant], root)
                 report['phases'][name] = row
                 if not name.startswith('warmup'):
                     row['selected_compiles'] = local_compile_times(profile, SOURCES)
@@ -226,8 +273,11 @@ def main():
                     counts = {item['mnemonic']: int(item.get('actionsExecuted', 0)) for item in data}
                     if counts.get('CppCompile') != len(SOURCES) or counts.get('ChromiumPython', 0):
                         raise ValueError('Measured pass recompiles supporting actions')
-                    if counts.get('ChromiumPch', 0) != (1 if variant == 'pch' else 0):
+                    pch_mnemonic = 'ChromiumProjectPch' if args.project_header else 'ChromiumPch'
+                    if counts.get(pch_mnemonic, 0) != (1 if variant == 'pch' else 0):
                         raise ValueError('PCH must rebuild exactly once in each candidate pass')
+                    if counts.get('ChromiumPchClosure', 0) != int(args.project_header and variant == 'pch'):
+                        raise ValueError('Project PCH closure must validate each fresh candidate')
                 hashes = {key: hashlib.sha256(file.read_bytes()).hexdigest() for key, file in files[variant].items()}
                 current = row['archive_sha256'], hashes
                 if reference is None:

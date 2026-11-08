@@ -83,3 +83,12 @@ compiles. Candidate passes must also execute a fresh raw PCH producer and closur
 validator; removing only the verified PCH would measure a cached producer.
 Both variants disable sandbox directory reuse for this comparison. No BB or
 cold speedup is established by these correctness results.
+
+Local ABBA completed with 16 CPU quota, disk sandboxes, 6 GiB JVM and 24 GB action
+memory. Baseline: 83.375 s, 80.355 s. PCH: 73.362 s, 66.572 s. Means 81.865 s
+versus 69.967 s, 14.53% wall reduction. Compiler CPU means 730.337 s versus
+612.262 s, 16.17% reduction. Each pass executed all 256 compiles; candidate passes
+also rebuilt raw PCH and closure validation. All original objects/archive and
+source subprocess guards passed. Report:
+`/tmp/chromium-source-aware-string-abba-001/report.json`.
+This remains a warm-support local result; BB and full cold results are pending.
