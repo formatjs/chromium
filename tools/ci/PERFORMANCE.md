@@ -1504,4 +1504,73 @@ The strict-cold command also uses these downloader rules; cache policy is unchan
 
 V8 retry at `8300874`: `66e795b1-0abc-4811-b92d-6e05ee3efe23`.
 Module cherry-pick `cc7d5d8`: `4a7e7772-4683-4122-a1ad-b042545f29cc`.
-Both are running. No component timing or completed strict-cold result yet.
+V8 comparison completes successfully; measured result below. Module warmup
+fails after 1,330.48 s with
+`No space left on device` while constructing sandbox inputs. No measured
+module pass completes. Workflow peak memory is 20,533,669,888 bytes; this does
+not distinguish tmpfs byte exhaustion, inode exhaustion or delayed deletion.
+Collector run `42478346972` retains the failure report.
+
+`318bb94` retries only the module comparison with synchronous sandbox deletion
+(`--experimental_sandbox_async_tree_delete_idle_threads=0`). The private tmpfs
+stays 8GiB; jobs, CPU/memory budgets, compiler and cache policy stay unchanged.
+Each phase now preserves its log/profile/events and sampled tmpfs bytes/inodes
+in the artifact directory. Reports checkpoint before and after each phase.
+Retry `78cf9da7-b976-492e-a303-24799b064d39` remains diagnostic until byte gates
+and all four measured passes complete. 201 tests pass on this module branch.
+No completed strict-cold result yet.
+
+### V8 PCH architecture guard
+
+The manual x64 V8 candidate accidentally validates seven x64-only files when
+loading Linux ARM64. `491e88c` skips candidate creation without
+`V8_TARGET_ARCH_X64`. Actual ARM64 package loading fails before this change,
+passes afterward. All 578 x64 compiler command/environment/output tuples remain
+identical, including 474 PCH consumers. This fix changes no production routing.
+Evidence: `/tmp/chromium-arm64-guard-report.json`.
+
+
+### Full V8 owner: controlled BB comparison passes
+
+[Invocation 66e795b1](https://formatjs.buildbuddy.io/invocation/66e795b1-0abc-4811-b92d-6e05ee3efe23)
+at `8300874` completes all six phases. The four measured ABBA passes rebuild
+all 578 selected compiles; candidate passes also rebuild one PCH producer and
+one validator. No supporting Python actions run during measured passes.
+All objects and archives match the frozen original bytes.
+
+Baseline wall times: 441.8135 / 442.4133 s. Candidate: 332.6032 / 330.9504 s.
+Means: 442.1134 vs 331.7768 s, **24.96% less wall time**. Compiler CPU,
+including candidate PCH production and validation: 8,087.474 vs 5,910.652 s,
+**26.92% less CPU**. Actual guest: 19 CPUs, AMD EPYC, 35,262,926,848 bytes RAM.
+The whole comparison workflow takes 2,798.26 s; supporting outputs are warmed
+before measurement. This is no complete cold-build result or whole-browser
+speedup. No V8 production routing changes yet.
+
+Collector `42478895191`; local summary `/tmp/chromium-v8-pch-bb-summary.json`.
+
+### Representative compiler-training inputs
+
+`fb33113` adds manual `@chromium//native:llvm_training_inputs`. Two sandboxed
+preprocessing actions use the registered C++ toolchain, actual owner compilation
+contexts and full declared header/toolchain inputs. Outputs include `.ii`,
+dependency files and compiler/argument/environment manifests. Default browser
+routing stays unchanged; Linux ARM64 package loading and 202 tests pass.
+
+V8 `maglev-graph-builder.cc` produces 24,607,974 bytes; Content
+`browser_interface_binders.cc` produces 55,690,209 bytes. Both match direct
+preprocessing with the original pinned compiler. Recompilation from an empty
+directory reproduces both original object hashes. Bazel executes exactly two
+preprocessors, no supporting compiles or Python actions; supporting outputs are
+warm. Evidence: `/tmp/chromium-training-preprocess-verified/report.json`.
+
+Blink `html_form_control_element.cc` is excluded: preprocessing loses source
+location details and changes 15 object bytes. Direct compilation still matches
+the original. An include-rewrite attempt also fails the byte gate. No byte
+comparison is relaxed.
+
+Next compiler-training step: consume only the two verified `.ii` files as
+normal declared inputs in the separate LLVM preparation workspace. Add a
+compile-only C++ preprocessed workload, retaining the existing linked generic
+corpus and instrumentation stages. No new compiler is trained, benchmarked or
+published yet; current published compiler still uses its original generic
+training corpus.
