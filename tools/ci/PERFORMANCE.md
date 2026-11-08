@@ -860,3 +860,27 @@ The combined candidate's cold verifier now requires seven PCH producers, seven
 closure validators and one prefix guard. Missing or extra prefix checks reject
 cold proof; 215 tests pass. The isolated six-PCH BB trial retains its original
 verifier and remains separate.
+
+### Five-scope cold result and seven-PCH trial
+
+The isolated five-scope run, revision 48e2e572, hit the plan's one-hour cap.
+Outer duration: 3600.637671 seconds; last UI progress: 76,439/102,662 actions.
+No complete archive, ABI/render validation or timing success. Partial traces
+contain 17,223 completed C++ action spans, not final action counts or CPU totals.
+
+Five PCH producers and their closure checks completed. Blink IDL/string
+producers finished around 381–386 seconds; Document around 1380 seconds.
+V8 isolate finished around 1740 seconds, versus 2455 in the previous run.
+These observations support earlier producer readiness, not a whole-build
+speedup: consumers retain their original declared header contexts.
+
+The next strict-cold trial combines all six qualified producer input scopes
+with generated V8 PCH. Its complete 248-object BB ABBA comparison reduced mean
+wall time from 244.062 to 98.432 seconds, including producer and validation;
+CPU fell from 4398.683 to 1415.664 seconds. Archive and complete snapshot-generator
+binary bytes match baseline. Supporting outputs were warm in that comparison;
+only the new complete strict-cold trial can establish end-to-end time.
+
+Compiler, complete archive target and strict cache policy remain unchanged.
+The verifier requires seven producers, seven closure checks and one prefix guard.
+Other supported cross-compilation triples remain unmeasured.
