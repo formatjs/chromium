@@ -222,6 +222,22 @@ class BuildProfileTest(unittest.TestCase):
         self.assertNotIn('private/', json.dumps(result))
         self.assertNotIn('trace-uri', json.dumps(result))
 
+    def test_interrupted_compressed_cold_profile_is_collected(self):
+        event = {'cat': 'action processing', 'name': 'Compiling a.cc', 'ph': 'X', 'ts': 0, 'dur': 20}
+        trace = gzip.compress(('{"traceEvents":[' + json.dumps(event) + ',').encode())
+        artifacts = {'invocation': [{'artifacts': [{
+            'name': 'command-0/linux-amd64/cold-profile.json.gz', 'uri': 'profile-uri'}]}]}
+        with mock.patch.object(profile_buildbuddy, 'rpc', return_value={'invocation': [
+                {'pattern': ['Chromium strict cold build linux-amd64']}]}), \
+                mock.patch.object(profile_buildbuddy, 'api_request', side_effect=[
+                    io.BytesIO(json.dumps(artifacts).encode()), io.BytesIO(trace)]), \
+                mock.patch.dict(os.environ, {'BUILDBUDDY_API_KEY': 'read-only-test-key'}):
+            result = profile_buildbuddy.collect('workflow')
+        self.assertFalse(result['cold_profile']['trace_complete'])
+        self.assertEqual(result['cold_profile']['event_count'], 1)
+        self.assertFalse(result['strict_cold_timing_verified'])
+        self.assertNotIn('profile-uri', json.dumps(result))
+
     def test_incomplete_profiles_require_explicit_diagnostic_mode(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / 'partial.json'
