@@ -890,7 +890,7 @@ expanded commands/environments, the intended binary hash, four workers and all
 5,574 bindings outputs. No build actions execute in this preflight.
 
 The [combined strict-cold trial](https://formatjs.buildbuddy.io/invocation/4a088b2c-e46e-468a-95ee-e20ff5e1914a)
-is running alongside the worker-only trial in separate workflows. Each requests
+ran alongside the worker-only trial in separate workflows. Each requested
 the current 16-CPU/32GB tier. This overlap prevents an isolated full-build wall
 A/B claim; it does not relax timing, cache-policy or artifact acceptance gates.
 Neither trial has produced a verified complete result yet.
@@ -909,13 +909,13 @@ stays warm. The initial probe failed during target loading because its bounded
 source API was missing. Revision `ecc5308` restores that API; real Bazel analysis
 confirms exactly 257 unique owned outputs, and 183 Python tests pass. The
 [retry](https://formatjs.buildbuddy.io/invocation/93ece4b2-8324-4b01-9023-c11d15225d6c)
-is pending. No scheduling improvement is established.
+completed. No scheduling improvement is established; measurements follow below.
 
 The worker-only strict-cold trial hit the hosted one-hour limit after 3,601.21s.
 No browser archive completed. Outer runner usage reports 60,724.57 CPU-seconds
 and 19,409,952,768 bytes peak memory. Its streaming partial profile is being
 collected; progress counters do not estimate remaining work. The trained-compiler
-trial continues independently. Neither result establishes an under-hour build.
+trial also timed out; measurements follow below. Neither establishes an under-hour build.
 
 Full archive dependency analysis inventoried 52,516 `CppCompile` actions owned by
 `cc_library`/`cc_binary` targets. This is a query subset, not an executed count.
@@ -931,3 +931,28 @@ span sums are neither CPU usage nor full executed-action counts. Compiler work
 still dominates; this trace does not establish end-to-end generator speedup.
 The workflow wrapper's cache statistics do not describe the separate local cold
 Bazel invocation. No final cold report or completed archive exists for this run.
+
+## Trained compiler cold result and remaining experiments
+
+The trained-compiler/worker4 strict-cold trial also hit the hosted cap: 3,601.11s,
+61,118.79 CPU-seconds, 19,340,308,480 bytes peak memory. No archive completed.
+Its partial profile is being collected. The six-source compiler gain has not
+translated into a verified complete cold result.
+
+Fixed-CPU scheduling ABBA completes at `ecc5308`. At CPU budget 19, jobs 19
+takes 94.71/91.55s; jobs 38 takes 93.35/92.75s. Means differ only 0.08%. Each
+measured pass executes exactly 257 compiles, with identical objects and both
+archives. No supporting compiles rerun. Retain 19 jobs; no meaningful gain.
+
+An actual trained-compiler Blink trace matches its sandboxed object bytes.
+Frontend time is 2.67s of 2.70s; backend is 0.007s. Eight-source direct ABBA with
+upstream `build/precompile.h` matches all 32 sandboxed baseline objects. Fresh
+PCH preparation counts in both candidate phases: mean wall falls 32.70s to
+30.38s (7.1%), CPU 32.21s to 30.32s (5.9%). This warm diagnostic does not prove
+cold or complete-browser improvement.
+
+Prototype `9810505` declares PCH/compiler/header inputs and passes sandboxed PCH
+generation. Clang rejects a mismatched RTTI consumer. Full 256-consumer byte
+checks run in separate fresh local state after a wrong-workspace diagnostic was
+discarded. No browser rollout. Full payload, ABI/rendering and strict-cold gates
+remain mandatory. Other four triples' strict-cold timings remain unmeasured.
