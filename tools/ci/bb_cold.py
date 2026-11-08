@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--native-tools', action='store_true')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
+    parser.add_argument('--trained-compiler', action='store_true')
     args = parser.parse_args()
     destination = args.directory.resolve()
     destination.mkdir(parents=True, exist_ok=False)
@@ -32,13 +33,21 @@ def main():
     cache.mkdir(parents=True, exist_ok=True)
     report = {'revision': args.revision, 'platform': 'linux-amd64',
               'machine': machine_limits(), 'cold_result_verified': False,
-              'binding_workers': args.binding_workers, 'under_one_hour': False, 'runner': 'BuildBuddy workflow; RBE disabled',
+              'trained_compiler': args.trained_compiler, 'binding_workers': args.binding_workers,
+              'under_one_hour': False, 'runner': 'BuildBuddy workflow; RBE disabled',
               'os_page_cache': 'uncontrolled; workflow VM may be restored from a snapshot'}
     print(json.dumps(report), flush=True)
     with tempfile.TemporaryDirectory(prefix='chromium-bb-strict-cold-') as temporary:
         root = Path(temporary)
         trial = root / 'trial'
         try:
+            compiler = None
+            if args.trained_compiler:
+                from tools.ci.compiler_archive import NAME, SHA256, ensure_archive
+                compiler = cache / 'compiler-archives' / SHA256 / NAME
+                fetched = time.monotonic()
+                report['compiler_dependency_fetch'] = ensure_archive(compiler)
+                report['compiler_dependency_fetch']['seconds'] = time.monotonic() - fetched
             # Never invoke the workflow's Bazel wrapper or its injected RC files.
             bazel = root / 'bazel-9.2.0'
             request = urllib.request.Request(
@@ -56,6 +65,8 @@ def main():
                        '--heap-gib', '8', '--action-memory-mb', '14000', '--sandbox-base', '{sandbox}',
                        '--profile', str(profile),
                        '--max-seconds', '0']
+            if compiler is not None:
+                command.extend(['--compiler-archive', str(compiler)])
             if args.binding_workers != 1:
                 command.extend(['--binding-workers', str(args.binding_workers)])
             if args.native_tools:

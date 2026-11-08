@@ -16,7 +16,7 @@ actions:
     steps:
       - run: |
           python3 -m tools.ci.bb_cold \
-            --native-tools --jobs 19 --binding-workers 4 --revision "$(git rev-parse HEAD)" \
+            --native-tools --jobs 19 --binding-workers 4 --trained-compiler --revision "$(git rev-parse HEAD)" \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-amd64"
 
   - name: Chromium linux-amd64

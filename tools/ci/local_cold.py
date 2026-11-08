@@ -123,12 +123,15 @@ def main():
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
+    parser.add_argument('--compiler-archive', type=Path, help='Explicit SHA-pinned experimental compiler dependency')
     parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
     if args.profile and args.profile.exists():
         parser.error('--profile must start absent')
+    if args.compiler_archive and args.platform != 'linux-amd64':
+        parser.error('--compiler-archive is currently validated for linux-amd64 only')
     if args.native_tools and args.platform != 'linux-amd64':
         parser.error('--native-tools currently requires linux-amd64')
     if platform.system() != 'Linux' or platform.machine() not in {'x86_64', 'amd64'}:
@@ -157,6 +160,7 @@ def main():
     success, code, error, cancelled = False, None, None, False
     process = None
     command = None
+    compiler_dependency = None
     try:
         bazel = args.bazel.resolve(strict=True)
         if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:
@@ -170,6 +174,9 @@ def main():
                 raise ValueError('Source checkout failed')
         if (source / '.bazelversion').read_text().strip() != '9.2.0':
             raise ValueError('Source commit does not select Bazel 9.2.0')
+        if args.compiler_archive:
+            from tools.ci.compiler_archive import configure_compiler
+            compiler_dependency = configure_compiler(source, args.compiler_archive)
         environment = os.environ.copy()
         for name, child in {
             'XDG_CACHE_HOME': 'xdg-cache', 'PIP_CACHE_DIR': 'pip-cache', 'UV_CACHE_DIR': 'uv-cache',
@@ -227,6 +234,9 @@ def main():
                 time.sleep(5)
             code = process.wait()
         if code == 0:
+            if compiler_dependency is not None:
+                from tools.ci.compiler_archive import verify_compiler
+                compiler_dependency['actual_binary_sha256'] = verify_compiler(directory / 'output-base')
             artifacts = directory / 'artifacts'
             artifacts.mkdir()
             for path in artifact_outputs(events, label):
@@ -246,6 +256,7 @@ def main():
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,
+                       'compiler_dependency': compiler_dependency,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
                        'sandbox_capacity_bytes': (shutil.disk_usage(args.sandbox_base).total
