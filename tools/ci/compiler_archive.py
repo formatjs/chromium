@@ -38,9 +38,9 @@ def archive_spec(revision, key):
     with api_request('GetInvocation', {
             'selector': {'invocation_id': spec['invocation']}, 'include_artifacts': True}, key) as response:
         invocations = json.load(response).get('invocation', [])
-    suffix = '/llvm-compiler/' + spec['name']
+    suffix = 'llvm-compiler/' + spec['name']
     matches = [artifact for invocation in invocations for artifact in invocation.get('artifacts', [])
-               if artifact.get('name', '').endswith(suffix)]
+               if artifact.get('name', '') == suffix or artifact.get('name', '').endswith('/' + suffix)]
     if len(matches) != 1:
         raise ValueError('Expected one pinned compiler archive artifact')
     uri = matches[0]['uri']

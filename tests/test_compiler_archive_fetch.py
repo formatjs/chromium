@@ -18,7 +18,7 @@ class CompilerArchiveFetchTest(unittest.TestCase):
         spec = {'name': 'compiler.tar.zst', 'sha256': digest, 'invocation': 'compiler-build'}
         uri = 'bytestream://remote.buildbuddy.io/instance/blobs/' + digest + '/' + str(len(payload))
         artifacts = {'invocation': [{'artifacts': [
-            {'name': 'command-0/llvm-compiler/compiler.tar.zst', 'uri': uri}]}]}
+            {'name': 'llvm-compiler/compiler.tar.zst', 'uri': uri}]}]}
         for content in [payload, b'x' * len(payload)]:
             with self.subTest(tampered=content != payload), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
