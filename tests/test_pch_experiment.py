@@ -169,6 +169,25 @@ class PchExperimentTest(unittest.TestCase):
             with self.subTest(changed=changed), self.assertRaises(ValueError):
                 pch_experiment.verify_include_reduction(original, changed)
 
+    def test_native_owner_inventory_keeps_count_and_path_guards(self):
+        root = Path('/private/execroot/_main')
+        package = 'external/+chromium_dependencies+chromium/native'
+        prefix = 'bazel-out/k8-fastbuild/bin/' + package + '/_objs/module_pch_'
+        paths = [prefix + 'idl/a.pic.o', prefix + 'plain/b.pic.o']
+        inventory = pch_experiment.owned_objects([paths], root, 'module_pch',
+                                                package=package, groups=('idl', 'plain'), expected_count=2)
+        self.assertEqual(set(inventory), {'a.pic.o', 'b.pic.o'})
+        for invalid in [paths[:1], paths + [prefix + 'idl/c.pic.o'],
+                        [paths[0], paths[1].replace('/module_pch_', '/other_')]]:
+            with self.subTest(paths=invalid), self.assertRaises(ValueError):
+                pch_experiment.owned_objects([invalid], root, 'module_pch', package=package,
+                                            groups=('idl', 'plain'), expected_count=2)
+        commands = [(['clang++', '-c', name, '-o', name + '.o'], {}) for name in ['a.cc', 'b.cc']]
+        self.assertEqual(len(pch_experiment.normalized_commands(commands, expected_count=2)), 2)
+        for invalid in [commands[:1], commands + [(['clang++', '-c', 'c.cc'], {})]]:
+            with self.subTest(commands=invalid), self.assertRaises(ValueError):
+                pch_experiment.normalized_commands(invalid, expected_count=2)
+
     def test_deletion_inventory_rejects_foreign_duplicate_and_traversal_paths(self):
         root = Path('/private/benchmark/execroot/_main')
         owner = 'probe'

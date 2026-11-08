@@ -55,7 +55,7 @@ def blink_core_pch(name, library, common):
     )
     return ":" + name + "_pch"
 
-def blink_bindings_pch(library, common):
+def blink_bindings_pch(library, common, plain_sources = []):
     """Return validated IDL PCH objects without an owner dependency."""
     name = library["name"]
     context = name + "_pch_context"
@@ -74,7 +74,7 @@ def blink_bindings_pch(library, common):
     )
     chromium_pch_compile(
         name = name + "_pch",
-        sources = {source: "idl" for source in library["srcs"]},
+        sources = {source: "" if source in plain_sources else "idl" for source in library["srcs"]},
         pchs = {":" + producer: "idl"},
         object_order = [source.split("/")[-1][:-3] + ".pic.o" for source in library["srcs"]],
         context = ":" + context,

@@ -30,13 +30,14 @@ TARGETS = {'baseline': '//' + PACKAGE + ':baseline-linux-amd64',
            'pch': '//' + PACKAGE + ':linux-amd64'}
 
 
-def owned_objects(rows, execution_root, owner, split=False, package=PACKAGE, groups=()):
+def owned_objects(rows, execution_root, owner, split=False, package=PACKAGE, groups=(), expected_count=None):
     """Only delete unique, inventoried objects owned by this probe."""
     prefixes = ['/' + package + '/_objs/' + owner + suffix + '/'
                 for suffix in (tuple('_' + group for group in groups) if groups else
                                ('_pch', '_plain') if split else ('',))]
     files = [execution_root / item for row in rows for item in row]
-    if len(files) != len(SOURCES) or len(set(files)) != len(files):
+    count = len(SOURCES) if expected_count is None else expected_count
+    if len(files) != count or len(set(files)) != len(files):
         raise ValueError('Expected one unique object per selected source')
     result = {}
     for file in files:
@@ -58,7 +59,7 @@ def probe_objects(rows, execution_root, owner, package, variant, project_header=
                          groups=('document', 'string', 'plain') if hybrid and variant != 'baseline' else ())
 
 
-def normalized_commands(rows, pch_path=None, eligible_sources=None):
+def normalized_commands(rows, pch_path=None, eligible_sources=None, expected_count=None):
     """Preserve source, flags, include order and environment across variants."""
     result = {}
     for original, environment in rows:
@@ -98,7 +99,8 @@ def normalized_commands(rows, pch_path=None, eligible_sources=None):
         if source in result:
             raise ValueError('Duplicate source command')
         result[source] = arguments, environment
-    if len(result) != len(SOURCES):
+    count = len(SOURCES) if expected_count is None else expected_count
+    if len(result) != count:
         raise ValueError('Incomplete compiler command inventory')
     return result
 

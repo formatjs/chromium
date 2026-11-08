@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":blink_modules_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
+load(":blink_pch.bzl", "blink_bindings_pch")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
 
@@ -49,6 +50,11 @@ def native_blink_modules():
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
+        if original == "//third_party/blink/renderer/bindings/modules/v8:v8":
+            blink_bindings_pch(library, common, plain_sources = [
+                ":gen/third_party/blink/renderer/bindings/modules/v8/init_idl_interfaces.cc",
+                ":gen/third_party/blink/renderer/bindings/modules/v8/properties_per_feature_installer.cc",
+            ])
         cc_library(
             name = library["name"],
             srcs = [p for p in library["srcs"] if p not in c_sources],
