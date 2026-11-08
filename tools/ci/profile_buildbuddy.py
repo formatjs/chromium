@@ -211,6 +211,9 @@ def collect(identifier):
     elif pattern == ['Chromium compiler preparation']:
         report_key = 'compiler_preparation'
         report_path = 'compiler-preparation/report.json'
+    elif pattern == ['Chromium compiler comparison']:
+        report_key = 'compiler_preparation'
+        report_path = 'compiler-comparison/report.json'
     elif pattern in [['Chromium header include experiment'], ['Chromium private include experiment']]:
         report_key = 'include_experiment'
         report_path = 'private-includes/report.json'
