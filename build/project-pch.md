@@ -92,3 +92,18 @@ also rebuilt raw PCH and closure validation. All original objects/archive and
 source subprocess guards passed. Report:
 `/tmp/chromium-source-aware-string-abba-001/report.json`.
 This remains a warm-support local result; BB and full cold results are pending.
+
+## Conservative larger PCH partition
+
+A combined prototype uses document PCH on 116 previously byte-compatible existing
+consumers, string PCH on 125 others, and original compilation on 15. HTML marquee
+uses string PCH because document PCH reordered its trace sections. A real
+sandboxed build executes 256 compiles, two PCH producers and two closure checks.
+All original objects and the complete archive match. Report:
+`/tmp/chromium-hybrid-pch-256-correctness.json`. Timing remains unmeasured.
+
+Four real source profiles also retain original object bytes. Inclusive frontend
+time is 92–97% of compiler execution; backend is small. Header parsing and
+instantiation remain the useful targets. Traces and CPU reports:
+`/tmp/chromium-clang-phase-probe-001/report.json`. These are warm compiler
+diagnostics, not cold timing or a full-build proportion.

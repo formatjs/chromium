@@ -6,6 +6,7 @@ load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cpp_toolchain")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":batch_sources.bzl", BATCH_SOURCES = "SOURCES")
+load(":document_pch_headers.bzl", "DOCUMENT_HEADER", "DOCUMENT_HEADER_PATHS", "DOCUMENT_SOURCES")
 load(":project_pch_headers.bzl", "ELIGIBLE_SOURCES", "HEADER", "PROJECT_HEADER_PATHS")
 
 def _headers_impl(ctx):
@@ -122,7 +123,7 @@ def _project_path(path):
     return path
 
 def _project_inputs_impl(ctx):
-    expected = {path: True for path in PROJECT_HEADER_PATHS}
+    expected = {path: True for path in ctx.attr.paths}
     found = {}
     for file in ctx.attr.library[CcInfo].compilation_context.headers.to_list() + ctx.files.extras:
         path = _project_path(file.path)
@@ -140,6 +141,7 @@ _project_inputs = rule(
     attrs = {
         "library": attr.label(mandatory = True, providers = [CcInfo]),
         "extras": attr.label_list(allow_files = True),
+        "paths": attr.string_list(default = PROJECT_HEADER_PATHS),
     },
 )
 
@@ -162,7 +164,7 @@ def _project_pch_impl(ctx):
     dependency = ctx.actions.declare_file(ctx.label.name + ".d")
     pch = ctx.actions.declare_file(ctx.label.name + ".pch")
     manifest = ctx.actions.declare_file(ctx.label.name + ".headers.json")
-    ctx.actions.write(manifest, json.encode(PROJECT_HEADER_PATHS))
+    ctx.actions.write(manifest, json.encode(ctx.attr.paths))
     variables = cc_common.create_compile_variables(
         cc_toolchain = toolchain,
         feature_configuration = features,
@@ -201,6 +203,7 @@ _project_pch = rule(
         "library": attr.label(mandatory = True, providers = [CcInfo]),
         "header": attr.label(mandatory = True, allow_single_file = True),
         "extras": attr.label_list(allow_files = True),
+        "paths": attr.string_list(default = PROJECT_HEADER_PATHS),
         "copts": attr.string_list(),
         "local_defines": attr.string_list(),
         "_validator": attr.label(default = "//tools/ci/compile:validate_pch.py", allow_single_file = True),
@@ -210,7 +213,7 @@ _project_pch = rule(
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
 
-def _source_aware_compile_impl(ctx):
+def _compile_groups(ctx, groups):
     toolchain = find_cpp_toolchain(ctx)
     features = cc_common.configure_features(
         ctx = ctx,
@@ -225,10 +228,7 @@ def _source_aware_compile_impl(ctx):
             fail("define must expand to one token: " + value)
         defines.append(tokens[0])
     objects = {}
-    for suffix, sources, options, inputs in [
-        ("_pch", ctx.files.pch_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.pch.path], ctx.files.extra_inputs + [ctx.file.pch] + ctx.files.pch_headers),
-        ("_plain", ctx.files.plain_sources, ctx.attr.copts, ctx.files.extra_inputs),
-    ]:
+    for suffix, sources, options, inputs in groups:
         _, outputs = cc_common.compile(
             actions = ctx.actions,
             feature_configuration = features,
@@ -261,6 +261,12 @@ def _source_aware_compile_impl(ctx):
         CcInfo(compilation_context = ctx.attr.library[CcInfo].compilation_context, linking_context = linking_context),
         DefaultInfo(files = depset([file for file in [library.static_library, library.pic_static_library] if file])),
     ]
+
+def _source_aware_compile_impl(ctx):
+    return _compile_groups(ctx, [
+        ("_pch", ctx.files.pch_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.pch.path], ctx.files.extra_inputs + [ctx.file.pch] + ctx.files.pch_headers),
+        ("_plain", ctx.files.plain_sources, ctx.attr.copts, ctx.files.extra_inputs),
+    ])
 
 _source_aware_compile = rule(
     implementation = _source_aware_compile_impl,
@@ -312,6 +318,85 @@ def blink_project_pch_probe(name, libraries, target_compatible_with):
         library = ":" + headers,
         pch = ":" + pch,
         pch_headers = [":" + name + "_inputs"],
+        extra_inputs = inputs,
+        copts = library["copts"],
+        local_defines = library["defines"],
+        features = ["cc_include_scanning"],
+        tags = ["manual"],
+        target_compatible_with = target_compatible_with,
+    )
+
+def _hybrid_compile_impl(ctx):
+    return _compile_groups(ctx, [
+        ("_document", ctx.files.document_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.document_pch.path], ctx.files.extra_inputs + [ctx.file.document_pch] + ctx.files.document_headers),
+        ("_string", ctx.files.string_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.string_pch.path], ctx.files.extra_inputs + [ctx.file.string_pch] + ctx.files.string_headers),
+        ("_plain", ctx.files.plain_sources, ctx.attr.copts, ctx.files.extra_inputs),
+    ])
+
+_hybrid_compile = rule(
+    implementation = _hybrid_compile_impl,
+    attrs = {
+        "document_sources": attr.label_list(allow_files = [".cc"]),
+        "string_sources": attr.label_list(allow_files = [".cc"]),
+        "plain_sources": attr.label_list(allow_files = [".cc"]),
+        "document_pch": attr.label(mandatory = True, allow_single_file = True),
+        "string_pch": attr.label(mandatory = True, allow_single_file = True),
+        "document_headers": attr.label_list(allow_files = True),
+        "string_headers": attr.label_list(allow_files = True),
+        "object_order": attr.string_list(),
+        "library": attr.label(mandatory = True, providers = [CcInfo]),
+        "extra_inputs": attr.label_list(allow_files = True),
+        "copts": attr.string_list(),
+        "local_defines": attr.string_list(),
+    },
+    fragments = ["cpp"],
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+)
+
+def blink_hybrid_pch_probe(name, libraries, target_compatible_with):
+    """Use larger PCH only on sources preserving original object bytes."""
+    library = libraries["//third_party/blink/renderer/core:core"]
+    headers = name + "_headers"
+    inputs = [
+        "@chromium//:base/component_export.h",
+        "@chromium//:skia/config/SkUserConfig.h",
+        "@chromium//:skia/config/sk_ref_cnt_ext_debug.h",
+        "@chromium//:skia/config/sk_ref_cnt_ext_release.h",
+        "@chromium//:skia/ext/skia_histogram.h",
+        "@chromium//native:blink_core_forwarders/third_party/re2/src/re2/re2.h",
+    ]
+    _headers(name = headers, library = "@chromium//native:" + library["name"])
+    for suffix, header, paths in [
+        ("document", DOCUMENT_HEADER, DOCUMENT_HEADER_PATHS),
+        ("string", HEADER, PROJECT_HEADER_PATHS),
+    ]:
+        _project_inputs(
+            name = name + "_" + suffix + "_inputs",
+            library = ":" + headers,
+            extras = inputs + ["@chromium//:" + header],
+            paths = paths,
+        )
+        _project_pch(
+            name = name + "_" + suffix + "_pch",
+            library = ":" + headers,
+            header = "@chromium//:" + header,
+            extras = inputs,
+            paths = paths,
+            copts = library["copts"] + ["-isysroot", ".", "-ffile-prefix-map=./="],
+            local_defines = library["defines"],
+            target_compatible_with = target_compatible_with,
+        )
+    _hybrid_compile(
+        name = name,
+        document_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source in DOCUMENT_SOURCES],
+        string_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source in ELIGIBLE_SOURCES and source not in DOCUMENT_SOURCES],
+        plain_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source not in ELIGIBLE_SOURCES],
+        document_pch = ":" + name + "_document_pch",
+        string_pch = ":" + name + "_string_pch",
+        document_headers = [":" + name + "_document_inputs"],
+        string_headers = [":" + name + "_string_inputs"],
+        object_order = [source.split("/")[-1][:-3] + ".pic.o" for source in BATCH_SOURCES[:256]],
+        library = ":" + headers,
         extra_inputs = inputs,
         copts = library["copts"],
         local_defines = library["defines"],
