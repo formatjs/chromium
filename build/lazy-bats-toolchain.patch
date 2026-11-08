@@ -1,0 +1,106 @@
+diff --git a/lib/private/bats_toolchain.bzl b/lib/private/bats_toolchain.bzl
+--- a/lib/private/bats_toolchain.bzl
++++ b/lib/private/bats_toolchain.bzl
+@@ -17,9 +17,10 @@
+ }
+ 
+ BATS_CORE_TEMPLATE = """\
+-load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
+ load("@bazel_lib//lib/private:bats_toolchain.bzl", "bats_toolchain")
+ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
++
++package(default_visibility = ["@{toolchains_repository}//:__pkg__"])
+ 
+ copy_to_directory(
+     name = "core",
+@@ -37,13 +38,27 @@
+     libraries = {libraries}
+ )
+ 
++"""
++
++BATS_TOOLCHAINS_TEMPLATE = """\
++load("@platforms//host:constraints.bzl", "HOST_CONSTRAINTS")
++
+ toolchain(
+     name = "bats_toolchain",
+     exec_compatible_with = HOST_CONSTRAINTS,
+-    toolchain = ":toolchain",
++    toolchain = "@{core_repository}//:toolchain",
+     toolchain_type = "@bazel_lib//lib:bats_toolchain_type",
+ )
+ """
++
++def _bats_toolchains_repo_impl(rctx):
++    rctx.file("BUILD.bazel", BATS_TOOLCHAINS_TEMPLATE.format(core_repository = rctx.attr.core_repository))
++
++# Registration must not download scripts before the toolchain is selected.
++bats_toolchains_repo = repository_rule(
++    implementation = _bats_toolchains_repo_impl,
++    attrs = {"core_repository": attr.string(mandatory = True)},
++)
+ 
+ BATS_LIBRARY_TEMPLATE = """\
+ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+diff --git a/lib/repositories.bzl b/lib/repositories.bzl
+--- a/lib/repositories.bzl
++++ b/lib/repositories.bzl
+@@ -1,7 +1,7 @@
+ "Macros for loading dependencies and registering toolchains"
+ 
+ load("//lib:utils.bzl", http_archive = "maybe_http_archive")
+-load("//lib/private:bats_toolchain.bzl", "BATS_ASSERT_VERSIONS", "BATS_CORE_TEMPLATE", "BATS_CORE_VERSIONS", "BATS_FILE_VERSIONS", "BATS_LIBRARY_TEMPLATE", "BATS_SUPPORT_VERSIONS")
++load("//lib/private:bats_toolchain.bzl", "BATS_ASSERT_VERSIONS", "BATS_CORE_TEMPLATE", "BATS_CORE_VERSIONS", "BATS_FILE_VERSIONS", "BATS_LIBRARY_TEMPLATE", "BATS_SUPPORT_VERSIONS", "bats_toolchains_repo")
+ load("//lib/private:copy_directory_toolchain.bzl", "COPY_DIRECTORY_PLATFORMS", "copy_directory_platform_repo", "copy_directory_toolchains_repo")
+ load("//lib/private:copy_to_directory_toolchain.bzl", "COPY_TO_DIRECTORY_PLATFORMS", "copy_to_directory_platform_repo", "copy_to_directory_toolchains_repo")
+ load("//lib/private:coreutils_toolchain.bzl", "COREUTILS_PLATFORMS", "coreutils_platform_repo", "coreutils_toolchains_repo", _DEFAULT_COREUTILS_VERSION = "DEFAULT_COREUTILS_VERSION")
+@@ -88,6 +88,7 @@
+     """
+ 
+     http_archive(
++        type = "tar.gz",
+         name = "%s_support" % name,
+         sha256 = BATS_SUPPORT_VERSIONS[support_version],
+         urls = [
+@@ -98,6 +99,7 @@
+     )
+ 
+     http_archive(
++        type = "tar.gz",
+         name = "%s_assert" % name,
+         sha256 = BATS_ASSERT_VERSIONS[assert_version],
+         urls = [
+@@ -108,6 +110,7 @@
+     )
+ 
+     http_archive(
++        type = "tar.gz",
+         name = "%s_file" % name,
+         sha256 = BATS_FILE_VERSIONS[file_version],
+         urls = [
+@@ -118,17 +121,23 @@
+     )
+ 
+     http_archive(
+-        name = "%s_toolchains" % name,
++        type = "tar.gz",
++        name = "%s_core" % name,
+         sha256 = BATS_CORE_VERSIONS[core_version],
+         urls = [
+             "https://github.com/bats-core/bats-core/archive/{}.tar.gz".format(core_version),
+         ],
+         strip_prefix = "bats-core-{}".format(core_version.removeprefix("v")),
+-        build_file_content = BATS_CORE_TEMPLATE.format(libraries = [
++        build_file_content = BATS_CORE_TEMPLATE.format(toolchains_repository = "%s_toolchains" % name, libraries = [
+             "@%s_support//:support" % name,
+             "@%s_assert//:assert" % name,
+             "@%s_file//:file" % name,
+         ] + libraries),
++    )
++
++    bats_toolchains_repo(
++        name = "%s_toolchains" % name,
++        core_repository = "%s_core" % name,
+     )
+ 
+     if register:
