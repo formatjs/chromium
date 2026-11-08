@@ -1064,3 +1064,23 @@ Most are generated class definitions: the base library depends on that owner,
 so directly reusing its Isolate PCH there would introduce a dependency cycle.
 The remaining builtin-generator candidates need their own context and byte
 qualification. No additional V8 source is routed from this survey.
+
+### Held broad Bind.h cold wiring
+
+The separate cold-run preparation accepts `--base-bind-pch` only with the existing
+project/Blink/native Linux configuration. Its proof requires the effective
+`CHROMIUM_BASE_BIND_PCH=1` canonical BEP option, exactly twelve executed producers,
+twelve closure validators and the existing prefix guard. Missing flags, stale
+ten-producer results, missing validators and extra producers fail verification.
+Cache, sandbox, resource and elapsed-time policy remain unchanged.
+
+The unique `perf/strict-cold-base-bind-run` trigger remains held. Do not push that
+alias until source qualification, broad compiler contexts, producer input scope,
+complete object/link and artifact validation gates pass. Other four triples
+remain cold-unmeasured.
+
+The terminated ten-PCH trial's captured trace contains completed actions for
+seven producers and their validators; it contains no completion for the newer
+UI/Profile/public-RFH producers. The trace ends before outer termination, so
+this does not prove those producers never started. Narrower inputs target their
+availability; improvement requires a new measured cold result.

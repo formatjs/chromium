@@ -50,7 +50,9 @@ def machine_limits():
 
 
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
-                      expected_pch_count=0, expected_prefix_count=0):
+                      expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False):
+    if expected_base_bind_pch:
+        expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
                                expected_output_base=directory / 'output-base',
                                output_base_was_fresh=fresh)
@@ -109,10 +111,14 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
                                      if row['mnemonic'] == 'ChromiumPchPrefix')
     report['expected_prefix_count'] = expected_prefix_count
     report['expected_pch_count'] = expected_pch_count
+    defines = dict(value.split('=', 1) for value in options.get('define', []) if '=' in value)
+    report['base_bind_pch_configuration_verified'] = (
+        defines.get('CHROMIUM_BASE_BIND_PCH') == '1' if expected_base_bind_pch else None)
     report['requested_pch_actions_verified'] = ((not expected_pch_count or
         (report['project_pch_actions'] == expected_pch_count and
          report['pch_closure_actions'] == expected_pch_count))
-        and report['pch_prefix_actions'] == expected_prefix_count)
+        and report['pch_prefix_actions'] == expected_prefix_count
+        and (not expected_base_bind_pch or report['base_bind_pch_configuration_verified']))
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
                                          and report['requested_pch_actions_verified'])
@@ -139,6 +145,7 @@ def main():
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
     parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
+    parser.add_argument('--base-bind-pch', action='store_true', help='Opt into qualified shared Base Bind.h PCH cohorts')
     parser.add_argument('--blink-pch', action='store_true', help='Opt into validated native Blink PCH')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
@@ -148,6 +155,8 @@ def main():
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
+    if args.base_bind_pch and not args.project_pch:
+        parser.error('--base-bind-pch requires --project-pch')
     if args.compiler_profile != 'cxx' and not args.compiler_archive:
         parser.error('--compiler-profile requires --compiler-archive')
     if args.project_pch and not args.blink_pch:
@@ -257,6 +266,8 @@ def main():
             command.append('--define=CHROMIUM_BLINK_PCH=1')
         if args.project_pch:
             command.append('--define=CHROMIUM_PROJECT_PCH=1')
+        if args.base_bind_pch:
+            command.append('--define=CHROMIUM_BASE_BIND_PCH=1')
         if args.binding_workers != 1:
             command.append('--define=CHROMIUM_BINDINGS_WORKERS=' + str(args.binding_workers))
         if args.platform.startswith('windows-'):
@@ -302,7 +313,8 @@ def main():
     finally:
         report = local_cold_report(events, time.monotonic() - started, success, directory, cache, fresh, command,
                                    expected_pch_count=10 if args.project_pch else 3 if args.blink_pch else 0,
-                                   expected_prefix_count=1 if args.project_pch else 0)
+                                   expected_prefix_count=1 if args.project_pch else 0,
+                                   expected_base_bind_pch=args.base_bind_pch)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
@@ -310,6 +322,7 @@ def main():
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,
                        'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
+                       'base_bind_pch_requested': args.base_bind_pch,
                        'compiler_dependency': compiler_dependency,
                        'resource_initial': resource_initial, 'resource_final': resource_snapshot(),
                        'storage_initial': storage_initial, 'storage_final': filesystem_snapshot(storage_paths),

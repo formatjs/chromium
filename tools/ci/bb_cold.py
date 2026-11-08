@@ -23,11 +23,14 @@ def main():
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--native-tools', action='store_true')
     parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
+    parser.add_argument('--base-bind-pch', action='store_true')
     parser.add_argument('--blink-pch', action='store_true')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--trained-compiler', action='store_true')
     parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
     args = parser.parse_args()
+    if args.base_bind_pch and not args.project_pch:
+        parser.error('--base-bind-pch requires --project-pch')
     if args.compiler_profile != 'cxx' and not args.trained_compiler:
         parser.error('--compiler-profile requires --trained-compiler')
     if args.project_pch and not args.blink_pch:
@@ -43,6 +46,7 @@ def main():
     report = {'revision': args.revision, 'platform': 'linux-amd64',
               'machine': machine_limits(), 'cold_result_verified': False,
               'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
+              'base_bind_pch_requested': args.base_bind_pch,
               'trained_compiler': args.trained_compiler, 'compiler_profile': args.compiler_profile, 'binding_workers': args.binding_workers,
               'profile_format': 'gzip; standard Bazel slim trace; full BEP and execution log',
               'profile_complete_verified': False,
@@ -88,6 +92,8 @@ def main():
                 command.append('--blink-pch')
             if args.project_pch:
                 command.append('--project-pch')
+            if args.base_bind_pch:
+                command.append('--base-bind-pch')
             with subprocess.Popen(command) as process:
                 while True:
                     try:

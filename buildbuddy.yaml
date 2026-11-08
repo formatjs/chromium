@@ -170,11 +170,11 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: ["perf/strict-cold-ten-pch-run"]
+        branches: ["perf/strict-cold-base-bind-run"]
     steps:
       - run: |
           python3 -m tools.ci.bb_cold \
-            --native-tools --blink-pch --project-pch --jobs 19 --binding-workers 4 --trained-compiler --compiler-profile chromium --revision "$(git rev-parse HEAD)" \
+            --native-tools --blink-pch --project-pch --base-bind-pch --jobs 19 --binding-workers 4 --trained-compiler --compiler-profile chromium --revision "$(git rev-parse HEAD)" \
             --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/linux-amd64"
 
   - name: Chromium linux-amd64

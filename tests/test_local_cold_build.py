@@ -7,9 +7,23 @@ import unittest
 from unittest import mock
 
 from tools.ci.local_cold import local_cold_report, main
+from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_base_bind_requires_project_pch_before_creating_build_state(self):
+        command = ['cold-build', '--directory', '/unused-trial', '--revision', 'a' * 40,
+                   '--base-bind-pch']
+        for entrypoint, flags in [(bb_main, []), (main, ['--repository-cache', '/unused-cache',
+                                                       '--bazel', '/unused-bazel'])]:
+            error = io.StringIO()
+            with self.subTest(entrypoint=entrypoint.__module__), mock.patch('sys.argv', command + flags), \
+                    redirect_stderr(error):
+                with self.assertRaises(SystemExit) as stopped:
+                    entrypoint()
+            self.assertEqual(stopped.exception.code, 2)
+            self.assertIn('--base-bind-pch requires --project-pch', error.getvalue())
+
     def test_pch_requires_matching_native_linux_configuration(self):
         command = ['local-cold', '--directory', '/unused-trial', '--repository-cache', '/unused-cache',
                    '--revision', 'a' * 40, '--bazel', '/unused-bazel', '--blink-pch']
@@ -41,7 +55,7 @@ class LocalColdBuildTest(unittest.TestCase):
 
             def measure(changes=None, runners=None, fresh=True, success=True, compiles=16, client_command=None,
                         expected_pch_count=0, pch_count=0, validator_count=0,
-                        expected_prefix_count=0, prefix_count=0):
+                        expected_prefix_count=0, prefix_count=0, base_bind_pch=False):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -62,7 +76,8 @@ class LocalColdBuildTest(unittest.TestCase):
                 result = local_cold_report(events, 500, success, root, cache, fresh,
                                            command if client_command is None else client_command,
                                            expected_pch_count=expected_pch_count,
-                                           expected_prefix_count=expected_prefix_count)
+                                           expected_prefix_count=expected_prefix_count,
+                                           expected_base_bind_pch=base_bind_pch)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
@@ -72,6 +87,19 @@ class LocalColdBuildTest(unittest.TestCase):
             self.assertTrue(measure(expected_pch_count=6, pch_count=6, validator_count=6)['cold_result_verified'])
             self.assertTrue(measure(expected_pch_count=7, pch_count=7, validator_count=7,
                                     expected_prefix_count=1, prefix_count=1)['cold_result_verified'])
+            self.assertTrue(measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, base_bind_pch=True,
+                                    pch_count=12, validator_count=12, prefix_count=1)['cold_result_verified'])
+            for define, producers, validators, prefixes in [
+                (None, 12, 12, 1), ('CHROMIUM_BASE_BIND_PCH=0', 12, 12, 1),
+                ('CHROMIUM_BASE_BIND_PCH=1', 10, 10, 1), ('CHROMIUM_BASE_BIND_PCH=1', 11, 12, 1),
+                ('CHROMIUM_BASE_BIND_PCH=1', 12, 11, 1), ('CHROMIUM_BASE_BIND_PCH=1', 13, 13, 1),
+                ('CHROMIUM_BASE_BIND_PCH=1', 12, 12, 0),
+            ]:
+                with self.subTest(define=define, producers=producers, validators=validators, prefixes=prefixes):
+                    invalid = measure({'define': define}, base_bind_pch=True, pch_count=producers,
+                                      validator_count=validators, prefix_count=prefixes)
+                    self.assertFalse(invalid['cold_result_verified'])
+                    self.assertFalse(invalid['requested_pch_actions_verified'])
             for count in [0, 2]:
                 with self.subTest(prefix_count=count):
                     invalid = measure(expected_pch_count=7, pch_count=7, validator_count=7,
