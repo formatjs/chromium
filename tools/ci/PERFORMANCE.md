@@ -1421,7 +1421,8 @@ and profile guards cover all 578 sources, including positive compiler spans;
 15 PCH tests pass. `/tmp/chromium-v8-benchmark-preflight.json`. BB comparison
 `32719b0a-a263-4c51-9c49-ed0b4aeafc16` is running. It rebuilds every selected object
 and each candidate PCH during measured passes, verifies original archive/object
-bytes and rejects extra supporting compilation. Supporting setup stays warm.
+bytes and requires exactly 578 C++ executions with no Python actions. Supporting setup
+stays warm.
 Collector `3037069` supports its `v8-pch/report.json`; 13 profile tests pass.
 
 ### Dependency transport failures
@@ -1442,7 +1443,8 @@ Rules_python and BoringSSL mirror checks return 404 and are not adopted.
 `c3465b0` extends the existing three-attempt setup retry to the observed dependency
 read-timeout form. Analysis errors and checksum failures still stop immediately.
 Regression fails before the change, passes afterward. Latest module invocation
-`19a24537-2200-4277-8e32-5db188fedc75` is running; no measured result yet.
+`19a24537-2200-4277-8e32-5db188fedc75` fails fetching the Perfetto archive
+(HTTP 504), before measured compilation. No ABBA result.
 
 Sanitized collector `f5eb305` reanalyzes the terminated strict-cold run without
 starting another build. All recognized PCH event formats are absent from the
@@ -1455,3 +1457,12 @@ V8 base/compiler dominate late recorded target work. Evidence
 
 Strict-cold under-one-hour goal remains unmet. Other four triples remain
 unmeasured under this strict cache policy.
+
+
+Expanded collector `bbe6d16` retains every target mnemonic; 14 profile tests pass.
+Reanalysis `42473396133` still finds no completed PCH span. Actual input-producing
+actions include custom generators and link-runtime copies. Observed CRT copy
+finishes at 251.31 s, libc++ header copy at 248.75 s; seven other copy actions
+remain unrecorded. Latest observed header generator remains 2,030.45 s. Partial
+trace cannot establish all prerequisites ready or diagnose scheduler delay.
+`/tmp/chromium-pch-direct-prerequisite-timing.json`.
