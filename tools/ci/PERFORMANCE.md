@@ -1390,3 +1390,68 @@ Compiler training corpus correction: published C++ FDO uses generic standard
 container/ranges/template code from `build/llvm-cxx-fdo-training.patch`.
 Six V8 sources were validation/benchmark inputs, not the training corpus.
 No broader Chromium training or replacement compiler has been adopted.
+
+### V8 isolate PCH: complete byte proof, timing pending
+
+`e11b02b` adds a manual V8 base candidate. Original owner has 578 sources;
+`isolate.h` appears in 475 dependency lists. Full sandboxed comparison finds one
+changed object (`constant-expression-interface.cc`), which stays plain. Final
+split: 474 PCH / 104 plain. All 578 original object bytes and archive bytes match;
+archive SHA-256 `9041d6d1d33071387ec0ac40c8cd81c1e27883bc726ee2a67e500f4345fb6607`.
+
+Compact logs verify all 578 actual local source executions, one real fallback
+recompile, positive execution durations and exact runtime commands/environments.
+Declared action metadata omits Bazel's injected `PWD=/proc/self/cwd`; the runtime
+comparison retains and checks it. Public includes, defines and header inventory
+match original/donor/candidate contexts; `alwayslink=True` remains intact. The
+615 imported project headers include an explicitly declared existing gtest
+forwarder. Full producer header universe remains declared. No V8 production
+routing. Reports `/tmp/chromium-v8-isolate-final-correctness.json`,
+`/tmp/chromium-v8-isolate-context-audit.json` match committed native source blobs.
+
+Earlier `objects-inl.h` pilot changes two of three sample objects and is rejected.
+Uncontrolled local probe/build times are not performance evidence. Original
+baseline diagnostics preserve all three sample objects and show substantial
+frontend parsing work. `/tmp/chromium-v8-base-phase-probe/report.json`.
+
+`3035516` extends the existing full-owner ABBA harness with a V8 component;
+module bindings remain the default. V8's generated regexp source needs its
+original Chromium source prefix as well as the external V8 prefix. Real metadata
+and profile guards cover all 578 sources, including positive compiler spans;
+15 PCH tests pass. `/tmp/chromium-v8-benchmark-preflight.json`. BB comparison
+`32719b0a-a263-4c51-9c49-ed0b4aeafc16` is running. It rebuilds every selected object
+and each candidate PCH during measured passes, verifies original archive/object
+bytes and rejects extra supporting compilation. Supporting setup stays warm.
+Collector `3037069` supports its `v8-pch/report.json`; 13 profile tests pass.
+
+### Dependency transport failures
+
+Module comparison retries continue failing before measured compilation, across
+Abseil, rules_python and hermeticbuild rules_rust archives. Isolated BB diagnostic
+`b5abf002-3e3c-4a53-a4cb-84f7f4d5992f` successfully downloads both pinned Abseil and
+bazel_features archives through Python and fresh Bazel. The same local diagnostic
+also reproduces HTTP 504 in both clients. Failures are intermittent transport
+errors; evidence does not isolate a Java downloader defect.
+
+`c4e30b7` adds narrow official Bazel mirror fallbacks for two verified BCR archives;
+original upstream URLs remain available. A real Bazel fetch with fresh repository
+cache and upstream github.com blocked verifies both original SHA-256 digests.
+`/tmp/chromium-mirror-only-gate/report.json`. No compiler or cache policy changes.
+Rules_python and BoringSSL mirror checks return 404 and are not adopted.
+
+`c3465b0` extends the existing three-attempt setup retry to the observed dependency
+read-timeout form. Analysis errors and checksum failures still stop immediately.
+Regression fails before the change, passes afterward. Latest module invocation
+`19a24537-2200-4277-8e32-5db188fedc75` is running; no measured result yet.
+
+Sanitized collector `f5eb305` reanalyzes the terminated strict-cold run without
+starting another build. All recognized PCH event formats are absent from the
+partial trace. Input-owner joins observe 1,087 of 1,498 owner/configuration pairs,
+latest span at 2,030.45 s; unobserved owners mostly provide virtual-header symlinks.
+This cannot establish final readiness or explain missing PCH completion. All
+stdout chunks contain only the hosted timeout, with no earlier compiler failure.
+V8 base/compiler dominate late recorded target work. Evidence
+`/tmp/chromium-pch-prerequisite-timing.json`, collector `42470842010`.
+
+Strict-cold under-one-hour goal remains unmet. Other four triples remain
+unmeasured under this strict cache policy.
