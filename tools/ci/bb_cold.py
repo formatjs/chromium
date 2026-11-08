@@ -26,7 +26,10 @@ def main():
     parser.add_argument('--blink-pch', action='store_true')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--trained-compiler', action='store_true')
+    parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
     args = parser.parse_args()
+    if args.compiler_profile != 'cxx' and not args.trained_compiler:
+        parser.error('--compiler-profile requires --trained-compiler')
     if args.project_pch and not args.blink_pch:
         parser.error('--project-pch requires --blink-pch')
     if args.blink_pch and not args.native_tools:
@@ -40,7 +43,7 @@ def main():
     report = {'revision': args.revision, 'platform': 'linux-amd64',
               'machine': machine_limits(), 'cold_result_verified': False,
               'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
-              'trained_compiler': args.trained_compiler, 'binding_workers': args.binding_workers,
+              'trained_compiler': args.trained_compiler, 'compiler_profile': args.compiler_profile, 'binding_workers': args.binding_workers,
               'profile_format': 'gzip; standard Bazel slim trace; full BEP and execution log',
               'profile_complete_verified': False,
               'under_one_hour': False, 'runner': 'BuildBuddy workflow; RBE disabled',
@@ -52,10 +55,11 @@ def main():
         try:
             compiler = None
             if args.trained_compiler:
-                from tools.ci.compiler_archive import NAME, SHA256, ensure_archive
-                compiler = cache / 'compiler-archives' / SHA256 / NAME
+                from tools.ci.compiler_archive import ARCHIVES, ensure_archive
+                spec = ARCHIVES[args.compiler_profile]
+                compiler = cache / 'compiler-archives' / spec['sha256'] / spec['name']
                 fetched = time.monotonic()
-                report['compiler_dependency_fetch'] = ensure_archive(compiler)
+                report['compiler_dependency_fetch'] = ensure_archive(compiler, args.compiler_profile)
                 report['compiler_dependency_fetch']['seconds'] = time.monotonic() - fetched
             # Never invoke the workflow's Bazel wrapper or its injected RC files.
             bazel = root / 'bazel-9.2.0'
@@ -74,7 +78,7 @@ def main():
                        '--profile', str(profile),
                        '--max-seconds', '0']
             if compiler is not None:
-                command.extend(['--compiler-archive', str(compiler)])
+                command.extend(['--compiler-archive', str(compiler), '--compiler-profile', args.compiler_profile])
             if args.binding_workers != 1:
                 command.extend(['--binding-workers', str(args.binding_workers)])
             if args.native_tools:
