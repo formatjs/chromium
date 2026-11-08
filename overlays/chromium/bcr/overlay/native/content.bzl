@@ -3,6 +3,7 @@
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:py_info.bzl", "PyInfo")
+load(":content_pch.bzl", "content_browser_pch")
 load(":content_sources.bzl", "ACTIONS", "COPIES", "LIBRARIES", "METADATA", "SHARED_HEADERS", "TOOLS")
 load(":generated_files.bzl", "CAPTURED_FILES")
 load(":python_action.bzl", "ChromiumFilesInfo", "ChromiumGeneratedFilesInfo", "chromium_python_action")
@@ -90,6 +91,8 @@ def native_content():
             )
             cpp_sources.remove(gpu_internals)
             common["deps"] = common["deps"] + [":content_gpu_internals"]
+        if original == "//content/browser:browser":
+            content_browser_pch(library, common, cpp_sources)
         cc_library(
             name = library["name"],
             srcs = cpp_sources,

@@ -195,7 +195,7 @@ def archive_outputs(events, target=TARGET):
             if uri.scheme != 'file' or uri.netloc:
                 raise ValueError('Compiler outputs must be downloaded locally')
             file = Path(unquote(uri.path))
-            if file.suffix in ('.a', '.lib'):
+            if file.suffix in ('.a', '.lo', '.lib'):
                 files.add(file)
     if not files:
         raise ValueError('Blink compile did not produce an archive')

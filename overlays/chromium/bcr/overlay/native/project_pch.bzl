@@ -170,6 +170,7 @@ def _compile_impl(ctx):
         feature_configuration = features,
         cc_toolchain = toolchain,
         compilation_outputs = outputs,
+        alwayslink = ctx.attr.alwayslink,
         disallow_dynamic_library = True,
     )
     library = linking_outputs.library_to_link
@@ -184,6 +185,7 @@ chromium_pch_compile = rule(
         "sources": attr.label_keyed_string_dict(allow_files = [".cc"]),
         "pchs": attr.label_keyed_string_dict(providers = [ChromiumPchInfo]),
         "object_order": attr.string_list(mandatory = True),
+        "alwayslink": attr.bool(default = False),
         "context": attr.label(mandatory = True, providers = [CcInfo]),
         "extra_inputs": attr.label_list(allow_files = True),
         "copts": attr.string_list(),

@@ -189,6 +189,23 @@ class CompileExperimentTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'did not complete'):
                 archive_outputs(events)
 
+    def test_alwayslink_archive_is_a_local_default_output(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = root / 'libcontent_pch.lo'
+            artifact.write_bytes(b'alwayslink archive')
+            target = '@@+chromium_dependencies+chromium//native:content_pch'
+            events = root / 'events.json'
+            events.write_text('\n'.join(json.dumps(item) for item in [
+                {'id': {'namedSet': {'id': 'archive'}},
+                 'namedSetOfFiles': {'files': [{'uri': artifact.as_uri()}]}},
+                {'id': {'targetCompleted': {'label': target}},
+                 'completed': {'success': True, 'outputGroup': [
+                     {'name': 'default', 'fileSets': [{'id': 'archive'}]}]}},
+            ]))
+            digests, _ = archive_outputs(events, target)
+            self.assertEqual(list(digests), ['libcontent_pch.lo'])
+
 
 if __name__ == '__main__':
     unittest.main()
