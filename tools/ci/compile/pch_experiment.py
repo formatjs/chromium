@@ -5,6 +5,7 @@ import ast
 import hashlib
 import json
 import math
+import os
 import posixpath
 import re
 from pathlib import Path
@@ -196,27 +197,49 @@ def measure(startup, flags, source, name, target, directory):
                '--record_full_profiler_data', '--noslim_profile', target]
     started = time.monotonic()
     available = []
+    sandbox = next((Path(flag.split('=', 1)[1]) for flag in flags
+                    if flag.startswith('--sandbox_base=')), None)
+    samples = []
+
+    def sample_sandbox():
+        if sandbox is None:
+            return None
+        state = os.statvfs(sandbox)
+        sample = {'elapsed_seconds': time.monotonic() - started,
+                  'capacity_bytes': state.f_blocks * state.f_frsize,
+                  'used_bytes': (state.f_blocks - state.f_bfree) * state.f_frsize,
+                  'capacity_inodes': state.f_files,
+                  'used_inodes': state.f_files - state.f_ffree}
+        samples.append(sample)
+        return sample
+
     next_progress = started + 30
     with log.open('w') as output, subprocess.Popen(
             command, cwd=source, stdout=output, stderr=subprocess.STDOUT) as process:
         while True:
             memory = dict(line.split(':', 1) for line in Path('/proc/meminfo').read_text().splitlines())
             available.append(int(memory['MemAvailable'].split()[0]) * 1024)
+            sample_sandbox()
             try:
                 code = process.wait(timeout=5)
                 break
             except subprocess.TimeoutExpired:
                 if time.monotonic() >= next_progress:
                     next_progress = time.monotonic() + 30
-                    print(name + ': build running, elapsed=' + str(round(time.monotonic() - started)), flush=True)
+                    print(name + ': build running, elapsed=' + str(round(time.monotonic() - started))
+                          + (' sandbox=' + json.dumps(samples[-1]) if samples else ''), flush=True)
     elapsed = time.monotonic() - started
+    sample_sandbox()
+    if samples:
+        (directory / (name + '.sandbox.json')).write_text(json.dumps(samples, indent=2) + '\n')
     if code:
         print(log.read_text(errors='replace')[-6000:], flush=True)
         raise ValueError('PCH probe build failed: ' + name)
     archives, metrics = archive_outputs(events, target)
     if len(archives) != 1:
         raise ValueError('Expected one cohort archive')
-    return {'wall_seconds': elapsed, 'minimum_sampled_available_memory_bytes': min(available),
+    return {'wall_seconds': elapsed, 'sandbox_samples': samples,
+            'minimum_sampled_available_memory_bytes': min(available),
             'archive_sha256': next(iter(archives.values())), 'build_metrics': metrics}, profile
 
 

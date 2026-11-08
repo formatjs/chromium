@@ -41,7 +41,8 @@ def main():
     report = {'measurement': 'Warm supporting outputs; all module compiles and candidate PCH rebuilt; not cold proof',
               'revision': revision, 'machine': machine, 'jobs': capacity, 'cpu_budget': capacity,
               'source_count': COUNT, 'pch_consumer_count': COUNT - 2,
-              'sandbox_directory_reuse': False, 'complete': False, 'phases': {},
+              'sandbox_directory_reuse': False, 'sandbox_cleanup': 'synchronous',
+              'complete': False, 'phases': {},
               'original_archive_sha256': ARCHIVE_SHA256}
     cache = Path.home() / '.cache/chromium-strict-cold-downloads'
     cache.mkdir(parents=True, exist_ok=True)
@@ -71,6 +72,7 @@ def main():
         flags = ['--config=browser', '--nodiscard_analysis_cache', '--track_incremental_state',
                  '--keep_state_after_build', '--spawn_strategy=linux-sandbox',
                  '--sandbox_base=' + str(args.sandbox_base), '--noreuse_sandbox_directories',
+                 '--experimental_sandbox_async_tree_delete_idle_threads=0',
                  '--local_resources=memory=14000', '--jobs=' + str(capacity),
                  '--local_resources=cpu=' + str(capacity), '--remote_executor=', '--remote_cache=',
                  '--remote_accept_cached=false', '--noremote_upload_local_results', '--disk_cache=',
@@ -133,7 +135,9 @@ def main():
                         if path.is_symlink() or not path.is_file():
                             raise ValueError('Inventoried output missing or replaced by symlink')
                         path.unlink()
-                row, profile = pch.measure(startup, flags, source, name, targets[variant], root)
+                report['active_phase'] = name
+                (args.directory / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+                row, profile = pch.measure(startup, flags, source, name, targets[variant], args.directory)
                 report['phases'][name] = row
                 if not name.startswith('warmup'):
                     row['selected_compiles'] = local_compile_times(profile, sources)
@@ -153,6 +157,7 @@ def main():
                 if current != reference:
                     raise ValueError('Module PCH changes original objects or archive')
                 row['object_and_archive_bytes_match'] = True
+                (args.directory / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
                 print(json.dumps({'phase': name, 'wall_seconds': row['wall_seconds'], 'bytes_match': True}), flush=True)
             report['complete'] = True
         except Exception as error:
