@@ -45,3 +45,14 @@ or generators reran. Exactly 255 original objects matched. The remaining
 `fullscreen_request_type.pic.o` changed ELF function/section order and local
 constant symbol numbering. Archive differs. Reject this header for rollout;
 no byte-gate exception. Report: `/tmp/chromium-project-pch-256-correctness.json`.
+
+## Smaller allocator header
+
+`wtf/allocator/allocator.h` passes all 256 original object and archive hashes in
+real sandboxes. Captured closure has 68 project headers. Same compiler, one fresh
+PCH, one closure check, 256 actual compiles, no supporting rebuilds. Report:
+`/tmp/chromium-allocator-pch-256-correctness.json`. Performance remains unmeasured.
+
+Original depfiles show that only 241/256 sources include WTF string, 253 include
+allocator, and 117 include `document.h`. Larger PCH experiments should compile
+only original consumers with that PCH; other sources retain their original flags.
