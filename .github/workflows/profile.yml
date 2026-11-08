@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       download_compiler_archive:
-        description: Fetch pinned C++ compiler experiment archive (revision 366173f only)
+        description: Fetch pinned compiler experiment archive (366173f or dc5ddb5)
         type: boolean
         default: false
       baseline:
@@ -74,7 +74,7 @@ jobs:
           BUILD_SHA: ${{ inputs.revision }}
         run: >-
           python3 -m tools.ci.compiler_archive --revision "$BUILD_SHA"
-          --destination "$RUNNER_TEMP/build-profile/llvm-23.1.2-linux-amd64-cxx.tar.zst"
+          --directory "$RUNNER_TEMP/build-profile"
       - name: Compare browser payload bytes
         if: inputs.baseline != ''
         env:
