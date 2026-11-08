@@ -796,3 +796,27 @@ link, with zero executed actions. Existing compiler preparation argv stays exact
 208 tests pass. Preparation uses cache-enabled RBE and is excluded from cold
 browser timing. No BOLT transformation or compiler adoption yet. Training,
 original-object byte gates and controlled measurements remain required.
+
+### BOLT layout experiment
+
+Upstream BOLT transforms a separately linked relocation-bearing C04 compiler,
+trained on the two existing Chromium preprocessing inputs. This is an isolated
+compiler experiment, not adoption. The strict relocation-preparation guard
+still rejects its changed ELF layout: LLD moves .eh_frame ahead of .rodata when
+emitting relocations. That guard was not weakened. All 64,253 compiler action
+arguments/environments match except the final link/index --emit-relocs option.
+
+The optimized compiler preserves 50 checked compile outputs: 30 ordinary,
+18 PCH consumers and two training cases. Four multicall tool comparisons also
+match. A 48-case held-out local ABBA saves 3.36% compiler CPU with four workers;
+training cases are excluded and PCH inputs remain unchanged. This is warm
+shared-host evidence, not BuildBuddy or complete cold timing.
+
+Stripping preserves all allocated bytes and load layout. Stripped driver SHA-256:
+`d0162b82c3005ba02704c19cad64cc192e9bfbe6597c54aa2d971dc50bbfdef7`.
+A complete Chrome link replay confirms the driver selects its own optimized
+ld.lld and reproduces the frozen browser SHA-256:
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
+Other link flags, object inputs and environment remain unchanged. This does not
+prove every Chromium compile output, final package, ABI, rendering or cold time.
+Full archive validation and controlled BB measurements remain required.
