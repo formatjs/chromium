@@ -1,6 +1,7 @@
 """Compare local sandbox costs with real compiles and matching archive bytes."""
 
 import argparse
+from bisect import bisect_left, bisect_right
 import gzip
 import json
 import os
@@ -41,21 +42,95 @@ def verify_ram_sandbox(path, mountinfo=Path('/proc/self/mountinfo')):
     raise ValueError('RAM sandbox must be a dedicated tmpfs mount')
 
 
-def local_compile_times(profile, sources):
+def _profile_events(profile):
+    """Stream large Bazel traces without retaining unrelated events."""
     with gzip.open(profile, 'rt') as stream:
-        events = json.load(stream)['traceEvents']
-    spans = [event for event in events if event.get('ph') == 'X' and event.get('dur', 0) > 0]
+        buffer = ''
+        marker = None
+        while marker is None:
+            chunk = stream.read(65536)
+            if not chunk:
+                raise ValueError('Missing profile trace events')
+            buffer += chunk
+            marker = re.search(r'"traceEvents"\s*:\s*\[', buffer)
+        prefix = buffer[:marker.start()]
+        buffer = buffer[marker.end():]
+        decoder = json.JSONDecoder()
+        after_value = False
+        allow_end = True
+        while True:
+            buffer = buffer.lstrip()
+            if not buffer:
+                buffer = stream.read(65536)
+                if not buffer:
+                    raise ValueError('Incomplete profile trace events')
+                continue
+            if buffer.startswith(']'):
+                if not allow_end:
+                    raise ValueError('Invalid profile event separator')
+                json.loads(prefix + '"traceEvents":[]' + buffer[1:] + stream.read())
+                return
+            if after_value:
+                if not buffer.startswith(','):
+                    raise ValueError('Missing profile event separator')
+                buffer = buffer[1:]
+                after_value = False
+                allow_end = False
+                continue
+            try:
+                event, end = decoder.raw_decode(buffer)
+            except json.JSONDecodeError:
+                chunk = stream.read(65536)
+                if not chunk:
+                    raise ValueError('Incomplete profile trace events') from None
+                buffer += chunk
+                continue
+            yield event
+            buffer = buffer[end:]
+            after_value = True
+            allow_end = True
+
+
+def local_compile_times(profile, sources):
+    sources = tuple(dict.fromkeys(sources))
+    spans = [event for event in _profile_events(profile)
+             if event.get('ph') == 'X' and event.get('dur', 0) > 0
+             and (event.get('cat') == 'action processing'
+                  and event.get('args', {}).get('mnemonic') == 'CppCompile'
+                  or event.get('name') in ('subprocess.run', 'sandbox.createFileSystem'))]
+    requested = {}
+    unqualified = []
+    for source in sources:
+        if '/' in source:
+            requested.setdefault(source.rsplit('/', 1)[-1], []).append(source)
+        else:
+            unqualified.append(source)
+    matches = {source: [] for source in sources}
+    threads = {}
+    for event in spans:
+        threads.setdefault(event.get('tid'), []).append(event)
+        if event.get('cat') != 'action processing' or event.get('args', {}).get('mnemonic') != 'CppCompile':
+            continue
+        name = event.get('name', '').removesuffix(' [for tool]')
+        basename = name.rsplit('/', 1)[-1].removeprefix('Compiling ')
+        for source in requested.get(basename, []) + unqualified:
+            if name.endswith(source):
+                matches[source].append(event)
+    starts = {}
+    for thread, events in threads.items():
+        events.sort(key=lambda event: event['ts'])
+        starts[thread] = [event['ts'] for event in events]
     results = {}
     for source in sources:
-        matches = [event for event in spans if event.get('cat') == 'action processing'
-                   and event.get('args', {}).get('mnemonic') == 'CppCompile'
-                   and event.get('name', '').removesuffix(' [for tool]').endswith(source)]
-        if len(matches) != 1:
+        if len(matches[source]) != 1:
             raise ValueError('Expected one completed compiler span: ' + source)
-        action = matches[0]
-        nested = [event for event in spans if event.get('tid') == action.get('tid')
-                  and event['ts'] >= action['ts']
-                  and event['ts'] + event['dur'] <= action['ts'] + action['dur'] + 1000]
+        action = matches[source][0]
+        thread = action.get('tid')
+        end = action['ts'] + action['dur'] + 1000
+        first = bisect_left(starts[thread], action['ts'])
+        last = bisect_right(starts[thread], end)
+        nested = [event for event in threads[thread][first:last]
+                  if event['ts'] + event['dur'] <= end]
         subprocess_seconds = sum(event['dur'] for event in nested if event.get('name') == 'subprocess.run') / 1e6
         if subprocess_seconds <= 0:
             raise ValueError('Expected actual local compiler execution: ' + source)

@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from tools.ci.compile.local import local_compile_times, verify_ram_sandbox
+from tools.ci.compile.local import _profile_events, local_compile_times, verify_ram_sandbox
 
 
 class LocalCompileExperimentTest(unittest.TestCase):
@@ -46,6 +46,37 @@ class LocalCompileExperimentTest(unittest.TestCase):
         for events in ([action], [action, *unrelated], [action, action, child]):
             with self.subTest(events=events), self.assertRaises(ValueError):
                 self.measure(events)
+
+    def test_same_basename_and_unsorted_thread_events_stay_separate(self):
+        action = {'ph': 'X', 'cat': 'action processing', 'name': 'Compiling a/sample.cc [for tool]',
+                  'args': {'mnemonic': 'CppCompile'}, 'tid': 1, 'ts': 1000000, 'dur': 1000000}
+        second = {**action, 'name': 'Compiling b/sample.cc', 'ts': 3000000}
+        child = {'ph': 'X', 'name': 'subprocess.run', 'tid': 1, 'ts': 1200000, 'dur': 500000}
+        other = {**child, 'ts': 3200000, 'dur': 250000}
+        crossing = {**child, 'ts': 1900000, 'dur': 200000}
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / 'profile.gz'
+            with gzip.open(profile, 'wt') as stream:
+                json.dump({'traceEvents': [other, second, crossing, child, action]}, stream)
+            result = local_compile_times(profile, ('a/sample.cc', 'b/sample.cc'))
+            with self.assertRaises(ValueError):
+                local_compile_times(profile, ('sample.cc',))
+        self.assertEqual(result['a/sample.cc']['subprocess_seconds'], .5)
+        self.assertEqual(result['b/sample.cc']['subprocess_seconds'], .25)
+
+    def test_streamed_profile_crosses_chunks_and_rejects_incomplete_json(self):
+        event = {'name': 'large detail', 'args': {'detail': 'x' * 70000}}
+        text = json.dumps({'otherData': {'id': 'build'}, 'traceEvents': [event]})
+        with tempfile.TemporaryDirectory() as temporary:
+            profile = Path(temporary) / 'profile.gz'
+            with gzip.open(profile, 'wt') as stream:
+                stream.write(text)
+            self.assertEqual(list(_profile_events(profile)), [event])
+            for broken in [text[:-1], text[:-4], text.replace(']}', ',]}')]:
+                with gzip.open(profile, 'wt') as stream:
+                    stream.write(broken)
+                with self.subTest(tail=broken[-10:]), self.assertRaises(ValueError):
+                    list(_profile_events(profile))
 
 
 if __name__ == '__main__':
