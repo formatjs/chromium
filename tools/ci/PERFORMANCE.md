@@ -1718,3 +1718,26 @@ Regression cases reproduce both failures before the fix; 188 tests pass after
 it. The actual reference summary round-trips with every metric intact, no raw
 fetch and 62,184KiB peak RSS. This changes collection only, not compilation or
 cache policy. Control: `/tmp/chromium-full-summary-collector-control.json`.
+
+### Strict-cold d3c6d7fd deadline profile
+
+[Trial d3c6d7fd](https://formatjs.buildbuddy.io/invocation/d3c6d7fd-b471-45da-999c-daf96c1a621d)
+hits the free-tier one-hour cap: outer duration 3,600.654417 s, no archive.
+The 4,005,708-byte compressed code profile survives; collector `42490541384`
+succeeds. The trace is incomplete, with 234,058 events. Goal remains unproven;
+no ABI/render validation can be claimed for this trial.
+
+Observed completed spans include 18,218 C++ compiles and 7,595 Python actions.
+Their subprocess task times are 41,464.27 s and 11,413.41 s respectively; C++
+sandbox task time is 2,616.15 s. These are task wall-time sums, not CPU or final
+BEP action totals. All observed C++/PCH target hashes map to known source owners.
+Only the V8 PCH producer and validator are observed complete; the producer starts
+at 2,445.37 s. Large remaining cohorts are not established complete by this trace.
+
+The new compiler's six-source gain is useful, but does not establish that it can
+close this whole-build gap. Its cold wiring stays prepared, not launched.
+Next investigation targets front-loaded generators and compilation-context
+header/include scope. The previous include prototype retained 782 search paths
+from a 941-path baseline and yielded no meaningful BB gain; repeating that partial
+change is not a strategy. Correct GN path mapping and full resolution/byte gates
+remain necessary. No cache-policy or hardware changes.
