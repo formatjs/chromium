@@ -177,10 +177,13 @@ def query(startup, flags, source, expression, target):
                                 cwd=source, capture_output=True, text=True)
         if not result.returncode:
             return [ast.literal_eval(line) for line in result.stdout.splitlines()]
-        if attempt == 2 or not re.search(r'GET returned (502|503|504)\b', result.stderr):
+        transient = re.search(
+            r'GET returned (502|503|504)\b|'
+            r'Error downloading \[https?://[^\]\n]+\][^\n]*: Read timed out\b', result.stderr)
+        if attempt == 2 or not transient:
             print(result.stderr[-6000:], flush=True)
             raise ValueError('PCH probe analysis failed')
-        print('Dependency server returned 5xx; retrying metadata query', flush=True)
+        print('Transient dependency download failure; retrying metadata query', flush=True)
         time.sleep(5 * (attempt + 1))
 
 

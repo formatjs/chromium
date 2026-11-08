@@ -18,7 +18,11 @@ class PchExperimentTest(unittest.TestCase):
             self.assertEqual(pch_experiment.query(['bazel'], [], '/source', 'expression', '//target'), [['target']])
             self.assertEqual(run.call_count, 2)
             sleep.assert_called_once_with(5)
-        for error, attempts in [('GET returned 503 Service Unavailable', 3), ('unknown target', 1)]:
+        for error, attempts in [
+                ('GET returned 503 Service Unavailable', 3),
+                ('java.io.IOException: Error downloading [https://github.com/repo/archive.tar.gz] to /temporary/file: Read timed out', 3),
+                ('analysis failed: Read timed out', 1),
+                ('checksum mismatch', 1), ('unknown target', 1)]:
             with self.subTest(error=error), \
                     mock.patch.object(pch_experiment.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', error)) as run, \
                     mock.patch.object(pch_experiment.time, 'sleep'), self.assertRaises(ValueError):
