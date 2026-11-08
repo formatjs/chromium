@@ -1,5 +1,26 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium local compile pipeline
+    container_image: ubuntu-24.04
+    user: buildbuddy
+    allow_concurrent_runs: false
+    timeout: 1h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/local-pipeline"]
+    steps:
+      - run: |
+          archive="$HOME/.cache/chromium-strict-cold-downloads/compiler-archives/adbc348d20518481b44be46c21440c8aec541572014a86614248c3db2b46cc5c/llvm-23.1.2-linux-amd64-cxx.tar.zst"
+          python3 -m tools.ci.compiler_archive \
+            --revision 366173ffc47d1a12a92c32d542c39c24b80fea28 --destination "$archive"
+          python3 -m tools.ci.compile.private_ram --size-gib 8 -- \
+            python3 -m tools.ci.compile.local_pipeline --compiler-archive "$archive" \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/local-pipeline" --sandbox-base '{sandbox}'
+
   - name: Chromium strict cold build linux-amd64
     container_image: ubuntu-24.04
     user: buildbuddy
