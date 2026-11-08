@@ -967,7 +967,9 @@ hardware; no whole-build or BB timing claim.
 An empty-source configuration probe accepts 1,558 of 1,559 contexts, covering
 18,086 source records. The remaining 41 have a different optimization level and
 stay plain. This probe does not qualify real source objects. Full source byte
-qualification is running separately, including a no-PCH baseline for any reject.
+qualification is complete. All 18,086 selected records match frozen original
+objects after two verified temporary-output inode failures were retried. Both
+original failure logs and matching no-PCH controls are retained.
 
 Both manual producer declarations retain complete SDK inputs and validate the
 same 112 project header paths. A separate Base context avoids a dependency cycle.
@@ -977,8 +979,9 @@ with 1,841 declared inputs. All 425 original Base compiler commands and effectiv
 environments remain unchanged. The actual Bazel PCHs reproduce all 36 pilot
 objects and accept the same 1,558 contexts. Their bytes differ from the prototype
 PCHs; prototype full-corpus validation was retired after 8,054 matching objects.
-The full 18,086-source comparison now uses the actual Bazel artifacts. Consumer
-rollout remains pending. The ten-PCH cold trial excludes this experiment; other
+The complete 18,086-source comparison uses the actual Bazel artifacts and passes
+a separate reconciliation audit. All frozen object hashes and both PCH hashes
+remain unchanged. Consumer rollout remains pending. The ten-PCH cold trial excludes this experiment; other
 triples are unmeasured.
 
 ### Ten-PCH strict-cold result
@@ -1045,8 +1048,11 @@ and link options. Existing UI/Profile/Content partitions retain their disjoint
 PCH groups. Mixed-language sources, selectors, duplicate object names, private
 implementation dependencies and nocopts remain on their original rules.
 
-Full source-byte qualification is still running against the actual Bazel PCH
-artifacts. Broad default/enabled compiler-context audits, reachable producer
+Full native source-byte qualification passes against the actual Bazel PCH
+artifacts: 18,084 direct matches plus two matching infrastructure retries.
+All 18,086 original reference hashes are unchanged; 41 incompatible records
+stay plain. This is local compiler evidence, not Bazel sandbox or cold proof.
+Broad default/enabled compiler-context audits, reachable producer
 counts, complete object/link checks and cold timing remain pending. No broader
 source is copied into the fixture held by the existing combined correctness
 job. Other four triples remain cold-unmeasured.
