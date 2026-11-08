@@ -1135,8 +1135,15 @@ The BB controller now verifies a frozen original archive hash as well as in-run
 byte equivalence. A real regression test caught incorrect grouped inventory
 routing on the native baseline; fixed before publication. 195 Python tests and
 real controller preflight pass. Revision
-`2a62a6ba043ae0873e5c877f3cb3afb171935126` starts BB confirmation, invocation
-`a79a6cf2-a264-4b2a-abad-05a860a69600`.
+`2a62a6ba043ae0873e5c877f3cb3afb171935126` completed BB confirmation, invocation
+`a79a6cf2-a264-4b2a-abad-05a860a69600`, collector `42453870733`.
+Baselines 102.030/99.387 s; candidates 77.981/76.576 s. Means 100.708 s versus
+77.278 s: 23.27% wall and 30.99% compiler CPU reduction, including both fresh
+PCH producers and closure validators. Actual runner: 19 CPU AMD EPYC,
+35,262,926,848 bytes RAM. Every phase ran 256 compiles and preserved every
+original object/archive. Commands/environment and trained compiler hash pass.
+Warm supporting actions; no full-browser or strict-cold claim.
+Summary `/tmp/chromium-hybrid-pch-bb-summary.json`.
 
 Four real Clang frontend/backend traces retain original objects. Frontend is
 roughly 93–98% of compiler trace time; nested source/template totals overlap.
@@ -1149,3 +1156,21 @@ findings, not whole-build proportions. Reports:
 Direct eager PCH template instantiation passes eight original objects, but has
 no controlled timing or sandboxed 256-source proof; it is not adopted. Report:
 `/tmp/chromium-string-pch-eager-pilot/report.json`.
+
+### Full-core PCH correctness expansion
+
+Recovered 2,398 original core objects from the completed local cold build.
+Captured source/header/compiler/dependency fields remain unchanged; all 256
+cohort hashes match. Native archive action order matches captured source order.
+Full clang-scan-deps scan finished in 84.65 s using the pinned compiler. Candidate
+membership: 1,389 document consumers, 915 additional string consumers, 94 plain.
+Marquee remains on string PCH because its document import changed object bytes.
+Membership does not establish byte compatibility; a full sandboxed probe must
+compare every original object before adopting any broader partition.
+
+14 of 16 sampled scanner dependency inventories exactly match original depfiles.
+The remaining two omit Perfetto virtual include aliases; no added dependencies
+were observed. This is not a claim that all scanner inventories are identical.
+Evidence: `/tmp/chromium-full-core-deps/summary.json`,
+`/tmp/chromium-full-core-original-objects.json`,
+`/tmp/chromium-full-core-archive-actions.json`.
