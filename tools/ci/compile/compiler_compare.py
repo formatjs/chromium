@@ -177,7 +177,9 @@ def main():
             or digest(args.candidate) != args.candidate_sha256
             or not args.candidate.name.endswith('.tar.zst')):
         parser.error('Candidate compiler needs a verified .tar.zst archive')
-    if not args.analyze_only:
+    if args.analyze_only:
+        args.sandbox_base.mkdir(parents=True, exist_ok=True)
+    else:
         verify_ram_sandbox(args.sandbox_base)
     args.directory.mkdir(parents=True, exist_ok=False)
     args.repository_cache.mkdir(parents=True, exist_ok=True)
