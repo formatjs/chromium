@@ -2,7 +2,7 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from tools.ci.compile import local_throughput
+from tools.ci.compile import local_pipeline as local_throughput
 
 
 class LocalThroughputTest(unittest.TestCase):
