@@ -1107,3 +1107,45 @@ A stronger PCH prototype is testing 116 previously byte-compatible document
 consumers, 125 validated string consumers and 15 original compiles. HTML marquee
 keeps the smaller PCH because document PCH reordered its trace sections. Strict
 object/archive byte guards remain; no default browser integration or cold proof.
+
+### BB rejects include trimming as a useful speedup
+
+Revision `c2797977220790ee01dd4e276991109eea59a2dd`, invocation
+`cbd5fd84-8e5f-41ab-8287-9c814eb9b3b1`, completed full guarded ABBA. 19 CPU AMD EPYC,
+35,262,926,848 bytes RAM, original trained compiler, private RAM sandboxes.
+Baseline means 89.181 s; trimmed include context 88.606 s: only 0.65% wall gain,
+with 0.49% more compiler CPU. All original bytes and 256 executions per phase pass.
+No meaningful BB gain; do not promote this optimization based on local results.
+Summary `/tmp/chromium-include-context-bb-summary.json`; collector `42452037776`.
+
+### Larger PCH partition local result
+
+The 116 document / 125 string / 15 original partition passes actual compiler
+command/environment equivalence after explicit PCH normalization, all original
+objects and archive, and both producer closure checks. Local private-RAM ABBA:
+baselines 59.111 s, 57.343 s; candidates 45.919 s, 45.318 s. Means 58.227 s versus
+45.619 s, 21.65% wall reduction and 28.55% compiler CPU reduction, including both
+fresh producers and validators. Every phase executes 256 actual compiles with
+all source subprocess traces and original hashes. 16 CPU quota, 48 GiB machine,
+6 GiB JVM, 24 GB action budget; directory reuse disabled. This is warm-support
+local evidence, not cold or a full browser result.
+Summary `/tmp/chromium-hybrid-pch-ram-summary.json`.
+
+The BB controller now verifies a frozen original archive hash as well as in-run
+byte equivalence. A real regression test caught incorrect grouped inventory
+routing on the native baseline; fixed before publication. 195 Python tests and
+real controller preflight pass. Revision
+`2a62a6ba043ae0873e5c877f3cb3afb171935126` starts BB confirmation, invocation
+`a79a6cf2-a264-4b2a-abad-05a860a69600`.
+
+Four real Clang frontend/backend traces retain original objects. Frontend is
+roughly 93–98% of compiler trace time; nested source/template totals overlap.
+Hot headers include input_type.h (45 original cohort consumers),
+html_form_control_element.h (66), and layout_object.h (10). These are sample
+findings, not whole-build proportions. Reports:
+`/tmp/chromium-clang-phase-probe-001/report.json`,
+`/tmp/chromium-clang-hot-headers.json`.
+
+Direct eager PCH template instantiation passes eight original objects, but has
+no controlled timing or sandboxed 256-source proof; it is not adopted. Report:
+`/tmp/chromium-string-pch-eager-pilot/report.json`.
