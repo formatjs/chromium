@@ -983,3 +983,21 @@ actual controller preflight verifies equivalent 256 consumer commands, output
 inventories and compiler. The [corrected fixed-resource benchmark](https://formatjs.buildbuddy.io/invocation/e7bff94b-b8e7-4c95-90ea-b6e297872f53)
 is running. PCH generation must rerun in each candidate phase. No timing gain is
 accepted before that report passes all execution and byte checks.
+
+
+### Local full-trace standard PCH comparison
+
+Full ABBA completed on the local 16 CPU quota, 48 GiB runner with disk sandboxes.
+Supporting actions remained warm. Each measured baseline executed 256 C++ compiles;
+each candidate executed 256 compiles plus a fresh PCH. All original objects and
+cohort archive matched every pass. Full traces retained every source subprocess.
+
+Baseline passes: 70.923 s, 56.873 s. PCH passes: 59.174 s, 54.675 s.
+Means: 63.898 s versus 56.925 s, 10.91% wall reduction. Baseline drift is substantial;
+this does not establish BB or strict-cold speedup. Report:
+`/tmp/chromium-pch-local-abba-003/report.json`.
+
+The full-trace BB comparison remains running at
+`69c98ab0-c7fc-45e5-bfbc-7995d7b13341`, revision
+`dc7b35d05e55e9957a63372e4b1cf855032be93e`. Older slim-profile runs failed the
+execution proof and are not accepted timing results.
