@@ -1663,3 +1663,28 @@ source is selected. Unchanged recorded commands use the new driver; outputs
 match the original cold build objects exactly. This is warm direct compiler
 replay, not a sandboxed timing result or full-browser correctness proof.
 Report: `/tmp/chromium-representative-llvm-holdout-001/report.json`.
+
+### Representative compiler measured result
+
+[Comparison eac547bb](https://formatjs.buildbuddy.io/invocation/eac547bb-3b32-451e-a975-79faadb607d6)
+completes successfully. Approved D94 compiler averages 29.7398 s wall and
+102.6665 compiler CPU-seconds; candidate 274f averages 26.9942 s and 96.3765 CPU-seconds.
+That is 9.23% less wall time and 6.13% less compiler CPU on these six V8 sources.
+Both candidate passes beat both baseline passes. Every measured pass executes
+exactly six sandboxed compiles, with no supporting compiles. Commands and
+environment match; all six objects and three archives match. Actual guest has
+19 CPUs and 35,262,926,848 RAM bytes. These are warm ABBA measurements, not a
+whole-build forecast or strict-cold result. Collector: `42488500502`.
+
+Candidate cold-run wiring is prepared at `d232219`, not launched. Explicit
+`--compiler-profile chromium` pins its archive and driver, fetches it during
+timed setup, and keeps the current cache, PCH and codegen policy. The default
+profile produces byte-identical MODULE, BUILD and generated LLVM index files
+against d325eeb using the actual approved archive. 213 tests pass. Trigger is
+restricted to `perf/strict-cold-representative-run`; preparation branch cannot
+start the cold job. No new public release.
+
+A scan of all 44,770 original main-configuration C++ commands finds no duplicates
+after removing only output/dependency-file destinations. Source, remaining
+arguments and environment must match exactly. Further compile deduplication has
+no demonstrated opportunity in this scan; nothing was adopted from it.
