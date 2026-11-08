@@ -910,3 +910,15 @@ source API was missing. Revision `ecc5308` restores that API; real Bazel analysi
 confirms exactly 257 unique owned outputs, and 183 Python tests pass. The
 [retry](https://formatjs.buildbuddy.io/invocation/93ece4b2-8324-4b01-9023-c11d15225d6c)
 is pending. No scheduling improvement is established.
+
+The worker-only strict-cold trial hit the hosted one-hour limit after 3,601.21s.
+No browser archive completed. Outer runner usage reports 60,724.57 CPU-seconds
+and 19,409,952,768 bytes peak memory. Its streaming partial profile is being
+collected; progress counters do not estimate remaining work. The trained-compiler
+trial continues independently. Neither result establishes an under-hour build.
+
+Full archive dependency analysis inventoried 52,516 `CppCompile` actions owned by
+`cc_library`/`cc_binary` targets. This is a query subset, not an executed count.
+All inventoried object outputs use PIC; no PIC/non-PIC duplicate variant was
+found. Source multiplicity alone cannot justify sharing across configurations
+or libraries. No further sharing change is adopted from this analysis.
