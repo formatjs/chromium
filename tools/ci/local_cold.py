@@ -122,6 +122,7 @@ def main():
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
+    parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
@@ -205,6 +206,8 @@ def main():
         if args.native_tools:
             command.extend(['--define=CHROMIUM_NATIVE_TOOLS=1',
                             '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution'])
+        if args.binding_workers != 1:
+            command.append('--define=CHROMIUM_BINDINGS_WORKERS=' + str(args.binding_workers))
         if args.platform.startswith('windows-'):
             command.extend(['--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
                             '--repo_env=BAZEL_WINDOWS_SDK_EULA=1'])
@@ -242,6 +245,7 @@ def main():
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
+                       'binding_workers': args.binding_workers,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
                        'sandbox_capacity_bytes': (shutil.disk_usage(args.sandbox_base).total
