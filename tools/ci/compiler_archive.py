@@ -65,6 +65,18 @@ BOLT_PREPARATIONS = {
 }
 
 
+BOLT_PREPARATIONS['05f8668cd94b543c9d7f5bd72228da27d640576d'] = {
+    'invocation': '28f441ca-7494-4edc-aea8-b073ba016be7',
+    'tools': {'merge-fdata': {
+        'sha256': 'b8b5c7c70ac6709097604b26d4304c6426d5947f15e3da4be7ee70d73db337d5',
+        'size': 1494728,
+        'uri': ('bytestream://remote.buildbuddy.io/bb-snapshot/'
+                'a99f4fcadbfb6a4859501ab58c32905f9ea795436e415bc4b586d097e82c0820/'
+                'blobs/b8b5c7c70ac6709097604b26d4304c6426d5947f15e3da4be7ee70d73db337d5/1494728'),
+    }},
+}
+
+
 def archive_spec(revision, key, *, spec=None, prefix='llvm-compiler', max_size=128 * 1024 * 1024):
     spec = dict(EXPERIMENTS[revision] if spec is None else spec)
     if 'uri' in spec:
