@@ -1705,3 +1705,16 @@ CPU reductions (2.7–5.2%, including producer). Shared-host local timing and tw
 sources per cohort do not justify adoption. Full byte gates and controlled BB
 measurement remain necessary. Report:
 `/tmp/chromium-eager-pch-six-pilot-001/report.json`.
+
+### Full-summary collector correction
+
+The completed reference summary is 5,142,319 bytes with 15,472 target rows,
+exceeding the collector's old 4MiB cap. The collector also fetched the raw trace
+again when a published summary existed. `b84cdd1` raises the bounded summary
+limit to 32MiB and retains the published summary without the duplicate fetch.
+The incomplete raw-trace fallback remains available.
+
+Regression cases reproduce both failures before the fix; 188 tests pass after
+it. The actual reference summary round-trips with every metric intact, no raw
+fetch and 62,184KiB peak RSS. This changes collection only, not compilation or
+cache policy. Control: `/tmp/chromium-full-summary-collector-control.json`.
