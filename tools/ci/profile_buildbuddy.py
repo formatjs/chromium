@@ -104,7 +104,8 @@ def local_action_work(events):
     for event in events:
         mnemonic = event.get('args', {}).get('mnemonic')
         if (event.get('cat') != 'action processing'
-                or mnemonic not in ('CppCompile', 'CppLink', 'ChromiumPython')):
+                or mnemonic not in ('CppCompile', 'CppLink', 'ChromiumPython',
+                                    'ChromiumProjectPch', 'ChromiumPchClosure')):
             continue
         group = ('BlinkBindings' if mnemonic == 'ChromiumPython'
                  and '/gen/third_party/blink/renderer/bindings/' in event.get('out', '')
@@ -112,6 +113,10 @@ def local_action_work(events):
         row = groups.setdefault(group, {'action_spans': 0, 'action_task_seconds': 0,
                                        'max_action_seconds': 0, 'subprocess_task_seconds': 0,
                                        'sandbox_task_seconds': 0})
+        start_seconds = event['ts'] / 1e6
+        end_seconds = (event['ts'] + event['dur']) / 1e6
+        row['first_action_start_seconds'] = min(row.get('first_action_start_seconds', start_seconds), start_seconds)
+        row['last_action_end_seconds'] = max(row.get('last_action_end_seconds', end_seconds), end_seconds)
         seconds = event['dur'] / 1e6
         row['action_spans'] += 1
         row['action_task_seconds'] += seconds

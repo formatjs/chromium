@@ -28,9 +28,26 @@ class BuildProfileTest(unittest.TestCase):
         result = profile_buildbuddy.local_action_work(events)
         self.assertEqual(result['CppCompile'], {'action_spans': 1, 'action_task_seconds': 10,
                                               'max_action_seconds': 10, 'subprocess_task_seconds': 8,
-                                              'sandbox_task_seconds': 0.5})
+                                              'sandbox_task_seconds': 0.5, 'first_action_start_seconds': 0,
+                                              'last_action_end_seconds': 10})
         self.assertEqual(result['BlinkBindings']['subprocess_task_seconds'], 1.5)
         self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
+        self.assertNotIn('private/', json.dumps(result))
+
+    def test_pch_producer_and_validator_placement_is_reported(self):
+        events = [
+            {'cat': 'action processing', 'ts': 20000000, 'dur': 5000000, 'tid': 4,
+             'out': 'private/raw.pch', 'args': {'mnemonic': 'ChromiumProjectPch'}},
+            {'name': 'subprocess.run', 'ts': 21000000, 'dur': 3000000, 'tid': 4},
+            {'cat': 'action processing', 'ts': 25000000, 'dur': 1000000, 'tid': 5,
+             'args': {'mnemonic': 'ChromiumPchClosure'}},
+            {'name': 'subprocess.run', 'ts': 25100000, 'dur': 500000, 'tid': 5},
+        ]
+        result = profile_buildbuddy.local_action_work(events)
+        self.assertEqual(result['ChromiumProjectPch']['first_action_start_seconds'], 20)
+        self.assertEqual(result['ChromiumProjectPch']['last_action_end_seconds'], 25)
+        self.assertEqual(result['ChromiumProjectPch']['subprocess_task_seconds'], 3)
+        self.assertEqual(result['ChromiumPchClosure']['subprocess_task_seconds'], 0.5)
         self.assertNotIn('private/', json.dumps(result))
 
     def test_strict_cold_timing_requires_complete_outer_workflow_within_hour(self):
