@@ -156,6 +156,7 @@ class BuildProfileTest(unittest.TestCase):
             ('Chromium V8 PCH comparison', 'v8-pch/report.json', 'pch_experiment'),
             ('Chromium compiler preparation', 'compiler-preparation/report.json', 'compiler_preparation'),
             ('Chromium compiler comparison', 'compiler-comparison/report.json', 'compiler_preparation'),
+            ('Chromium representative compiler comparison', 'compiler-comparison/report.json', 'compiler_preparation'),
             ('Chromium representative LLVM compiler preparation', 'llvm-compiler/report.json', 'compiler_preparation'),
             ('Chromium header include experiment', 'private-includes/report.json', 'include_experiment'),
             ('Chromium private include experiment', 'private-includes/report.json', 'include_experiment'),
