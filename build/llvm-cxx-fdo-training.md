@@ -49,3 +49,11 @@ python3 -m tools.ci.prepare_llvm --prepare-only --directory /tmp/llvm-preparatio
 The report records source and patch checksums. Archive selection requires a
 successful Bazel target and one downloaded archive from its build events.
 The browser still uses its original prebuilt compiler.
+
+`perf/llvm-compiler-benchmark` prepares the same compiler with cached RBE, then
+compares six fixed V8 sources locally. Each compiler gets separate output state.
+The root LLVM index tag selects the candidate archive by checksum; compiler
+commands and environment must match before timing starts. Warm supporting work
+stays outside the measured ABBA passes. Every measured pass must execute all six
+compiles, with no supporting recompiles, and match every object and archive byte.
+This comparison is not a cold browser result or full browser validation.

@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 import shlex
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -113,7 +114,10 @@ def main():
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--source-archive', type=Path)
     parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--compare', action='store_true', help='Run unchanged V8 workloads after preparing the archive')
     args = parser.parse_args()
+    if args.prepare_only and args.compare:
+        parser.error('--compare requires a compiler build')
     if not args.prepare_only and not os.environ.get('BUILDBUDDY_CI_RUNNER_ABSPATH'):
         parser.error('Compiler build requires a BuildBuddy workflow runner')
     args.directory.mkdir(parents=True, exist_ok=False)
@@ -158,7 +162,19 @@ def main():
         with destination.open('rb') as data:
             digest = hashlib.file_digest(data, 'sha256').hexdigest()
         destination.with_suffix(destination.suffix + '.sha256').write_text(digest + '\n')
-        report.update(complete=True, archive=destination.name, archive_sha256=digest)
+        report.update(archive_prepared=True, archive=destination.name, archive_sha256=digest)
+        if args.compare:
+            subprocess.run([bazel, 'shutdown'], cwd=workspace, check=True)
+            comparison = args.directory.resolve() / 'comparison'
+            subprocess.run([
+                sys.executable, '-m', 'tools.ci.compile.private_ram', '--size-gib', '8', '--',
+                sys.executable, '-m', 'tools.ci.compile.compiler_compare',
+                '--candidate', str(destination.resolve()), '--candidate-sha256', digest,
+                '--directory', str(comparison), '--sandbox-base', '{sandbox}',
+                '--repository-cache', str(Path.home() / '.cache/chromium-strict-cold-downloads'),
+            ], cwd=ROOT, check=True)
+            report['compiler_comparison'] = json.loads((comparison / 'report.json').read_text())
+        report['complete'] = True
     except Exception as error:
         report['error'] = str(error)
         raise

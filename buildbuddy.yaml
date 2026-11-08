@@ -1,5 +1,22 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium compiler comparison
+    container_image: ubuntu-24.04
+    allow_concurrent_runs: false
+    allow_concurrent_runs_on_branches: []
+    timeout: 1h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/llvm-compiler-benchmark"]
+    steps:
+      - run: |
+          python3 -m tools.ci.prepare_llvm --mode cxx --compare \
+            --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/compiler-comparison"
+
   - name: Chromium compiler preparation
     container_image: ubuntu-24.04
     allow_concurrent_runs: false
