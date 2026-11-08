@@ -392,6 +392,21 @@ def collect(identifier):
                             result['incomplete_pch_profile'] = {
                                 'phase': phase, 'summary': trace_summary(_ProfileDownload(response), allow_partial=True)}
         if report_key == 'cold_build':
+            resource_path = report_path.removesuffix('cold-build.json') + 'cold-resources.jsonl'
+            resources = [artifact for invocation in invocations
+                         for artifact in invocation.get('artifacts', [])
+                         if artifact.get('name', '').endswith('/' + resource_path)
+                         or artifact.get('name') == resource_path]
+            if len(resources) == 1:
+                with api_request('GetFile', {'uri': resources[0]['uri']},
+                                 os.environ['BUILDBUDDY_API_KEY']) as response:
+                    payload = response.read(16 * 1024 * 1024 + 1)
+                if len(payload) > 16 * 1024 * 1024:
+                    raise ValueError('Resource samples exceed 16 MiB')
+                lines = payload.splitlines(keepends=True)
+                result['cold_resource_samples'] = [json.loads(line) for line in lines if line.endswith(b'\n')]
+                result['cold_resource_log_complete'] = not payload or payload.endswith(b'\n')
+        if report_key == 'cold_build':
             summary_path = report_path.removesuffix('cold-build.json') + 'trace-summary.json'
             summaries = [artifact for invocation in invocations
                          for artifact in invocation.get('artifacts', [])

@@ -149,6 +149,24 @@ class BuildProfileTest(unittest.TestCase):
                     mock.call('GetFile', {'uri': summary_uri}, 'read-only-test-key'),
                 ])
 
+    def test_killed_cold_run_keeps_complete_resource_samples_only(self):
+        sample = {'elapsed_seconds': 30, 'resources': {'cgroups': [{'cpu_stat': {'usage_usec': 123}}]}}
+        uri = 'bytestream://formatjs.buildbuddy.io/resources'
+        artifacts = {'invocation': [{'artifacts': [{
+            'name': 'command-0/linux-amd64/cold-resources.jsonl', 'uri': uri}]}]}
+        for tail in [b'', b'{"elapsed_seconds":60']:
+            with self.subTest(tail=tail), mock.patch.object(profile_buildbuddy, 'rpc', return_value={
+                    'invocation': [{'pattern': ['Chromium strict cold build linux-amd64']}]}), \
+                    mock.patch.object(profile_buildbuddy, 'api_request', side_effect=[
+                        io.BytesIO(json.dumps(artifacts).encode()),
+                        io.BytesIO(json.dumps(sample).encode() + b'\n' + tail)]) as api, \
+                    mock.patch.dict(os.environ, {'BUILDBUDDY_API_KEY': 'read-only-test-key'}):
+                result = profile_buildbuddy.collect('workflow')
+            self.assertEqual(result['cold_resource_samples'], [sample])
+            self.assertEqual(result['cold_resource_log_complete'], not tail)
+            self.assertFalse(result['strict_cold_timing_verified'])
+            self.assertEqual(api.call_args_list[-1], mock.call('GetFile', {'uri': uri}, 'read-only-test-key'))
+
     def test_compiler_experiment_report_is_collected_from_workflow_artifact(self):
         report = {'baseline': {'input_entries': 76130}, 'include-scan': {'input_entries': 1000}}
         uri = 'bytestream://formatjs.buildbuddy.io/report'
