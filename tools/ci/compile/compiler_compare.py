@@ -118,8 +118,15 @@ class Build:
         self.execution_root = Path(subprocess.check_output(
             [*self.startup, 'info', 'execution_root'], cwd=self.source, text=True).strip())
         self.objects = object_paths(rows, self.execution_root)
-        return compiler_commands(json.loads(self.query(
+        commands = compiler_commands(json.loads(self.query(
             'aquery', '--output=jsonproto', '--include_param_files', 'mnemonic("CppCompile", ' + query + ')')))
+        if any(not item['arguments'][0].endswith('/toolchain/stage0_linux_x86_64/bin/clang++')
+               for item in commands.values()):
+            raise ValueError('Compiler comparison must use the indexed stage-0 compiler')
+        binary = self.execution_root / ('external/llvm++llvm_toolchain_minimal+'
+                                        'llvm-toolchain-minimal-linux-amd64/bin/llvm')
+        self.compiler_binary_sha256 = digest(binary)
+        return commands
 
     def build(self, phase, measured):
         if measured:
@@ -221,6 +228,11 @@ def main():
                 if candidate.analyze() != commands:
                     raise ValueError('Compiler comparison changed source commands or environment')
                 report['compiler_commands_identical'] = True
+                report['compiler_binary_sha256'] = {
+                    name: build.compiler_binary_sha256 for name, build in builds.items()}
+                if (args.candidate_sha256 != BASELINE_SHA256
+                        and candidate.compiler_binary_sha256 == baseline.compiler_binary_sha256):
+                    raise ValueError('Candidate archive does not change the compiler binary')
                 if args.analyze_only:
                     report['build_skipped'] = True
                     return
