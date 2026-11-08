@@ -115,7 +115,7 @@ def _groups(ctx):
         if name not in sources:
             fail("Unknown PCH group: " + name)
         files = target.files.to_list()
-        if len(files) != 1 or files[0].extension != "cc":
+        if len(files) != 1 or files[0].extension not in ["cc", "cpp"]:
             fail("Each PCH source must identify one C++ file: " + str(target.label))
         sources[name].append(files[0])
     groups = []
@@ -188,7 +188,7 @@ def _compile_impl(ctx):
 chromium_pch_compile = rule(
     implementation = _compile_impl,
     attrs = {
-        "sources": attr.label_keyed_string_dict(allow_files = [".cc"]),
+        "sources": attr.label_keyed_string_dict(allow_files = [".cc", ".cpp"]),
         "pchs": attr.label_keyed_string_dict(providers = [ChromiumPchInfo]),
         "object_order": attr.string_list(mandatory = True),
         "alwayslink": attr.bool(default = False),

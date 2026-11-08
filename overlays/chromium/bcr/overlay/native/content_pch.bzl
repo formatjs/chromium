@@ -1,6 +1,7 @@
 """Manual Content PCH candidate with original source set linking semantics."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", "base_bind_partition")
 load(":content_pch_data.bzl", "FRAME_HOST_HEADER", "FRAME_HOST_HEADER_PATHS", "FRAME_HOST_SOURCES")
 load(":content_public_pch_data.bzl", "PUBLIC_FRAME_HOST_HEADER", "PUBLIC_FRAME_HOST_HEADER_PATHS", "PUBLIC_FRAME_HOST_SOURCES")
 load(":project_pch.bzl", "chromium_pch_compile", "chromium_project_pch")
@@ -49,10 +50,16 @@ def content_browser_pch(library, common, sources):
         target_compatible_with = compatibility,
         tags = ["manual"],
     )
+    partitions, producers = base_bind_partition(
+        name,
+        sources,
+        {source: eligible.get(source, "") for source in sources},
+        {":" + producer: "frame_host", ":" + public_producer: "public_frame_host"},
+    )
     chromium_pch_compile(
         name = name + "_pch",
-        sources = {source: eligible.get(source, "") for source in sources},
-        pchs = {":" + producer: "frame_host", ":" + public_producer: "public_frame_host"},
+        sources = partitions,
+        pchs = producers,
         object_order = [source.split("/")[-1][:-3] + ".pic.o" for source in sources],
         alwayslink = common["alwayslink"],
         context = ":" + context,

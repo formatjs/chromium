@@ -1004,3 +1004,28 @@ wall spans, not CPU measurements. Different scheduling and incomplete coverage
 prevent throughput comparisons with earlier terminated runs. Late-stage CPU
 saturation still favors reducing compiler work. Other four triples remain
 cold-unmeasured.
+
+### Opt-in shared Bind.h consumers
+
+The manual Net cohort passes Linux sandbox checks: all 565 original objects and
+archive SHA-256 `e114a6ce71addda9f03a37454533bd1d05250ef5f9a02e7fd602a68669cb2d44`
+match, including 323 Bind.h consumers and 242 plain sources. Both original .cpp
+sources retain their compiler flags and object bytes. All default Net actions
+remain unchanged; importer compiler flags and effective environments match the
+frozen execution inventory. The two Base PCH artifacts remain unchanged. This
+is warm correctness evidence, not timing or a cold archive result.
+
+`CHROMIUM_BASE_BIND_PCH=1` opts Net into that cohort and adds disjoint Bind.h
+groups to the existing UI, Profile and Content PCH rules. These add 705, 641 and
+444 consumers. Combined sandbox, global compiler-context and full browser-link
+checks are pending; the flag remains off by default. The reachable graph should
+contain eleven producers: ten existing producers plus the shared default-mode
+Base producer. The complete-member-pointer producer remains manual until a
+matching consumer is qualified and routed. Other four triples are unmeasured.
+
+This candidate also carries the separately qualified shared V8 compiler cohort
+from `8da2a44`. Its 188 objects and archive, all 9,538 global compiler contexts,
+and complete browser/mksnapshot relinks match their frozen references. It reuses
+the existing Isolate PCH, adds no producer, and keeps eleven compiler sources
+plain. Shared-cohort BB/cold performance and complete artifact ABI/rendering
+remain unverified.

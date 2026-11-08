@@ -1,6 +1,7 @@
 """Opt-in Chrome PCHs with original compiler contexts and source-set linking."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_consumers.bzl", "base_bind_partition")
 load(":browser_pch_data.bzl", "BROWSER_HEADER", "BROWSER_HEADER_PATHS", "BROWSER_SOURCES", "PROFILE_HEADER", "PROFILE_HEADER_PATHS", "PROFILE_SOURCES")
 load(":project_pch.bzl", "chromium_pch_compile", "chromium_project_pch")
 
@@ -35,10 +36,16 @@ def browser_project_pch(library, common, sources, copts):
         target_compatible_with = compatibility,
         tags = ["manual"],
     )
+    partitions, producers = base_bind_partition(
+        name,
+        sources,
+        {source: group if source in eligible else "" for source in sources},
+        {":" + producer: group},
+    )
     chromium_pch_compile(
         name = name + "_pch",
-        sources = {source: group if source in eligible else "" for source in sources},
-        pchs = {":" + producer: group},
+        sources = partitions,
+        pchs = producers,
         object_order = [source.split("/")[-1][:-3] + ".pic.o" for source in sources],
         alwayslink = common["alwayslink"],
         context = ":" + context,

@@ -52,3 +52,17 @@ config_setting(
         "CHROMIUM_PROJECT_PCH": "1",
     },
 )
+
+config_setting(
+    name = "base_bind_pch",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+        "@llvm//constraints/libc:gnu.2.31",
+    ],
+    define_values = {
+        "CHROMIUM_NATIVE_TOOLS": "1",
+        "CHROMIUM_PROJECT_PCH": "1",
+        "CHROMIUM_BASE_BIND_PCH": "1",
+    },
+)
