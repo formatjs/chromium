@@ -804,5 +804,27 @@ The [separate compiler preparation](https://formatjs.buildbuddy.io/invocation/1f
 at `89fcfb7` adds C++ training to the pinned release source. It uses the original
 Bazel 9.3.0rc2 release settings and LLVM 22.1.4 bootstrap seed; the compiler being
 built remains LLVM 23.1.2. Upstream credentials and service endpoints are removed.
-This preparation uses cached RBE. It is not a cold browser benchmark, and no
-replacement compiler or speedup has been validated yet.
+The first attempt fails because the new C++ training link omits libc++ runtime
+archives. Fix `366173f` adds the toolchain's static runtime libraries to the link
+command and declared inputs. Real action analysis confirms libc++, libc++abi and
+libunwind; 183 Python tests pass.
+
+The [corrected preparation](https://formatjs.buildbuddy.io/invocation/a1727b10-69a4-4d17-af3b-d4bf494e8ab0)
+completes in 619.06s using cached RBE. Archive
+`llvm-23.1.2-linux-amd64-cxx.tar.zst` has SHA-256
+`adbc348d20518481b44be46c21440c8aec541572014a86614248c3db2b46cc5c`.
+This is compiler preparation, not a cold browser result.
+
+A same-compiler execution control compares six fixed V8 sources in separate
+Bazel states. Two warmups then four ABBA passes produce identical six objects
+and three archives. Every measured pass executes exactly six local compiles.
+Mean wall times are 23.390s and 23.283s: 0.46% control variation, not a speedup.
+An additional analysis guard verifies the actual compiler binary hash and
+identical expanded commands before measurement.
+
+The [trained compiler comparison](https://formatjs.buildbuddy.io/invocation/f330b1a3-51e4-46e4-963d-aae14ff9033d)
+at `27c08bd` is running. Supporting state stays warm; it is not cold-build proof.
+No replacement compiler has been adopted. Full browser payload, ABI and rendering
+validation remain required before adoption. Keep the current 16-CPU/32GiB tier;
+no larger hardware test is authorized. The strict-cold under-one-hour goal
+remains unmet.
