@@ -245,6 +245,9 @@ def collect(identifier):
     elif pattern == ['Chromium Clang phase profile']:
         report_key = 'clang_experiment'
         report_path = 'clang-profile/report.json'
+    elif pattern == ['Chromium module PCH comparison']:
+        report_key = 'pch_experiment'
+        report_path = 'module-pch/report.json'
     elif pattern == ['Chromium local PCH comparison']:
         report_key = 'pch_experiment'
         report_path = 'local-pch/report.json'
