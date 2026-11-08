@@ -961,3 +961,25 @@ The trained trial's collected trace is incomplete (214,913 events). Recorded
 compile subprocess spans sum to 42,276.18s, compile sandbox spans 1,963.65s and
 Python subprocess spans 11,967.13s. These overlapping sums are not CPU totals,
 full executed counts or an isolated comparison with the worker-only trial.
+
+## Sandboxed standard PCH correctness
+
+Prototype `e4cd0cd` matches all 256 original object hashes and the cohort archive
+(`4a346e0ea2f9d63adfe21ceade07f671006b4653476f487c1f92aeac5ee2fb90`).
+Actual trained compiler hash is verified. No complete-browser or cold claim.
+
+Independent sandboxes exposed absolute PCH paths and project-header shims hidden
+inside the AST. The corrected producer uses the fixed upstream standard header,
+hermetic toolchain includes, `--relocatable-pch` and an explicit build-root
+sysroot. Consumers declare the original header. Full Clang validation remains
+on. Actual action analysis finds 1,730 inputs; the upstream header is the only
+Chromium input. Driver expansion confirms all six standard include roots are
+managed toolchain paths.
+
+The first BB harness failed before compilation because its compiler verifier
+read execroot links before execution created them. A regression reproduces the
+failure, then passes using the fetched repository path. All 186 tests pass;
+actual controller preflight verifies equivalent 256 consumer commands, output
+inventories and compiler. The [corrected fixed-resource benchmark](https://formatjs.buildbuddy.io/invocation/e7bff94b-b8e7-4c95-90ea-b6e297872f53)
+is running. PCH generation must rerun in each candidate phase. No timing gain is
+accepted before that report passes all execution and byte checks.
