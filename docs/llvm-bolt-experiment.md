@@ -5,7 +5,9 @@ Tool preparation only. No browser compiler adoption or cold-build result.
 The stripped Chromium-trained LLVM lacks relocation records required by BOLT
 instrumentation. Prepare an unstripped compiler from the same pinned source,
 then add `--emit-relocs` only to its Stage 3 link. Preserve upstream patches,
-source exclusions, bootstrap compilation and training inputs.
+source exclusions, bootstrap compilation and training inputs. The FDO selector
+uses the canonical root label: native option matching does not resolve the
+apparent `@llvm` spelling.
 
 Before accepting that input:
 

@@ -6,7 +6,7 @@
  
 +config_setting(
 +    name = "bolt_stage3_profile",
-+    values = {"fdo_profile": "@llvm//toolchain/bootstrap/stage3:llvm_fdo_profdata"},
++    values = {"fdo_profile": "@@//toolchain/bootstrap/stage3:llvm_fdo_profdata"},
 +)
 +
  cc_binary(
