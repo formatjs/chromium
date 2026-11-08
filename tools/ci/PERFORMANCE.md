@@ -1290,3 +1290,37 @@ Eager-template instantiation pilot preserves three original objects and reduces
 recorded template instantiation counts. Timing was uncontrolled. No adoption;
 full byte gates and controlled BB comparison required. Report
 `/tmp/chromium-native-eager-pilot/report.json`.
+
+### Full browser relink and module binding expansion
+
+Full browser relink replaces all 3,428 core/binding object paths with verified
+PCH outputs and reuses the original completed build's remaining inputs. Result
+is byte-identical: SHA-256
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
+Original reference remains unchanged. Diagnostic uses original LLVM link tool
+`65384594...`, writes only a new temporary executable and takes 100.676 s. This
+is correctness evidence using retained outputs; no cold timing or new rendering
+claim. Report `/tmp/chromium-pch-browser-link/report.json`.
+
+Module bindings have 1,711 original objects. Exactly 1,709 include `idl_types.h`;
+`init_idl_interfaces.cc` and `properties_per_feature_installer.cc` stay plain.
+`BLINK_MODULES_IMPLEMENTATION=1` differs from core bindings' macro, so the candidate
+uses its own header donor/PCH. Original compiler arguments and environment match
+after explicit PCH options. All 1,711 object bytes, archive bytes and positive
+actual compiler subprocess spans pass. Original archive SHA-256
+`7ffc0134e1516101ea11dd1a6dacd7dc4fa3c415861694ecb82727232cdcdab7`.
+Warm component build 385.449 s is not an A/B comparison. Reports
+`/tmp/chromium-module-pch-preflight.json`,
+`/tmp/chromium-module-pch-correctness.json`.
+
+Revision `0291a02` adds manual module PCH targets and a full-owner ABBA timing
+harness. No module production routing. Harness guards all 1,711 source commands,
+owned output deletion, frozen original archive, every object hash, actual source
+execution spans, producer/closure counts and compiler reproducibility. Real
+successful inventories pass its metadata guards; 200 Python tests pass. End-to-end
+BB timing remains unmeasured. Benchmark branch prepared but not triggered while
+the strict-cold run is active. Collector handles the module report (`f163015`);
+10 profile tests pass.
+
+Strict-cold `df648ef` invocation
+`036230d4-e2be-4d7f-8446-50c4a2cc0d59` remains running. Goal unachieved.
