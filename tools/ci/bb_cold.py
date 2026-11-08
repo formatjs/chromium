@@ -11,7 +11,7 @@ import tempfile
 import time
 import urllib.request
 
-from tools.ci.local_cold import BAZEL_SHA256, machine_limits
+from tools.ci.local_cold import BAZEL_SHA256, BAZEL_URL, machine_limits
 from tools.ci.profile_buildbuddy import trace_summary
 
 
@@ -54,8 +54,7 @@ def main():
                 report['compiler_dependency_fetch']['seconds'] = time.monotonic() - fetched
             # Never invoke the workflow's Bazel wrapper or its injected RC files.
             bazel = root / 'bazel-9.2.0'
-            request = urllib.request.Request(
-                'https://github.com/bazelbuild/bazel/releases/download/9.2.0/bazel-9.2.0-linux-x86_64')
+            request = urllib.request.Request(BAZEL_URL)
             with urllib.request.urlopen(request, timeout=120) as response, bazel.open('wb') as output:
                 shutil.copyfileobj(response, output)
             if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:

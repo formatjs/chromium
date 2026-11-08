@@ -19,7 +19,7 @@ from tools.ci.compile.experiment import archive_outputs, batch_sources
 from tools.ci.compile.local import local_compile_times, verify_ram_sandbox
 from tools.ci.compile.pch_reproducibility import verify as verify_pch_reproducibility, verify_producer_options
 from tools.ci.compiler_archive import configure_compiler, verify_compiler
-from tools.ci.local_cold import BAZEL_SHA256, machine_limits
+from tools.ci.local_cold import BAZEL_SHA256, BAZEL_URL, machine_limits
 
 SOURCES = batch_sources()[:256]
 PACKAGE = 'tools/ci/compile/pch'
@@ -292,7 +292,7 @@ def main():
         report['compiler_dependency'] = configure_compiler(source, args.compiler_archive)
         bazel = root / 'bazel'
         with urllib.request.urlopen(
-                'https://github.com/bazelbuild/bazel/releases/download/9.2.0/bazel-9.2.0-linux-x86_64',
+                BAZEL_URL,
                 timeout=120) as response, bazel.open('wb') as output:
             shutil.copyfileobj(response, output)
         if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:

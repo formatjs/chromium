@@ -16,7 +16,7 @@ from tools.ci.compile import pch_experiment as pch
 from tools.ci.compile.local import local_compile_times, verify_ram_sandbox
 from tools.ci.compile.pch_reproducibility import verify, verify_producer_options
 from tools.ci.compiler_archive import configure_compiler, verify_compiler
-from tools.ci.local_cold import BAZEL_SHA256, machine_limits
+from tools.ci.local_cold import BAZEL_SHA256, BAZEL_URL, machine_limits
 
 OWNER = 'blink_modules_d49fc862a2e90d4a'
 PACKAGE = 'external/+chromium_dependencies+chromium/native'
@@ -58,7 +58,7 @@ def main():
         report['compiler_dependency'] = configure_compiler(source, args.compiler_archive)
         bazel = root / 'bazel'
         with urllib.request.urlopen(
-                'https://github.com/bazelbuild/bazel/releases/download/9.2.0/bazel-9.2.0-linux-x86_64',
+                BAZEL_URL,
                 timeout=120) as response, bazel.open('wb') as output:
             shutil.copyfileobj(response, output)
         if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:
