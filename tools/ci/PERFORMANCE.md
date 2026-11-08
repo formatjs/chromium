@@ -877,3 +877,19 @@ Consumer declarations, compiler flags, source selection and link order are uncha
 
 215 tests pass. This qualifies the input change; full strict-cold timing, archive,
 ABI and rendering remain unproven. The current seven-PCH cold run predates it.
+
+### Held Chromium-trained compiler and Content trial
+
+The next prepared strict-cold candidate combines seven qualified project PCHs,
+the explicit Content forwarder dependency and the existing Chromium-trained
+compiler artifact. Archive c04cdca0eb8f94a93a2193200f5375356c7769cb53d3eb42ef75fd7ac95f0fa0
+and driver 274f6c48c5de1dad64037c6239fb5310faf1d1844bd1f5bc56feef50b5ee85a4
+are both pinned. Fetch uses the prior compiler-preparation CI artifact through
+managed BuildBuddy auth, not a new release. Dependency fetch stays inside timing.
+
+Its six-source BB comparison reduced compiler CPU 6.13% and wall time 9.23%
+against D94. That narrow result does not establish full-build performance.
+Chrome UI/Profile candidates and BOLT are excluded here. Complete target,
+fresh state, seven producer/closure checks, one prefix guard and cache policy
+remain unchanged. Only perf/strict-cold-c04-content-run triggers this candidate;
+the ready branch is held while the existing seven-PCH run finishes.

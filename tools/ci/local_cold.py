@@ -141,11 +141,14 @@ def main():
     parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
     parser.add_argument('--blink-pch', action='store_true', help='Opt into validated native Blink PCH')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
+    parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
     parser.add_argument('--compiler-archive', type=Path, help='Explicit SHA-pinned experimental compiler dependency')
     parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
+    if args.compiler_profile != 'cxx' and not args.compiler_archive:
+        parser.error('--compiler-profile requires --compiler-archive')
     if args.project_pch and not args.blink_pch:
         parser.error('--project-pch requires --blink-pch')
     if args.blink_pch and (not args.native_tools or args.platform != 'linux-amd64'):
@@ -204,7 +207,7 @@ def main():
             raise ValueError('Source commit does not select Bazel 9.2.0')
         if args.compiler_archive:
             from tools.ci.compiler_archive import configure_compiler
-            compiler_dependency = configure_compiler(source, args.compiler_archive)
+            compiler_dependency = configure_compiler(source, args.compiler_archive, args.compiler_profile)
         environment = os.environ.copy()
         for name, child in {
             'XDG_CACHE_HOME': 'xdg-cache', 'PIP_CACHE_DIR': 'pip-cache', 'UV_CACHE_DIR': 'uv-cache',
@@ -275,7 +278,7 @@ def main():
         if code == 0:
             if compiler_dependency is not None:
                 from tools.ci.compiler_archive import verify_compiler
-                compiler_dependency['actual_binary_sha256'] = verify_compiler(directory / 'output-base')
+                compiler_dependency['actual_binary_sha256'] = verify_compiler(directory / 'output-base', args.compiler_profile)
             artifacts = directory / 'artifacts'
             artifacts.mkdir()
             for path in artifact_outputs(events, label):
