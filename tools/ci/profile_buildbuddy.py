@@ -2,21 +2,32 @@
 
 import argparse
 from bisect import bisect_right
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-import gzip
+import heapq
+import hashlib
 import json
 import math
 import os
 from pathlib import Path
 import re
 import statistics
-import tempfile
 import urllib.request
 
 from tools.ci.buildbuddy_artifacts import API_URL, COLD_WORKFLOW_PREFIXES, api_request, invocation_id
+from tools.ci.trace_events import TraceEvents
 
 
 RPC_URL = 'https://formatjs.buildbuddy.io/rpc/BuildBuddyService/'
+LOCAL_SPAWN_MNEMONICS = (
+    'CppCompile', 'CppLink', 'CppArchive', 'ChromiumPython',
+    'ChromiumProjectPch', 'ChromiumPchClosure', 'Rustc', 'RustBindgen',
+    'ChromiumBindgenLayout', 'ChromiumRustcCfg', 'ChromiumToolRuntime',
+    'Genrule', 'RunBinary', 'CcAutoconfCheck', 'CcAutoconfHdr', 'CcStage0Compile',
+    'Bison', 'GlibMkenums', 'PerfettoBuildflags', 'AomRtcdGen',
+    'LibvpxRtcdHeader', 'CopyToDirectory',
+)
+
 
 
 def rpc(method, body):
@@ -98,43 +109,93 @@ def compiler_work(events):
     return groups
 
 
+def local_action_work(events):
+    """Attribute local subprocess and sandbox spans without exporting paths."""
+    groups, threads = {}, {}
+    for event in events:
+        mnemonic = event.get('args', {}).get('mnemonic')
+        if (event.get('cat') != 'action processing'
+                or mnemonic not in LOCAL_SPAWN_MNEMONICS):
+            continue
+        group = ('BlinkBindings' if mnemonic == 'ChromiumPython'
+                 and '/gen/third_party/blink/renderer/bindings/' in event.get('out', '')
+                 else mnemonic)
+        row = groups.setdefault(group, {'action_spans': 0, 'action_task_seconds': 0,
+                                       'max_action_seconds': 0, 'subprocess_task_seconds': 0,
+                                       'sandbox_task_seconds': 0})
+        start_seconds = event['ts'] / 1e6
+        end_seconds = (event['ts'] + event['dur']) / 1e6
+        row['first_action_start_seconds'] = min(row.get('first_action_start_seconds', start_seconds), start_seconds)
+        row['last_action_end_seconds'] = max(row.get('last_action_end_seconds', end_seconds), end_seconds)
+        seconds = event['dur'] / 1e6
+        row['action_spans'] += 1
+        row['action_task_seconds'] += seconds
+        row['max_action_seconds'] = max(row['max_action_seconds'], seconds)
+        threads.setdefault(event.get('tid'), []).append((event['ts'], event['ts'] + event['dur'], group))
+    indices = {}
+    for thread, intervals in threads.items():
+        intervals.sort()
+        indices[thread] = ([item[0] for item in intervals], intervals)
+    for event in events:
+        field = {'subprocess.run': 'subprocess_task_seconds',
+                 'sandbox.createFileSystem': 'sandbox_task_seconds'}.get(event.get('name'))
+        index = indices.get(event.get('tid'))
+        if field is None or index is None:
+            continue
+        starts, intervals = index
+        position = bisect_right(starts, event['ts']) - 1
+        if position < 0:
+            continue
+        start, end, group = intervals[position]
+        if event['ts'] >= start and event['ts'] + event['dur'] <= end + 1000:
+            groups[group][field] += event['dur'] / 1e6
+    return groups
+
+
+def target_timings(events):
+    """Group observed spans by hashed target/configuration; keep labels private."""
+    groups = {}
+    for event in events:
+        arguments = event.get('args', {})
+        mnemonic, target = arguments.get('mnemonic'), arguments.get('target')
+        if event.get('cat') != 'action processing' or not mnemonic or not target:
+            continue
+        output = event.get('out', '')
+        configuration = output.split('/')[1] if output.startswith('bazel-out/') else ''
+        target_hash = hashlib.sha256(target.lstrip('@').encode()).hexdigest()
+        configuration_hash = hashlib.sha256(configuration.encode()).hexdigest() if configuration else ''
+        key = target_hash, configuration_hash, mnemonic
+        start, end = event['ts'] / 1e6, (event['ts'] + event['dur']) / 1e6
+        row = groups.setdefault(key, {'observed_spans': 0, 'observed_task_seconds': 0,
+                                      'first_start_seconds': start, 'last_end_seconds': end})
+        row['observed_spans'] += 1
+        row['observed_task_seconds'] += event['dur'] / 1e6
+        row['first_start_seconds'] = min(row['first_start_seconds'], start)
+        row['last_end_seconds'] = max(row['last_end_seconds'], end)
+    return [dict(target_sha256=target, configuration_sha256=configuration,
+                 mnemonic=mnemonic, **row)
+            for (target, configuration, mnemonic), row in sorted(groups.items())]
+
+
+def pch_event_schema(events):
+    """Detect PCH spans whose metadata format differs from native C++ spans."""
+    matches = [event for event in events if event.get('name', '').startswith(
+        ('ChromiumProjectPch', 'ChromiumPchClosure')) or event.get('out', '').endswith('.pch')]
+    return {'matching_events': len(matches),
+            'completed_duration_spans': sum(event.get('ph') == 'X' and event.get('dur', 0) > 0
+                                            for event in matches),
+            'categories': dict(Counter(event.get('cat', '') for event in matches)),
+            'phase_types': dict(Counter(event.get('ph', '') for event in matches)),
+            'mnemonic_present': sum(bool(event.get('args', {}).get('mnemonic')) for event in matches),
+            'argument_keys': sorted({key for event in matches for key in event.get('args', {})})}
+
+
 def trace_summary(path, allow_partial=False):
-    with path.open('rb') as source:
-        opener = gzip.open if source.read(2) == b'\x1f\x8b' else open
-    with opener(path, 'rt') as source:
-        data = source.read()
-    complete = True
-    try:
-        events = json.loads(data).get('traceEvents', [])
-    except json.JSONDecodeError:
-        if not allow_partial:
-            raise
-        start = re.search(r'"traceEvents"\s*:\s*\[', data)
-        if start is None:
-            raise ValueError('Partial profile has no event array')
-        complete, events, position = False, [], start.end()
-        decoder = json.JSONDecoder()
-        separator = re.compile(r'[\s,]*')
-        while position < len(data):
-            position = separator.match(data, position).end()
-            try:
-                event, position = decoder.raw_decode(data, position)
-            except json.JSONDecodeError:
-                break
-            if not isinstance(event, dict):
-                raise ValueError('Profile event must be an object')
-            events.append(event)
-        if not events:
-            raise ValueError('Partial profile has no complete events')
-    durations = [event for event in events if event.get('ph') == 'X' and event.get('dur', 0) > 0]
-    phases = [event for event in events if event.get('cat') == 'build phase marker']
-    longest = sorted(durations, key=lambda event: event['dur'], reverse=True)[:40]
+    reader = TraceEvents(path, allow_partial=allow_partial)
+    durations, phases, longest = [], [], []
     fields = ('cat', 'ts', 'dur', 'tid')
     phase_names = {'Launch Blaze', 'Initialize command', 'Evaluate target patterns',
                    'Load, analyze dependencies and build artifacts', 'Complete build'}
-    phase_summary = [{**{key: event.get(key) for key in (*fields, 'ph')},
-                      **({'name': event['name']} if event.get('name') in phase_names else {})}
-                     for event in phases]
     operations = {
         'merkle': ('general information', 'MerkleTreeComputer.buildForSpawn'),
         'upload_missing_inputs': ('Remote execution upload time', 'upload missing inputs'),
@@ -144,28 +205,65 @@ def trace_summary(path, allow_partial=False):
         'input_discovery': ('discover inputs', None),
         'include_scanning': ('include scanner', None),
     }
-    tasks = {}
-    for name, (category, event_name) in operations.items():
-        spans = [event for event in durations if event.get('cat') == category
-                 and (event_name is None or event.get('name') == event_name)]
-        tasks[name] = {'count': len(spans), 'task_seconds': sum(event['dur'] for event in spans) / 1e6}
-    counters = {}
-    for label, counter_name, argument, unit in [
+    tasks = {name: {'count': 0, 'microseconds': 0} for name in operations}
+    counter_specs = [
         ('bazel_cpu', 'CPU usage (Bazel)', 'cpu', 'cores'),
         ('bazel_memory', 'Memory usage (Bazel)', 'memory', 'MB'),
         ('active_actions', 'action count', 'action', 'actions'),
-    ]:
-        samples = [event.get('args', {}).get(argument) for event in events
-                   if event.get('ph') == 'C' and event.get('name') == counter_name]
-        samples = [value for value in samples if isinstance(value, (int, float)) and math.isfinite(value)]
-        if samples:
-            counters[label] = {'samples': len(samples), 'sample_mean': statistics.fmean(samples),
-                               'sample_max': max(samples), 'unit': unit}
-    return {'trace_complete': complete, 'event_count': len(events),
+    ]
+    samples = {label: [] for label, _, _, _ in counter_specs}
+    pch_categories, pch_phases, pch_keys = Counter(), Counter(), set()
+    pch_count = pch_durations = pch_mnemonics = count = 0
+    for count, event in enumerate(reader, 1):
+        category, name = event.get('cat'), event.get('name', '')
+        arguments = event.get('args', {})
+        if category == 'build phase marker':
+            phases.append({**{key: event.get(key) for key in (*fields, 'ph')},
+                           **({'name': name} if name in phase_names else {})})
+        if name.startswith(('ChromiumProjectPch', 'ChromiumPchClosure')) or event.get('out', '').endswith('.pch'):
+            pch_count += 1
+            pch_durations += int(event.get('ph') == 'X' and event.get('dur', 0) > 0)
+            pch_mnemonics += int(bool(arguments.get('mnemonic')))
+            pch_categories[event.get('cat', '')] += 1
+            pch_phases[event.get('ph', '')] += 1
+            pch_keys.update(arguments)
+        if event.get('ph') == 'C':
+            for label, counter_name, argument, _ in counter_specs:
+                value = arguments.get(argument)
+                if name == counter_name and isinstance(value, (int, float)) and math.isfinite(value):
+                    samples[label].append(value)
+        if event.get('ph') != 'X' or event.get('dur', 0) <= 0:
+            continue
+        heapq.heappush(longest, (event['dur'], -count, {key: event.get(key) for key in fields}))
+        if len(longest) > 40:
+            heapq.heappop(longest)
+        for operation, (task_category, task_name) in operations.items():
+            if category == task_category and (task_name is None or name == task_name):
+                tasks[operation]['count'] += 1
+                tasks[operation]['microseconds'] += event['dur']
+        if (category == 'action processing'
+                or category in {'Remote execution process wall time', 'discover inputs', 'include scanner'}
+                or name in {'MerkleTreeComputer.buildForSpawn', 'subprocess.run', 'sandbox.createFileSystem'}):
+            compact = {key: event[key] for key in ('cat', 'name', 'ts', 'dur', 'tid', 'out') if key in event}
+            compact['args'] = {key: arguments[key] for key in ('mnemonic', 'target') if key in arguments}
+            durations.append(compact)
+    counters = {}
+    for label, _, _, unit in counter_specs:
+        values = samples[label]
+        if values:
+            counters[label] = {'samples': len(values), 'sample_mean': statistics.fmean(values),
+                               'sample_max': max(values), 'unit': unit}
+    return {'trace_complete': reader.complete, 'event_count': count,
             'compiler_work': compiler_work(durations),
-            'phases': phase_summary,
-            'longest_events': [{key: event.get(key) for key in fields} for event in longest],
-            'tasks': tasks, 'counters': counters}
+            'local_action_work': local_action_work(durations),
+            'target_timings': target_timings(durations),
+            'pch_event_schema': {'matching_events': pch_count, 'completed_duration_spans': pch_durations,
+                                 'categories': dict(pch_categories), 'phase_types': dict(pch_phases),
+                                 'mnemonic_present': pch_mnemonics, 'argument_keys': sorted(pch_keys)},
+            'phases': phases,
+            'longest_events': [event for _, _, event in sorted(longest, reverse=True)],
+            'tasks': {name: {'count': row['count'], 'task_seconds': row['microseconds'] / 1e6}
+                      for name, row in tasks.items()}, 'counters': counters}
 
 
 def strict_cold_timing_verified(outer, report):
@@ -180,6 +278,21 @@ def strict_cold_timing_verified(outer, report):
             and report.get('cold_result_verified') is True
             and report.get('local_execution_verified') is True
             and 0 < build_seconds <= full_seconds < 3600)
+
+
+class _ProfileDownload:
+    def __init__(self, source):
+        self.source = source
+        self.size = 0
+
+    def read(self, size):
+        if size < 0:
+            raise ValueError('Profile download must use bounded reads')
+        data = self.source.read(size)
+        self.size += len(data)
+        if self.size > 32 * 1024 * 1024 * 1024:
+            raise ValueError('Profile exceeds 32 GiB')
+        return data
 
 
 def collect(identifier):
@@ -205,6 +318,25 @@ def collect(identifier):
     elif pattern == ['Chromium Clang phase profile']:
         report_key = 'clang_experiment'
         report_path = 'clang-profile/report.json'
+    elif pattern == ['Chromium V8 PCH comparison']:
+        report_key = 'pch_experiment'
+        report_path = 'v8-pch/report.json'
+    elif pattern == ['Chromium module PCH comparison']:
+        report_key = 'pch_experiment'
+        report_path = 'module-pch/report.json'
+    elif pattern == ['Chromium local PCH comparison']:
+        report_key = 'pch_experiment'
+        report_path = 'local-pch/report.json'
+    elif pattern in [['Chromium local compiler concurrency'], ['Chromium local compile pipeline']]:
+        report_key = 'local_throughput'
+        report_path = ('local-pipeline/report.json' if pattern == ['Chromium local compile pipeline']
+                       else 'local-throughput/report.json')
+    elif pattern == ['Chromium compiler preparation']:
+        report_key = 'compiler_preparation'
+        report_path = 'compiler-preparation/report.json'
+    elif pattern == ['Chromium compiler comparison']:
+        report_key = 'compiler_preparation'
+        report_path = 'compiler-comparison/report.json'
     elif pattern in [['Chromium header include experiment'], ['Chromium private include experiment']]:
         report_key = 'include_experiment'
         report_path = 'private-includes/report.json'
@@ -258,30 +390,13 @@ def collect(identifier):
                 API_URL + 'GetFile', data=json.dumps({'uri': profile['uri']}).encode(),
                 headers={'Content-Type': 'application/json',
                          'x-buildbuddy-api-key': os.environ['BUILDBUDDY_API_KEY']})
-            with tempfile.TemporaryDirectory(prefix='bb-profile-') as temporary:
-                path = Path(temporary) / 'trace.gz'
-                with urllib.request.urlopen(request, timeout=120) as response, path.open('wb') as output:
-                    size = 0
-                    while chunk := response.read(1024 * 1024):
-                        size += len(chunk)
-                        if size > 256 * 1024 * 1024:
-                            raise ValueError('Profile exceeds 256 MiB')
-                        output.write(chunk)
-                profile['summary'] = trace_summary(path)
+            with urllib.request.urlopen(request, timeout=120) as response:
+                profile['summary'] = trace_summary(_ProfileDownload(response))
             del profile['uri']
         result['children'].append(summary)
     if cold_profile and not any(child['profiles'] for child in result['children']):
-        with tempfile.TemporaryDirectory(prefix='bb-cold-profile-') as temporary:
-            path = Path(temporary) / 'trace.json'
-            with api_request('GetFile', {'uri': cold_profile}, os.environ['BUILDBUDDY_API_KEY']) as response, \
-                    path.open('wb') as output:
-                size = 0
-                while chunk := response.read(1024 * 1024):
-                    size += len(chunk)
-                    if size > 256 * 1024 * 1024:
-                        raise ValueError('Profile exceeds 256 MiB')
-                    output.write(chunk)
-            result['cold_profile'] = trace_summary(path, allow_partial=True)
+        with api_request('GetFile', {'uri': cold_profile}, os.environ['BUILDBUDDY_API_KEY']) as response:
+            result['cold_profile'] = trace_summary(_ProfileDownload(response), allow_partial=True)
     if cold_prefix == 'Chromium strict cold build ':
         result['strict_cold_timing_verified'] = strict_cold_timing_verified(
             outer, result.get('cold_build', {}))
