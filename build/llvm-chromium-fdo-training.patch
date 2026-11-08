@@ -1,0 +1,102 @@
+--- a/toolchain/bootstrap/fdo_profile.bzl
++++ b/toolchain/bootstrap/fdo_profile.bzl
+@@ -117,6 +117,12 @@
+         action_name = ACTION_NAMES.cpp_compile
+         sources = [file for file in ctx.files.srcs if file.extension in ["cc", "cpp", "cxx"]]
+         compile_flags = ["-x", "c++"] + _COMMON_COMPILE_FLAGS[2:] + ["-std=c++20", "-flto=thin", "-pthread"]
++    if ctx.attr.language == "c++-cpp-output":
++        if not ctx.attr.compile_only or ctx.attr.workload_kind != "hosted":
++            fail("Preprocessed C++ training requires compile-only hosted sources")
++        action_name = ACTION_NAMES.cpp_compile
++        sources = [file for file in ctx.files.srcs if file.extension == "ii"]
++        compile_flags = ctx.attr.compile_flags + ["-x", "c++-cpp-output"]
+     if not sources:
+         fail("No training sources for " + ctx.attr.language)
+ 
+@@ -128,7 +134,7 @@
+         ctx = ctx,
+         cc_toolchain = cc_toolchain,
+         requested_features = ctx.features,
+-        unsupported_features = ctx.disabled_features,
++        unsupported_features = ctx.disabled_features + (["thin_lto"] if ctx.attr.language == "c++-cpp-output" else []),
+     )
+     compile_executable = cc_common.get_tool_for_action(
+         feature_configuration = feature_configuration,
+@@ -174,7 +180,7 @@
+         objects.append(object_file)
+         profraws.append(profraw)
+ 
+-    if ctx.attr.workload_kind == "freestanding":
++    if ctx.attr.compile_only or ctx.attr.workload_kind == "freestanding":
+         profraws_depset = depset(profraws)
+         return [
+             DefaultInfo(files = profraws_depset),
+@@ -234,14 +240,21 @@
+     implementation = _llvm_fdo_profile_workload_impl,
+     attrs = {
+         "srcs": attr.label(
+-            allow_files = [".c", ".h", ".cc", ".cpp", ".cxx", ".hpp"],
++            allow_files = [".c", ".h", ".cc", ".cpp", ".cxx", ".hpp", ".ii"],
+             mandatory = True,
+             doc = "Training sources compiled for target_platform.",
+         ),
+         "language": attr.string(
+             default = "c",
+-            values = ["c", "c++"],
++            values = ["c", "c++", "c++-cpp-output"],
+             doc = "Compiler frontend exercised by the training sources.",
++        ),
++        "compile_only": attr.bool(
++            default = False,
++            doc = "Collect compiler profiles without linking the training sources.",
++        ),
++        "compile_flags": attr.string_list(
++            doc = "Code generation options for preprocessed C++ sources.",
+         ),
+         "target_platform": attr.label(
+             mandatory = True,
+--- a/toolchain/bootstrap/stage3/BUILD.bazel
++++ b/toolchain/bootstrap/stage3/BUILD.bazel
+@@ -1,6 +1,7 @@
+ load("//platforms:common.bzl", "SUPPORTED_TARGETS")
+ load("//toolchain/bootstrap:bootstrap_binary.bzl", "bootstrap_binaries")
+ load("//toolchain/bootstrap:fdo_profile.bzl", "llvm_fdo_profile_data", "llvm_fdo_profile_workload")
++load(":chromium_training/inputs.bzl", "WORKLOADS")
+ 
+ _LLVM_FDO_EXECUTORS = {
+     "linux_aarch64": {
+@@ -57,12 +58,33 @@
+ ]
+ 
+ [
++    llvm_fdo_profile_workload(
++        name = "llvm_chromium_fdo_profile_workload_" + workload["name"],
++        srcs = workload["source"],
++        compile_flags = workload["flags"],
++        compile_only = True,
++        exec_compatible_with = [
++            "@platforms//cpu:x86_64",
++            "@platforms//os:linux",
++        ],
++        exec_properties = {"Arch": "amd64"},
++        language = "c++-cpp-output",
++        target_platform = "//platforms:linux_x86_64",
++        workload_kind = "hosted",
++    )
++    for workload in WORKLOADS
++]
++
++[
+     llvm_fdo_profile_data(
+         name = "llvm_fdo_profdata_linux_" + executor_cpu,
+         profiles = [
+             "llvm_fdo_profile_workload_linux_%s_to_%s_%s" % (executor_cpu, target_os, target_cpu)
+             for target_os, target_cpu in SUPPORTED_TARGETS
+-        ] + ["llvm_cxx_fdo_profile_workload_linux_" + executor_cpu],
++        ] + ["llvm_cxx_fdo_profile_workload_linux_" + executor_cpu] + ([
++            "llvm_chromium_fdo_profile_workload_" + workload["name"]
++            for workload in WORKLOADS
++        ] if executor_cpu == "x86_64" else []),
+         visibility = ["//visibility:public"],
+     )
+     for executor_cpu in [

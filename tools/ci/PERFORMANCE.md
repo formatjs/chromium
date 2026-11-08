@@ -753,3 +753,26 @@ The first four fresh-state targets pass while Darwin repeatedly completes the
 bounded producer. The final clean-runner cohort passes all five builds without
 repeating bindings. Serial mode bounds resource use and preserves outputs;
 it alone did not fix the earlier repeated work.
+
+### Representative LLVM training experiment
+
+`tools.ci.prepare_llvm --mode chromium --training-inputs DIR` extends the pinned
+`35bd1a8` preparation workspace with two declared `.ii` inputs and provenance.
+It retains the existing C and linked generic C++ corpus. The new workloads only
+compile V8 and Content, using their original native code-generation options.
+Their objects reproduce both original hashes from an empty directory after
+removing preprocessing search paths/macros. Blink remains excluded.
+
+Metadata validation with upstream Bazel 9.3.0rc2 confirms two instrumented
+stage-2 compiler actions, declared raw profiles and no links. The generic C++
+actions remain identical. ThinLTO is disabled only on these compile-only
+workloads so training exercises native code generation; LLVM's own release
+ThinLTO/FDO settings stay unchanged. Full pipeline uses the normal registered
+Chromium toolchain to capture inputs before preparing LLVM in a separate
+workspace. Captured data stays outside Git. 208 tests and buildifier pass.
+
+Reports: `/tmp/chromium-training-reduced-flags-002/report.json`,
+`/tmp/chromium-llvm-representative-analysis/report.json`. The dedicated
+`perf/representative-llvm-fdo` workflow is cache-enabled RBE dependency preparation,
+not a cold Chromium result. No new compiler artifact, speedup or public release
+is established yet. Benchmark any produced compiler before cold adoption.
