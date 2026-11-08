@@ -1,4 +1,4 @@
-"""Compare all native module binding objects with fixed resources and byte gates."""
+"""Compare complete native PCH components with fixed resources and byte gates."""
 
 import argparse
 import hashlib
@@ -25,12 +25,32 @@ ARCHIVE_SHA256 = '7ffc0134e1516101ea11dd1a6dacd7dc4fa3c415861694ecb82727232cdcda
 COUNT = 1711
 
 
+COMPONENTS = {
+    'module-bindings': {
+        'owner': OWNER, 'count': COUNT, 'archive_sha256': ARCHIVE_SHA256,
+        'group': 'idl', 'pch_consumers': COUNT - 2,
+        'source_prefix': 'external/+chromium_dependencies+chromium/',
+    },
+    'v8-base': {
+        'owner': 'browser_v8_25a5dd0bb5046cea', 'count': 578,
+        'archive_sha256': '9041d6d1d33071387ec0ac40c8cd81c1e27883bc726ee2a67e500f4345fb6607',
+        'group': 'isolate', 'pch_consumers': 474,
+        'source_prefix': 'external/+chromium_dependencies+chromium_v8/',
+    },
+}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--component', choices=tuple(COMPONENTS), default='module-bindings')
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--sandbox-base', type=Path, required=True)
     parser.add_argument('--compiler-archive', type=Path, required=True)
     args = parser.parse_args()
+    component = COMPONENTS[args.component]
+    owner, count = component['owner'], component['count']
+    archive_sha256, group = component['archive_sha256'], component['group']
+    pch_consumers = component['pch_consumers']
     verify_ram_sandbox(args.sandbox_base)
     args.directory.mkdir(parents=True, exist_ok=False)
     machine = machine_limits()
@@ -38,11 +58,12 @@ def main():
     if capacity < 1:
         raise ValueError('Runner needs a positive CPU budget')
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
-    report = {'measurement': 'Warm supporting outputs; all module compiles and candidate PCH rebuilt; not cold proof',
+    report = {'measurement': 'Warm supporting outputs; all selected compiles and candidate PCH rebuilt; not cold proof',
               'revision': revision, 'machine': machine, 'jobs': capacity, 'cpu_budget': capacity,
-              'source_count': COUNT, 'pch_consumer_count': COUNT - 2,
+              'component': args.component, 'owner': owner,
+              'source_count': count, 'pch_consumer_count': pch_consumers,
               'sandbox_directory_reuse': False, 'complete': False, 'phases': {},
-              'original_archive_sha256': ARCHIVE_SHA256}
+              'original_archive_sha256': archive_sha256}
     cache = Path.home() / '.cache/chromium-strict-cold-downloads'
     cache.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='chromium-module-pch-') as temporary:
@@ -81,7 +102,7 @@ def main():
                  '--define=CHROMIUM_NATIVE_TOOLS=1', '--define=CHROMIUM_BLINK_PCH=1',
                  '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution',
                  '--define=CHROMIUM_COMPILE_PROBE_SCAN=1', '--define=CHROMIUM_BINDINGS_WORKERS=4']
-        targets = {'baseline': PREFIX + OWNER, 'candidate': PREFIX + OWNER + '_pch'}
+        targets = {'baseline': PREFIX + owner, 'candidate': PREFIX + owner + '_pch'}
         try:
             execution = Path(subprocess.check_output([*startup, 'info', 'execution_root'],
                                                      cwd=source, text=True).strip())
@@ -92,18 +113,18 @@ def main():
                 inventories[variant] = rows
                 objects[variant] = pch.owned_objects(
                     [outputs for arguments, environment, outputs in rows], execution,
-                    OWNER if variant == 'baseline' else OWNER + '_pch', package=PACKAGE,
-                    groups=('idl', 'plain') if variant == 'candidate' else (), expected_count=COUNT)
+                    owner if variant == 'baseline' else owner + '_pch', package=PACKAGE,
+                    groups=(group, 'plain') if variant == 'candidate' else (), expected_count=count)
             original = [(arguments, environment) for arguments, environment, outputs in inventories['baseline']]
             candidate = [(arguments, environment) for arguments, environment, outputs in inventories['candidate']]
             mapping = {arguments[arguments.index('-c') + 1]: arguments[arguments.index('-include-pch') + 1]
                        for arguments, environment in candidate if '-include-pch' in arguments}
-            if len(mapping) != COUNT - 2:
-                raise ValueError('Module PCH consumer inventory changed')
-            before = pch.normalized_commands(original, expected_count=COUNT)
-            after = pch.normalized_commands(candidate, mapping, eligible_sources=set(mapping), expected_count=COUNT)
+            if len(mapping) != pch_consumers:
+                raise ValueError('Component PCH consumer inventory changed')
+            before = pch.normalized_commands(original, expected_count=count)
+            after = pch.normalized_commands(candidate, mapping, eligible_sources=set(mapping), expected_count=count)
             if before != after:
-                raise ValueError('Module PCH changes compiler flags or environment')
+                raise ValueError('Component PCH changes compiler flags or environment')
             report['consumer_commands_equivalent'] = True
             report['compiler_context_sha256'] = hashlib.sha256(json.dumps(before, sort_keys=True).encode()).hexdigest()
             report['actual_binary_sha256'] = verify_compiler(root / 'output-base')
@@ -111,20 +132,21 @@ def main():
             compiler = next(iter(before.values()))[0][0]
             report['pch_reproducibility'] = verify(root / 'output-base' / compiler,
                                                   root / 'pch-reproducibility', report['actual_binary_sha256'])
-            producer = PREFIX + OWNER + '_idl_pch'
+            producer = PREFIX + owner + '_' + group + '_pch'
             producer_rows, = pch.query(startup, flags, source,
                                       '[(a.argv,[f.path for f in a.outputs.to_list()]) for a in target.actions if a.mnemonic in ["ChromiumProjectPch","ChromiumPchClosure"]]', producer)
             raw, = [arguments for arguments, outputs in producer_rows if '-x' in arguments]
             verify_producer_options(raw)
             pch_outputs = [execution / path for arguments, outputs in producer_rows for path in outputs]
-            expected = {OWNER + '_idl_pch' + suffix for suffix in ['.raw.pch', '.d', '.pch']}
+            expected = {owner + '_' + group + '_pch' + suffix for suffix in ['.raw.pch', '.d', '.pch']}
             if (len(pch_outputs) != 3 or {path.name for path in pch_outputs} != expected
                     or any(not path.is_relative_to(execution / 'bazel-out') or '..' in path.parts
                            or '/' + PACKAGE + '/' not in path.as_posix() for path in pch_outputs)):
                 raise ValueError('PCH outputs outside expected inventory')
             reference = None
             sources = tuple(path.removeprefix('bazel-out/k8-fastbuild/bin/').removeprefix(
-                'external/+chromium_dependencies+chromium/') for path in before)
+                'external/+chromium_dependencies+chromium/').removeprefix(
+                component['source_prefix']) for path in before)
             for name, variant in [('warmup-baseline', 'baseline'), ('warmup-candidate', 'candidate'),
                                   ('baseline-1', 'baseline'), ('candidate-1', 'candidate'),
                                   ('candidate-2', 'candidate'), ('baseline-2', 'baseline')]:
@@ -140,18 +162,18 @@ def main():
                     counts = {item['mnemonic']: int(item.get('actionsExecuted', 0)) for item in
                               row['build_metrics'].get('actionSummary', {}).get('actionData', [])}
                     expected_pch = int(variant == 'candidate')
-                    if (counts.get('CppCompile') != COUNT or counts.get('ChromiumPython', 0)
+                    if (counts.get('CppCompile') != count or counts.get('ChromiumPython', 0)
                             or counts.get('ChromiumProjectPch', 0) != expected_pch
                             or counts.get('ChromiumPchClosure', 0) != expected_pch):
                         raise ValueError('Measured pass contains missing selected or extra supporting actions')
                 hashes = {key: hashlib.sha256(path.read_bytes()).hexdigest() for key, path in objects[variant].items()}
                 current = row['archive_sha256'], hashes
                 if reference is None:
-                    if row['archive_sha256'] != ARCHIVE_SHA256:
-                        raise ValueError('Frozen original module archive changed')
+                    if row['archive_sha256'] != archive_sha256:
+                        raise ValueError('Frozen original component archive changed')
                     reference = current
                 if current != reference:
-                    raise ValueError('Module PCH changes original objects or archive')
+                    raise ValueError('Component PCH changes original objects or archive')
                 row['object_and_archive_bytes_match'] = True
                 print(json.dumps({'phase': name, 'wall_seconds': row['wall_seconds'], 'bytes_match': True}), flush=True)
             report['complete'] = True
