@@ -776,3 +776,23 @@ Reports: `/tmp/chromium-training-reduced-flags-002/report.json`,
 `perf/representative-llvm-fdo` workflow is cache-enabled RBE dependency preparation,
 not a cold Chromium result. No new compiler artifact, speedup or public release
 is established yet. Benchmark any produced compiler before cold adoption.
+
+### LLVM BOLT feasibility
+
+LLVM documents [BOLT optimization of Clang](https://github.com/llvm/llvm-project/blob/main/bolt/docs/OptimizingClang.md).
+This changes compiler binary layout, leaving Chromium compile settings intact.
+The pinned hermetic LLVM source already links mimalloc on Linux; adding an
+allocator is not another available improvement.
+
+Current compiler archives strip their symbol tables. The separate preparation
+workflow builds pinned LLVM's BOLT target and exposes the existing Stage 3
+unstripped compiler through the same musl, source-backed, FDO transition.
+Stripping that compiler must reproduce the exact Chromium-trained driver
+274f6c48c5de1dad64037c6239fb5310faf1d1844bd1f5bc56feef50b5ee85a4.
+The existing stripped D94 compiler is rejected by this prerequisite gate.
+
+Actual Bazel metadata analysis resolves both targets and the underlying compiler
+link, with zero executed actions. Existing compiler preparation argv stays exact;
+208 tests pass. Preparation uses cache-enabled RBE and is excluded from cold
+browser timing. No BOLT transformation or compiler adoption yet. Training,
+original-object byte gates and controlled measurements remain required.

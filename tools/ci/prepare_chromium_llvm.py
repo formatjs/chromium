@@ -15,6 +15,7 @@ TARGET = '@chromium//native:llvm_training_inputs'
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('--bolt-feasibility', action='store_true')
     args = parser.parse_args()
     if not os.environ.get('BUILDBUDDY_CI_RUNNER_ABSPATH'):
         parser.error('Compiler preparation requires a BuildBuddy workflow runner')
@@ -35,7 +36,9 @@ def main():
     if len(paths) != len(expected) or len(parents) != 1 or {path.name for path in paths} != expected:
         raise ValueError('Unexpected representative preprocessing outputs')
     subprocess.run([*startup, 'shutdown'], cwd=ROOT, check=True)
-    subprocess.run([sys.executable, '-m', 'tools.ci.prepare_llvm', '--mode', 'chromium',
+    preparation = 'tools.ci.prepare_llvm_bolt' if args.bolt_feasibility else 'tools.ci.prepare_llvm'
+    mode = [] if args.bolt_feasibility else ['--mode', 'chromium']
+    subprocess.run([sys.executable, '-m', preparation, *mode,
                     '--training-inputs', str(parents.pop()), '--directory', str(args.directory)],
                    cwd=ROOT, check=True)
 

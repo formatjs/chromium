@@ -116,6 +116,22 @@ def compiler_archive(events):
     return files.pop()
 
 
+def build_flags(events):
+    return [
+        '--config=remote', '--config=release',
+        '--jobs=128', '--discard_analysis_cache', '--noannounce_rc',
+        '--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
+        '--repo_env=BAZEL_WINDOWS_SDK_EULA=1', '--remote_download_outputs=toplevel',
+        '--remote_cache=grpcs://formatjs.buildbuddy.io',
+        '--remote_executor=grpcs://formatjs.buildbuddy.io',
+        '--bes_backend=grpcs://formatjs.buildbuddy.io',
+        '--bes_results_url=https://formatjs.buildbuddy.io/invocation/',
+        '--build_metadata=REPO_URL=https://github.com/formatjs/chromium.git',
+        '--build_metadata=VISIBILITY=PUBLIC', '--remote_instance_name=compiler-training-35bd1a8',
+        '--build_event_json_file=' + str(events), '--nobuild_event_json_file_path_conversion',
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', choices=['baseline', 'cxx', 'chromium'], default='cxx')
@@ -155,17 +171,7 @@ def main():
         report['bazel_version'] = version
         events = ROOT / '.compiler-preparation/events.json'
         subprocess.run([
-            bazel, '--host_jvm_args=-Xmx8g', 'build', '--config=remote', '--config=release',
-            '--jobs=128', '--discard_analysis_cache', '--noannounce_rc',
-            '--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
-            '--repo_env=BAZEL_WINDOWS_SDK_EULA=1', '--remote_download_outputs=toplevel',
-            '--remote_cache=grpcs://formatjs.buildbuddy.io',
-            '--remote_executor=grpcs://formatjs.buildbuddy.io',
-            '--bes_backend=grpcs://formatjs.buildbuddy.io',
-            '--bes_results_url=https://formatjs.buildbuddy.io/invocation/',
-            '--build_metadata=REPO_URL=https://github.com/formatjs/chromium.git',
-            '--build_metadata=VISIBILITY=PUBLIC', '--remote_instance_name=compiler-training-35bd1a8',
-            '--build_event_json_file=' + str(events), '--nobuild_event_json_file_path_conversion', TARGET,
+            bazel, '--host_jvm_args=-Xmx8g', 'build', *build_flags(events), TARGET,
         ], cwd=workspace, check=True)
         source = compiler_archive(events)
         destination = args.directory / ('llvm-23.1.2-linux-amd64-' + args.mode + '.tar.zst')

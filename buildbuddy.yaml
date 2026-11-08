@@ -1,5 +1,22 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium LLVM BOLT feasibility
+    container_image: ubuntu-24.04
+    user: buildbuddy
+    allow_concurrent_runs: false
+    timeout: 1h
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/llvm-bolt-feasibility"]
+    steps:
+      - run: >-
+          python3 -m tools.ci.prepare_chromium_llvm --bolt-feasibility
+          --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/llvm-bolt"
+
   - name: Chromium representative LLVM compiler preparation
     container_image: ubuntu-24.04
     user: buildbuddy
