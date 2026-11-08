@@ -50,7 +50,7 @@ def machine_limits():
 
 
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
-                      expected_pch_count=0):
+                      expected_pch_count=0, expected_prefix_count=0):
     report = cold_build_report(events, elapsed, success,
                                expected_output_base=directory / 'output-base',
                                output_base_was_fresh=fresh)
@@ -105,10 +105,14 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
                                       if row['mnemonic'] == 'ChromiumProjectPch')
     report['pch_closure_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
                                       if row['mnemonic'] == 'ChromiumPchClosure')
+    report['pch_prefix_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
+                                     if row['mnemonic'] == 'ChromiumPchPrefix')
+    report['expected_prefix_count'] = expected_prefix_count
     report['expected_pch_count'] = expected_pch_count
-    report['requested_pch_actions_verified'] = (not expected_pch_count or
+    report['requested_pch_actions_verified'] = ((not expected_pch_count or
         (report['project_pch_actions'] == expected_pch_count and
          report['pch_closure_actions'] == expected_pch_count))
+        and report['pch_prefix_actions'] == expected_prefix_count)
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
                                          and report['requested_pch_actions_verified'])
@@ -285,7 +289,8 @@ def main():
         raise
     finally:
         report = local_cold_report(events, time.monotonic() - started, success, directory, cache, fresh, command,
-                                   expected_pch_count=6 if args.project_pch else 3 if args.blink_pch else 0)
+                                   expected_pch_count=7 if args.project_pch else 3 if args.blink_pch else 0,
+                                   expected_prefix_count=1 if args.project_pch else 0)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,

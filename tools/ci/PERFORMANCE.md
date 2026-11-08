@@ -847,3 +847,16 @@ custom producer treats declared headers as mandatory. Cold scheduling benefit
 remains unmeasured. A separate strict-cold trial starts from d325eeb with only
 five existing producer scopes changed; the compiler, six PCHs, complete archive
 and cache policy remain unchanged. 215 tests pass for this combined candidate.
+
+The complete V8 snapshot-generator binary also matches baseline bytes:
+`965ee9de41d0843dd49080e11f644da51904c2629c892a3f0672dd1502f3b89c`.
+This is warm sandbox correctness evidence only. The first local attempt exhausts
+filesystem inodes; cleaning only completed own sandbox trash frees 201,557
+entries. Retry uses a private 8 GiB sandbox and synchronous cleanup. Partial
+supporting outputs are reused, so its phase timings are not a performance result.
+Control: `/tmp/chromium-v8-generated-host-link-control-003/report.json`.
+
+The combined candidate's cold verifier now requires seven PCH producers, seven
+closure validators and one prefix guard. Missing or extra prefix checks reject
+cold proof; 215 tests pass. The isolated six-PCH BB trial retains its original
+verifier and remains separate.
