@@ -922,3 +922,12 @@ Full archive dependency analysis inventoried 52,516 `CppCompile` actions owned b
 All inventoried object outputs use PIC; no PIC/non-PIC duplicate variant was
 found. Source multiplicity alone cannot justify sharing across configurations
 or libraries. No further sharing change is adopted from this analysis.
+
+The worker-only timeout's partial trace contains 225,741 recorded events and is
+explicitly incomplete. Recorded compile subprocess spans sum to 41,978.70s;
+compile sandbox spans sum to 2,046.45s. Recorded Python subprocess spans sum to
+11,678.55s. The longest recorded bindings action is 121.77s. These overlapping
+span sums are neither CPU usage nor full executed-action counts. Compiler work
+still dominates; this trace does not establish end-to-end generator speedup.
+The workflow wrapper's cache statistics do not describe the separate local cold
+Bazel invocation. No final cold report or completed archive exists for this run.
