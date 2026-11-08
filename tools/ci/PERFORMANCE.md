@@ -939,3 +939,12 @@ all 1,042 UI, 1,430 Profile and 1,161 Content objects, each archive, and the com
 9,350-object browser relink pass against frozen original outputs. Narrow local
 ABBA results do not predict complete cold timing. Other four triples remain
 cold-unmeasured. BOLT remains excluded pending full compiler/package validation.
+
+Combined correctness gates pass: all 1,042 UI, 1,430 Profile and 1,161 Content
+objects preserve frozen original bytes; each cohort archive matches. The full
+ten-producer graph preserves browser/V8 link arguments, order and environment
+after expected object-path substitutions. Relinking all 9,350 Chrome replacement
+objects reproduces browser SHA-256
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
+218 tests pass. These are warm correctness gates, not cold timing or artifact
+ABI/rendering proof. The separate V8 compiler pilot is excluded.
