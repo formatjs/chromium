@@ -956,3 +956,8 @@ generation. Clang rejects a mismatched RTTI consumer. Full 256-consumer byte
 checks run in separate fresh local state after a wrong-workspace diagnostic was
 discarded. No browser rollout. Full payload, ABI/rendering and strict-cold gates
 remain mandatory. Other four triples' strict-cold timings remain unmeasured.
+
+The trained trial's collected trace is incomplete (214,913 events). Recorded
+compile subprocess spans sum to 42,276.18s, compile sandbox spans 1,963.65s and
+Python subprocess spans 11,967.13s. These overlapping sums are not CPU totals,
+full executed counts or an isolated comparison with the worker-only trial.
