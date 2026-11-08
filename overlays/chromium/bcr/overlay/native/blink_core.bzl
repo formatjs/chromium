@@ -48,8 +48,12 @@ def native_blink_core():
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
         sources = [p for p in library["srcs"] if p not in c_sources]
+        replacement = None
         if original == "//third_party/blink/renderer/core:core":
             replacement = blink_core_pch(library["name"], library, common)
+        elif original == "//third_party/blink/renderer/bindings/core/v8:v8":
+            replacement = blink_bindings_pch(library, common)
+        if replacement:
             sources = select({
                 "//native/tool_configuration:blink_pch": [],
                 "//conditions:default": sources,
@@ -64,8 +68,6 @@ def native_blink_core():
             copts = library["copts"],
             **common
         )
-        if original == "//third_party/blink/renderer/bindings/core/v8:v8":
-            blink_bindings_pch(library, common)
     native.alias(
         name = "blink_core",
         actual = ":" + LIBRARIES["//third_party/blink/renderer/core:core"]["name"],

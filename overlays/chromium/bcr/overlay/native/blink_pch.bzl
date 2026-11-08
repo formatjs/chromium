@@ -56,7 +56,7 @@ def blink_core_pch(name, library, common):
     return ":" + name + "_pch"
 
 def blink_bindings_pch(library, common):
-    """Prepare binding objects for byte validation before routing."""
+    """Return validated IDL PCH objects without an owner dependency."""
     name = library["name"]
     context = name + "_pch_context"
     cc_library(name = context, copts = library["copts"], tags = ["manual"], **common)
@@ -85,3 +85,4 @@ def blink_bindings_pch(library, common):
         target_compatible_with = _LINUX,
         tags = ["manual"],
     )
+    return ":" + name + "_pch"
