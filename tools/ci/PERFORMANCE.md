@@ -856,3 +856,15 @@ unchanged. It has not run. Public compiler prerelease publication awaits explici
 approval after automatic approval review rejected publication authorization.
 The strict-cold under-one-hour goal remains unmet; other four triples' strict-cold
 timings remain unmeasured.
+
+The combined configuration preflight at `2c0c81a` passes actual Bazel analysis:
+six expanded compiler commands/environments match, expected original/trained
+binary hashes are selected, and four-worker bindings declare all 5,574 outputs.
+This disposable analysis fixture uses verified local archive URLs; it publishes
+nothing and executes zero build actions.
+
+While compiler release approval remains pending, an independent
+[full worker-only strict-cold trial](https://formatjs.buildbuddy.io/invocation/c37119b8-bbea-4d36-b30f-82c8a2cdb53e)
+at `c92f1eb` is running. It retains the original published compiler and tests
+the validated generator change with the full archive target and existing
+strict cache policy. No completed cold result or artifact is available yet.
