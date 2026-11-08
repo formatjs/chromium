@@ -54,16 +54,20 @@ def install_relocations(workspace):
     excludes = source_excludes(workspace)
     patch = workspace / 'llvm-bolt-input.patch'
     shutil.copyfile(ROOT / 'build/llvm-bolt-relocations.patch', patch)
+    runtime = workspace / 'llvm-bolt-runtime.BUILD.bazel'
+    shutil.copyfile(ROOT / 'build/llvm-bolt-runtime.BUILD.bazel', runtime)
     build = workspace / 'BUILD.bazel'
-    build.write_text(build.read_text() + '\nexports_files(["llvm-bolt-input.patch"])\n')
+    build.write_text(build.read_text() + '\nexports_files(["llvm-bolt-input.patch", "llvm-bolt-runtime.BUILD.bazel"])\n')
     declaration = '\nllvm.from_archive(\n'
     for key, value in [('url', spec['url']), ('sha256', spec['sha256']),
                        ('strip_prefix', spec.get('strip_prefix', 'llvm-project-23.1.2.src')),
                        ('patch_args', ['-p1']), ('patches', patches + ['//:llvm-bolt-input.patch']),
-                       ('excludes', excludes)]:
+                       ('excludes', excludes),
+                       ('files', {'bolt/runtime/BUILD.bazel': '//:llvm-bolt-runtime.BUILD.bazel'})]:
         declaration += '    ' + key + ' = ' + json.dumps(value) + ',\n'
     declaration += ')\n'
     module.write_text(text.replace(marker, marker + declaration))
     return {'llvm_archive_sha256': spec['sha256'], 'llvm_archive_url': spec['url'],
             'original_patches_retained': len(patches), 'original_excludes_retained': len(excludes),
-            'bolt_input_patch_sha256': hashlib.sha256(patch.read_bytes()).hexdigest()}
+            'bolt_input_patch_sha256': hashlib.sha256(patch.read_bytes()).hexdigest(),
+            'bolt_runtime_build_sha256': hashlib.sha256(runtime.read_bytes()).hexdigest()}
