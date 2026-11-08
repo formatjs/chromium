@@ -69,3 +69,17 @@ no byte-gate exception. Report:
 Producer trace also shows 205.53 s in `sandbox.filterInputsAndDirsToCreate`
 versus 3.93 s in the compiler. This run proves neither timing benefit nor a
 cold-build cause. Investigate sandbox reuse separately with fixed inputs.
+
+## Existing-consumer WTF string PCH
+
+The source-aware WTF string variant preserves all 256 original objects and the
+archive. It rebuilt 241 PCH consumers; 15 unchanged objects reused their original
+outputs. Full command/environment comparison matches the native baseline after
+removing only PCH, relocation, prefix mapping and output-path differences.
+Report: `/tmp/chromium-source-aware-string-pch-256-correctness.json`.
+
+A controlled local ABBA is pending. Each measured pass must execute all 256
+compiles. Candidate passes must also execute a fresh raw PCH producer and closure
+validator; removing only the verified PCH would measure a cached producer.
+Both variants disable sandbox directory reuse for this comparison. No BB or
+cold speedup is established by these correctness results.
