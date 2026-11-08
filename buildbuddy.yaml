@@ -1,5 +1,21 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
+  - name: Chromium filesystem diagnostic
+    container_image: ubuntu-24.04
+    user: buildbuddy
+    timeout: 10m
+    resource_requests:
+      cpu: 16
+      memory: 32GB
+      disk: 200GB
+    triggers:
+      push:
+        branches: ["perf/bb-storage-diagnostic"]
+    steps:
+      - run: >-
+          python3 -m tools.ci.storage_probe
+          --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/filesystems"
+
   - name: Chromium dependency fetch diagnostic
     container_image: ubuntu-24.04
     user: buildbuddy
