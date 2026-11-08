@@ -25,7 +25,8 @@ def main():
              '--define=CHROMIUM_COMPILE_PROBE_SCAN=1',
              '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution']
     subprocess.run([*startup, 'build', *flags, TARGET], cwd=ROOT, check=True)
-    files = subprocess.check_output([*startup, 'cquery', *flags, '--output=files', TARGET],
+    query_flags = [*flags, '--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build']
+    files = subprocess.check_output([*startup, 'cquery', *query_flags, '--output=files', TARGET],
                                     cwd=ROOT, text=True).splitlines()
     expected = {'llvm_training_' + name + suffix for name in ['v8', 'content']
                 for suffix in ['.ii', '.d', '.json']}
