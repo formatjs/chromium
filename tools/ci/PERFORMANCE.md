@@ -1318,12 +1318,26 @@ harness. No module production routing. Harness guards all 1,711 source commands,
 owned output deletion, frozen original archive, every object hash, actual source
 execution spans, producer/closure counts and compiler reproducibility. Real
 successful inventories pass its metadata guards; 200 Python tests pass. End-to-end
-BB timing remains unmeasured. Benchmark branch prepared but not triggered while
-the strict-cold run is active. Collector handles the module report (`f163015`);
-10 profile tests pass.
+BB timing remains unmeasured. Benchmark attempts fail fetching dependency
+archives (Abseil, Bazel, BoringSSL, then bazel_features release HTTP 504).
+`f698b22` switches Bazel bootstrap to its official release mirror, verified against
+the existing pinned SHA-256. `aa69cf3` adds three bounded metadata fetch attempts
+for HTTP 502/503/504 only; 202 Python tests pass. Latest invocation
+`e92ab664-afe9-43f9-96a8-f22643d06383` still fails before measured compilation.
+No dependency digest or cache policy is relaxed. Collector handles module reports.
 
 Strict-cold `df648ef` invocation
-`036230d4-e2be-4d7f-8446-50c4a2cc0d59` remains running. Goal unachieved.
+`036230d4-e2be-4d7f-8446-50c4a2cc0d59` terminates at the hosted one-hour cap:
+3,601.271254 s outer duration, 61,398.199256 CPU-seconds and
+21,078,884,352 bytes peak memory. Actual runner: 19 CPU AMD EPYC,
+35,262,926,848 bytes RAM. No completed archive or final cold-protocol report.
+Goal unachieved. Its partial trace records 18,527 C++ action spans, not a full
+executed-action count; slim/incomplete profiles cannot provide one.
+Exact archive metadata confirms all three intended PCH producers and validators
+are reachable through the archive transition. Profile diagnostics are being
+recollected to distinguish missing records from unfinished dependencies.
+Reports `/tmp/chromium-pch-cold-timeout-summary.json`,
+`/tmp/chromium-cold-pch-graph-report.json`.
 
 ### Content browser PCH pilot (not adopted)
 
@@ -1347,8 +1361,32 @@ headers. Source metadata has 1,162 entries; existing separate GPU source owner
 must remain separate. Original and candidate CcInfo both retain `alwayslink=True`.
 Generic PCH helper now accepts that attribute (default false for existing Blink
 static libraries); archive verifier accepts Bazel `.lo` outputs. 201 tests pass.
-Full 1,161-source sandboxed byte gate is running; changes remain uncommitted and
-no Content routing is enabled. Original archive SHA-256
+Revision `6d32887` completes the full sandboxed gate. All 1,161 original objects
+and archive bytes match. Thirty-four PCH cases change object bytes, so they stay
+plain: final split 273 PCH / 888 plain. Execution proof covers all original
+sources, including actual recompilation of the 34 fallbacks. Public compilation
+context and header inventory match; no Content production routing is enabled.
+Original archive SHA-256
 `8312d5e8f58898e13099a739f66c1a25a9c72034290a687c24422824c3a1b72f`.
-Preflight `/tmp/chromium-content-pch-preflight.json`; pending final report
-`/tmp/chromium-content-pch-correctness.json`.
+Reports `/tmp/chromium-content-pch-final-correctness.json`,
+`/tmp/chromium-content-pch-context-audit.json`. Local timings are uncontrolled.
+
+Two earlier disk-sandbox attempts failed with inode exhaustion. The existing
+private RAM sandbox permits the same inputs and compiler commands to execute;
+compiled outputs and original cold references remain intact. Other workspaces'
+Bazel servers were not stopped. No performance claim from these warm retries.
+
+### Complete original execution inventory
+
+The original local cold compact execution log contains all 75,286 C++ spawn
+records. Every record has metrics; decompression completes successfully.
+The slim JSON profile records fewer spans and must not supply full counts.
+The compact schema reports task wall durations, not CPU. Target configuration
+contains 44,770 C++ spawns; principal execution configuration has 28,704.
+Largest target groups include Blink core (2,398), Content browser (1,161) and V8
+base (578). Report `/tmp/chromium-original-compact-work/report.json`.
+
+Compiler training corpus correction: published C++ FDO uses generic standard
+container/ranges/template code from `build/llvm-cxx-fdo-training.patch`.
+Six V8 sources were validation/benchmark inputs, not the training corpus.
+No broader Chromium training or replacement compiler has been adopted.
