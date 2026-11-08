@@ -68,11 +68,14 @@ def _pch_impl(ctx):
         framework_include_directories = context.framework_includes,
         use_pic = True,
     )
+    inputs = depset([ctx.file.header] + ctx.files.extras, transitive = [toolchain.all_files, context.headers])
+    if ctx.attr.closure_inputs:
+        inputs = depset(headers + ctx.files.extras, transitive = [toolchain.all_files])
     ctx.actions.run(
         executable = cc_common.get_tool_for_action(feature_configuration = features, action_name = ACTION_NAMES.cpp_compile),
         arguments = cc_common.get_memory_inefficient_command_line(feature_configuration = features, action_name = ACTION_NAMES.cpp_compile, variables = variables),
         env = cc_common.get_environment_variables(feature_configuration = features, action_name = ACTION_NAMES.cpp_compile, variables = variables),
-        inputs = depset([ctx.file.header] + ctx.files.extras, transitive = [toolchain.all_files, context.headers]),
+        inputs = inputs,
         outputs = [raw, dependency],
         mnemonic = "ChromiumProjectPch",
     )
@@ -93,6 +96,7 @@ chromium_project_pch = rule(
         "header": attr.label(mandatory = True, allow_single_file = True),
         "extras": attr.label_list(allow_files = True),
         "paths": attr.string_list(mandatory = True),
+        "closure_inputs": attr.bool(default = False, doc = "Use only pinned headers after validating their sandbox directory layout."),
         "copts": attr.string_list(),
         "local_defines": attr.string_list(),
         "_validator": attr.label(default = Label("//native:pch_validate.py"), allow_single_file = True),

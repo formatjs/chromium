@@ -59,6 +59,7 @@ def v8_generated_pch(library, common, sources):
         header = header,
         extras = extras,
         paths = GENERATED_HEADER_PATHS,
+        closure_inputs = True,
         copts = library["copts"] + ["-isysroot", ".", "-ffile-prefix-map=./="],
         local_defines = library["defines"],
         target_compatible_with = compatibility,

@@ -827,3 +827,23 @@ Component diagnostics request the public `archive` output group. Default
 about 1,429 unnecessary actions to this comparison's graph. Both variants still
 produce the complete cohort archive. Final strict-cold Chromium packaging keeps
 its complete target and cache policy. Other supported triples remain unmeasured.
+
+### Qualified PCH producer inputs
+
+Five existing Blink/V8 producers plus the generated V8 candidate can use their
+pinned project headers as required inputs, retaining complete toolchain files.
+Actual aquery removes 318,974 producer input edges, including 154,841 generated-file
+edges. Blink producers fall from roughly 78k–80k inputs to 1.9k–2.4k. Arguments,
+environment and execution requirements match exactly; no input paths are added.
+
+A global attempt fails Content's parent-relative Skia include because file
+closures alone do not preserve directory layout. Content keeps its full context.
+The six qualified producers execute under Linux sandbox with raw PCH, validated
+PCH and depfile bytes identical to their full-input baselines. Final qualification
+of all seven producers passes. No include rewriting or directory fabrication.
+
+This can improve readiness: normal C++ actions use include scanning, while the
+custom producer treats declared headers as mandatory. Cold scheduling benefit
+remains unmeasured. A separate strict-cold trial starts from d325eeb with only
+five existing producer scopes changed; the compiler, six PCHs, complete archive
+and cache policy remain unchanged. 215 tests pass for this combined candidate.
