@@ -23,6 +23,9 @@ BOLT_TARGET = '@llvm-project//bolt:llvm-bolt'
 EXPECTED_STRIPPED_SHA256 = '274f6c48c5de1dad64037c6239fb5310faf1d1844bd1f5bc56feef50b5ee85a4'
 
 
+COMPILER_ACTION_EXPRESSION = '[(a.mnemonic,a.argv,a.env,[f.path for f in a.outputs.to_list()]) for a in getattr(target,"actions",[]) if a.mnemonic in ["CppCompile","CppHeaderParsing","CppLTOBackend","CppLink","CppLTOIndexing"]]'
+
+
 def install_target(workspace):
     path = workspace / 'toolchain/bootstrap/stage3/BUILD.bazel'
     text = path.read_text()
@@ -73,11 +76,14 @@ def inspect_compiler(compiler, directory):
 def compiler_actions(startup, flags, workspace, name):
     path = ROOT / '.compiler-preparation' / (name + '.actions.txt')
     query_flags = flags + ['--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build']
-    expression = '[(a.mnemonic,a.argv,a.env,[f.path for f in a.outputs.to_list()]) for a in target.actions if a.mnemonic in ["CppCompile","CppHeaderParsing","CppLTOBackend","CppLink","CppLTOIndexing"]]'
-    with path.open('w') as output:
-        subprocess.run([*startup, 'cquery', *query_flags, '--output=starlark',
-                        '--starlark:expr=' + expression, 'deps(labels(actual, ' + RAW_TARGET + '))'],
-                       cwd=workspace, stdout=output, check=True)
+    log = path.with_suffix('.log')
+    with path.open('w') as output, log.open('w') as error:
+        process = subprocess.run([*startup, 'cquery', *query_flags, '--output=starlark',
+                                  '--starlark:expr=' + COMPILER_ACTION_EXPRESSION,
+                                  'deps(labels(actual, ' + RAW_TARGET + '))'],
+                                 cwd=workspace, stdout=output, stderr=error)
+    if process.returncode or any(line.startswith(('ERROR:', 'Error:')) for line in log.read_text().splitlines()):
+        raise ValueError('LLVM compiler action query failed: ' + name)
     result = {}
     for line in path.read_text().splitlines():
         for mnemonic, arguments, environment, outputs in ast.literal_eval(line):

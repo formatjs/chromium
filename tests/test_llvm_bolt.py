@@ -2,10 +2,12 @@ import copy
 from pathlib import Path
 import struct
 import tempfile
+import subprocess
 import unittest
+from unittest.mock import patch
 
 from tools.ci.llvm_elf import compare_relinked_compiler
-from tools.ci.prepare_llvm_bolt import verify_relocation_actions
+from tools.ci.prepare_llvm_bolt import compiler_actions, verify_relocation_actions
 
 
 def executable():
@@ -61,6 +63,21 @@ class CompilerRelocationTest(unittest.TestCase):
     def test_truncated_elf_rejected(self):
         with self.assertRaisesRegex(ValueError, 'ELF range'):
             self.compare(executable(), executable()[:1100])
+
+    def test_query_diagnostics_reject_partial_inventory_even_with_zero_exit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / '.compiler-preparation').mkdir()
+
+            def failed_formatter(command, **kwargs):
+                kwargs['stdout'].write('[]\n')
+                kwargs['stderr'].write("ERROR: Starlark evaluation error: target lacks actions\n")
+                return subprocess.CompletedProcess(command, 0)
+
+            with patch('tools.ci.prepare_llvm_bolt.ROOT', root), patch(
+                    'tools.ci.prepare_llvm_bolt.subprocess.run', side_effect=failed_formatter):
+                with self.assertRaisesRegex(ValueError, 'LLVM compiler action query failed'):
+                    compiler_actions(['bazel'], [], root, 'baseline')
 
     def test_compile_commands_and_environment_must_survive_relink(self):
         before = {('CppCompile', ('compiler.o',)): (['clang++', '-c', 'compiler.cpp'], {'LANG': 'C'}),
