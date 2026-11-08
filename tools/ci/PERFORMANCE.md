@@ -1768,3 +1768,29 @@ falls 4.43%. It uses an existing depfile to identify candidate roots and needs
 special handling for symlink aliases and parent-relative includes. This is not a
 safe general rule transformation, nor permission to reuse dependency results in
 strict-cold builds. It remains unshipped.
+
+### Generated V8: complete BB ABBA
+
+[Comparison 91559182](https://formatjs.buildbuddy.io/invocation/91559182-c154-4126-b98f-7c25b0c379bf)
+succeeds for all 248 initializers. Mean wall time falls from 244.06 s to 98.43 s
+(59.67%). Total measured action CPU falls from 4,398.68 s to 1,415.66 s (67.82%),
+including producer, prefix check, closure validation and archive creation.
+
+Each measured pass executes exactly 248 C++ compiles; candidate passes also
+execute one producer, one prefix check and one closure validator. No supporting
+Python actions run in measured passes. Every object and complete archive matches
+original bytes. Expanded compiler flags/environment match after expected PCH
+additions. Driver remains approved D94. Actual runner: 19 AMD EPYC CPUs,
+35,262,926,848 RAM bytes. Supporting outputs are warm; this is not whole-cold proof.
+
+Collector `42497042043` succeeds. Raw report and checked summary:
+`/tmp/chromium-v8-generated-bb-comparison-result/` and
+`/tmp/chromium-v8-generated-bb-summary.json`.
+The browser and four V8 tool link graphs preserve flags, object order and
+execution environment. New generated objects occur in the snapshot-generator
+link. Its complete binary comparison is still running.
+
+Separate strict-cold trial `ea04304f` at `48e2e57` isolates five existing PCH input
+scopes. It keeps the previous compiler and six PCHs, without this new generated
+PCH. Actual hardware is again 19 AMD EPYC CPUs and 35,262,926,848 RAM bytes.
+No strict-cold result or other-platform coverage is established yet.
