@@ -168,6 +168,7 @@ class BuildProfileTest(unittest.TestCase):
             ('Chromium compiler comparison', 'compiler-comparison/report.json', 'compiler_preparation'),
             ('Chromium representative compiler comparison', 'compiler-comparison/report.json', 'compiler_preparation'),
             ('Chromium representative LLVM compiler preparation', 'llvm-compiler/report.json', 'compiler_preparation'),
+            ('Chromium LLVM BOLT relocation preparation', 'llvm-bolt/report.json', 'compiler_preparation'),
             ('Chromium header include experiment', 'private-includes/report.json', 'include_experiment'),
             ('Chromium private include experiment', 'private-includes/report.json', 'include_experiment'),
         ]:
