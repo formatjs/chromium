@@ -1,5 +1,6 @@
 {
     "url": "https://github.com/google/perfetto/archive/d5bbee7afdf259af4212929ccbff467dd5349953.tar.gz",
     "integrity": "sha256-zL4fLgEO/TThWTNhYacgxIO13BIHHyVxa1e3SZ+4png=",
-    "strip_prefix": "perfetto-d5bbee7afdf259af4212929ccbff467dd5349953"
+    "strip_prefix": "perfetto-d5bbee7afdf259af4212929ccbff467dd5349953",
+    "archive_type": "tar.gz"
 }

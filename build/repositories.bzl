@@ -8,6 +8,7 @@ def _archive_impl(ctx):
         url = source["url"],
         integrity = source["integrity"],
         stripPrefix = source.get("strip_prefix", ""),
+        type = source.get("archive_type", ""),
     )
     patches = base.get_child("patches")
     if patches.exists:
