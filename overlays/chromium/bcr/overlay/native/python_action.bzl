@@ -74,6 +74,12 @@ chromium_filegroup = rule(
     },
 )
 
+def _binding_resources_two(_os, _inputs):
+    return {"cpu": 2, "memory": 1024}
+
+def _binding_resources_four(_os, _inputs):
+    return {"cpu": 4, "memory": 2048}
+
 def _python_action_impl(ctx):
     native_linux = requires_native_linux(ctx.attr.deps)
     if native_linux:
@@ -92,11 +98,25 @@ def _python_action_impl(ctx):
         staged[logical] = file
     inputs = staged.values()
     manifest = ctx.actions.declare_file(ctx.label.name + ".action.json")
+    generator_args = list(ctx.attr.args)
+    resources = None
+    if ctx.attr.script == "third_party/blink/renderer/bindings/scripts/generate_bindings.py":
+        workers = ctx.var.get("CHROMIUM_BINDINGS_WORKERS", "1")
+        if workers not in ["1", "2", "4"]:
+            fail("CHROMIUM_BINDINGS_WORKERS must be 1, 2 or 4")
+        if workers == "1":
+            if "--single_process" not in generator_args:
+                generator_args = ["--single_process"] + generator_args
+        else:
+            if "--single_process" in generator_args or any([arg.startswith("--worker_processes") for arg in generator_args]):
+                fail("Binding worker count must come from CHROMIUM_BINDINGS_WORKERS")
+            generator_args = ["--worker_processes=" + workers] + generator_args
+            resources = _binding_resources_two if workers == "2" else _binding_resources_four
     description = {
         "inputs": [[staged[logical].path, logical] for logical in sorted(staged)],
         "outputs": [[out.path, logical] for out, logical in zip(outputs, ctx.attr.logical_outputs)],
         "script": ctx.attr.script,
-        "args": ctx.attr.args,
+        "args": generator_args,
         "response_file_contents": ctx.attr.response_file_contents,
         "build_dir": "out/bazel-import",
     }
@@ -110,6 +130,7 @@ def _python_action_impl(ctx):
         inputs = depset(inputs + [manifest, ctx.file._script], transitive = [runtime.files] + [dep[DefaultInfo].files for dep in ctx.attr.deps]),
         outputs = outputs,
         tools = [runner for runner, _ in executables],
+        resource_set = resources,
         mnemonic = "ChromiumPython",
         progress_message = "Generating %s" % ctx.label,
         exec_group = "native_linux" if native_linux else None,
@@ -164,17 +185,13 @@ def chromium_python_action(name, srcs, outs, script, args = None, response_file_
         **kwargs: Common rule attributes.
     """
     paths = sorted(outs)
-    generator_args = list(args or [])
-    if script == "third_party/blink/renderer/bindings/scripts/generate_bindings.py" and "--single_process" not in generator_args:
-        # Keep the upstream pool from growing with the executor's host CPU count.
-        generator_args = ["--single_process"] + generator_args
     _python_action(
         name = name,
         srcs = srcs,
         out_files = paths,
         logical_outputs = [outs[path] for path in paths],
         script = script,
-        args = generator_args,
+        args = args or [],
         response_file_contents = response_file_contents or [],
         deps = deps or [],
         **kwargs
