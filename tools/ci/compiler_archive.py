@@ -30,15 +30,27 @@ EXPERIMENTS = {
     },
 }
 
+BOLT_REVISION = '8b5a3e46bef60e25664d77e217b7930ac866bca5'
+BOLT_TOOLS = {
+    'llvm-unstripped': {
+        'sha256': '8f36676d15302d2e509a145d50671e31d593816ec373fc7fd0a3e0136a316ef6',
+        'size': 212232440,
+    },
+    'llvm-bolt': {
+        'sha256': '096a2e6f1360c4180fd02aa5be8ed42dac3695024c846ca62e1c7c7a2d834b5e',
+        'size': 65016168,
+    },
+}
 
-def archive_spec(revision, key):
-    spec = dict(EXPERIMENTS[revision])
+
+def archive_spec(revision, key, *, spec=None, prefix='llvm-compiler', max_size=128 * 1024 * 1024):
+    spec = dict(EXPERIMENTS[revision] if spec is None else spec)
     if 'uri' in spec:
         return spec
     with api_request('GetInvocation', {
             'selector': {'invocation_id': spec['invocation']}, 'include_artifacts': True}, key) as response:
         invocations = json.load(response).get('invocation', [])
-    suffix = 'llvm-compiler/' + spec['name']
+    suffix = prefix + '/' + spec['name']
     matches = [artifact for invocation in invocations for artifact in invocation.get('artifacts', [])
                if artifact.get('name', '') == suffix or artifact.get('name', '').endswith('/' + suffix)]
     if len(matches) != 1:
@@ -46,31 +58,21 @@ def archive_spec(revision, key):
     uri = matches[0]['uri']
     parsed = urllib.parse.urlsplit(uri)
     parts = parsed.path.rsplit('/', 2)
-    if parsed.scheme != 'bytestream' or len(parts) != 3 or parts[-2] != spec['sha256']:
+    if (parsed.scheme != 'bytestream' or parsed.netloc not in ('remote.buildbuddy.io', 'formatjs.buildbuddy.io')
+            or len(parts) != 3 or parts[-2] != spec['sha256']):
         raise ValueError('Compiler artifact URI does not match pinned digest')
     size = int(parts[-1])
-    if not 0 < size <= 128 * 1024 * 1024:
+    if not 0 < size <= max_size or ('size' in spec and size != spec['size']):
         raise ValueError('Compiler artifact size outside expected bound')
     spec.update(uri=uri, size=size)
     return spec
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--revision', choices=sorted(EXPERIMENTS), required=True)
-    output = parser.add_mutually_exclusive_group(required=True)
-    output.add_argument('--destination', type=Path)
-    output.add_argument('--directory', type=Path)
-    args = parser.parse_args()
-    args.destination = args.destination or args.directory / EXPERIMENTS[args.revision]['name']
-    if args.destination.exists() or args.destination.is_symlink():
-        raise FileExistsError(args.destination)
-    key = os.environ.get('BUILDBUDDY_API_KEY', '')
-    if not key:
-        raise ValueError('BuildBuddy read-only key is not configured')
-    spec = archive_spec(args.revision, key)
-    args.destination.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=args.destination.parent) as temporary:
+def download(spec, destination, key):
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=destination.parent) as temporary:
         archive = Path(temporary) / 'compiler.tar.zst'
         size, digest = 0, hashlib.sha256()
         with api_request('GetFile', {'uri': spec['uri']}, key) as response, archive.open('wb') as output:
@@ -82,8 +84,31 @@ def main():
                 output.write(chunk)
         if size != spec['size'] or digest.hexdigest() != spec['sha256']:
             raise ValueError('Compiler archive SHA256/size mismatch')
-        shutil.move(archive, args.destination)
-    print('Verified compiler archive SHA256: ' + spec['sha256'])
+        shutil.move(archive, destination)
+    print('Verified compiler artifact SHA256: ' + spec['sha256'])
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--revision', choices=sorted(set(EXPERIMENTS) | {BOLT_REVISION}), required=True)
+    output = parser.add_mutually_exclusive_group(required=True)
+    output.add_argument('--destination', type=Path)
+    output.add_argument('--directory', type=Path)
+    args = parser.parse_args()
+    if args.revision == BOLT_REVISION and args.destination:
+        parser.error('BOLT tools require --directory')
+    key = os.environ.get('BUILDBUDDY_API_KEY', '')
+    if not key:
+        raise ValueError('BuildBuddy read-only key is not configured')
+    if args.revision == BOLT_REVISION:
+        specs = [archive_spec(None, key, spec=values | {
+            'name': name, 'invocation': 'ec9d3a07-694e-42a0-8ef5-6dcc60d01ba8'},
+            prefix='llvm-bolt', max_size=256 * 1024 * 1024) for name, values in BOLT_TOOLS.items()]
+        for spec in specs:
+            download(spec, args.directory / spec['name'], key)
+    else:
+        destination = args.destination or args.directory / EXPERIMENTS[args.revision]['name']
+        download(archive_spec(args.revision, key), destination, key)
 
 
 if __name__ == '__main__':

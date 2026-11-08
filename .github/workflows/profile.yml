@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       download_compiler_archive:
-        description: Fetch pinned compiler experiment archive (366173f or dc5ddb5)
+        description: Fetch pinned compiler or BOLT tool experiment
         type: boolean
         default: false
       baseline:
