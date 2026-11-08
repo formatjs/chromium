@@ -70,7 +70,8 @@ def main():
                        '--host_jvm_args=-Xmx2g', '--output_user_root=' + str(root / 'user'),
                        '--output_base=' + str(root / 'output'), '--install_base=' + str(root / 'install'),
                        'fetch', '--lockfile_mode=off', '--repository_cache=' + str(root / 'cache'),
-                       '--repo_contents_cache='] + ['--repo=@@' + module + '+' for module, _, _, _ in ARCHIVES]
+                       '--repo_contents_cache=', '--downloader_config=' + str(
+                           Path(__file__).with_name('download_mirrors.cfg'))] + ['--repo=@@' + module + '+' for module, _, _, _ in ARCHIVES]
             started = time.monotonic()
             try:
                 result = subprocess.run(command, cwd=source, capture_output=True, text=True, timeout=300)
