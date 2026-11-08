@@ -142,6 +142,7 @@ class BuildProfileTest(unittest.TestCase):
             ('Chromium local compiler concurrency', 'local-throughput/report.json', 'local_throughput'),
             ('Chromium local PCH comparison', 'local-pch/report.json', 'pch_experiment'),
             ('Chromium module PCH comparison', 'module-pch/report.json', 'pch_experiment'),
+            ('Chromium V8 PCH comparison', 'v8-pch/report.json', 'pch_experiment'),
             ('Chromium compiler preparation', 'compiler-preparation/report.json', 'compiler_preparation'),
             ('Chromium compiler comparison', 'compiler-comparison/report.json', 'compiler_preparation'),
             ('Chromium header include experiment', 'private-includes/report.json', 'include_experiment'),
