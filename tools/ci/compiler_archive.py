@@ -30,16 +30,6 @@ EXPERIMENTS = {
     },
 }
 
-# Failed relocation input, retained only to diagnose the loaded-image guard.
-EXPERIMENTS['722e9b7c34c222071feaffed904e5bc2b9aba89b'] = {
-    'name': 'llvm-with-relocations',
-    'sha256': '9e8ed3ed09c3438e6a568778014309fa54ade790b09e67e005e7c7094ae81c2a',
-    'size': 282458312,
-    'uri': ('bytestream://remote.buildbuddy.io/bb-snapshot/'
-            'ea99aeae9a2016c04e6c62748864afce336069e47b420523a08803c1b0682571/'
-            'blobs/9e8ed3ed09c3438e6a568778014309fa54ade790b09e67e005e7c7094ae81c2a/282458312'),
-}
-
 BOLT_REVISION = '8b5a3e46bef60e25664d77e217b7930ac866bca5'
 BOLT_TOOLS = {
     'llvm-unstripped': {
@@ -50,6 +40,28 @@ BOLT_TOOLS = {
         'sha256': '096a2e6f1360c4180fd02aa5be8ed42dac3695024c846ca62e1c7c7a2d834b5e',
         'size': 65016168,
     },
+}
+
+
+BOLT_RELOCATION_REVISION = '722e9b7c34c222071feaffed904e5bc2b9aba89b'
+BOLT_RELOCATION_TOOLS = {
+    'llvm-with-relocations': {
+        'sha256': '9e8ed3ed09c3438e6a568778014309fa54ade790b09e67e005e7c7094ae81c2a',
+        'size': 282458312,
+        'uri': ('bytestream://remote.buildbuddy.io/bb-snapshot/'
+                'ea99aeae9a2016c04e6c62748864afce336069e47b420523a08803c1b0682571/'
+                'blobs/9e8ed3ed09c3438e6a568778014309fa54ade790b09e67e005e7c7094ae81c2a/282458312'),
+    },
+    'libbolt_rt_instr.a': {
+        'sha256': 'bf426b1c2eed618182d0fc3d21b4737ee85cab896145cc4e8f81a798f54cba81',
+        'size': 35380,
+        'uri': ('bytestream://formatjs.buildbuddy.io/compiler-training-35bd1a8/blobs/'
+                'bf426b1c2eed618182d0fc3d21b4737ee85cab896145cc4e8f81a798f54cba81/35380'),
+    },
+}
+BOLT_PREPARATIONS = {
+    BOLT_REVISION: {'tools': BOLT_TOOLS, 'invocation': 'ec9d3a07-694e-42a0-8ef5-6dcc60d01ba8'},
+    BOLT_RELOCATION_REVISION: {'tools': BOLT_RELOCATION_TOOLS, 'invocation': 'c7838bd8-259c-4820-afad-50be84b3d75d'},
 }
 
 
@@ -100,20 +112,21 @@ def download(spec, destination, key):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--revision', choices=sorted(set(EXPERIMENTS) | {BOLT_REVISION}), required=True)
+    parser.add_argument('--revision', choices=sorted(set(EXPERIMENTS) | set(BOLT_PREPARATIONS)), required=True)
     output = parser.add_mutually_exclusive_group(required=True)
     output.add_argument('--destination', type=Path)
     output.add_argument('--directory', type=Path)
     args = parser.parse_args()
-    if args.revision == BOLT_REVISION and args.destination:
+    if args.revision in BOLT_PREPARATIONS and args.destination:
         parser.error('BOLT tools require --directory')
     key = os.environ.get('BUILDBUDDY_API_KEY', '')
     if not key:
         raise ValueError('BuildBuddy read-only key is not configured')
-    if args.revision == BOLT_REVISION:
+    if args.revision in BOLT_PREPARATIONS:
+        preparation = BOLT_PREPARATIONS[args.revision]
         specs = [archive_spec(None, key, spec=values | {
-            'name': name, 'invocation': 'ec9d3a07-694e-42a0-8ef5-6dcc60d01ba8'},
-            prefix='llvm-bolt', max_size=256 * 1024 * 1024) for name, values in BOLT_TOOLS.items()]
+            'name': name, 'invocation': preparation['invocation']},
+            prefix='llvm-bolt', max_size=512 * 1024 * 1024) for name, values in preparation['tools'].items()]
         for spec in specs:
             download(spec, args.directory / spec['name'], key)
     else:
