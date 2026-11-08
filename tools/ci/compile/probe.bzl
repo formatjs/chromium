@@ -68,7 +68,7 @@ def native_compile_probe(name, library, sources):
         tags = ["manual"],
     )
 
-def blink_compile_probe(name, libraries, repository = "@chromium", batch = False):
+def blink_compile_probe(name, libraries, repository = "@chromium", batch = False, batch_limit = None):
     """Reuse each source's real context without requesting its owner's objects."""
     sources = BATCH_SOURCES if batch else [
         "third_party/blink/renderer/core/layout/layout_box.cc",
@@ -77,6 +77,10 @@ def blink_compile_probe(name, libraries, repository = "@chromium", batch = False
         "third_party/blink/renderer/core/css/css_palette_mix_value.cc",
         "third_party/blink/renderer/core/css/css_relative_color_value.cc",
     ]
+    if batch_limit != None:
+        if not batch or batch_limit < 1 or batch_limit > len(sources):
+            fail("batch_limit requires a nonempty subset of the fixed batch")
+        sources = sources[:batch_limit]
     _blink_library_probe(name, libraries["//third_party/blink/renderer/core:core"], repository, sources)
     _blink_library_probe(name + "_canvas", libraries["//third_party/blink/renderer/core/probe:probe"], repository, [
         "third_party/blink/renderer/core/probe/core_probes.cc",
