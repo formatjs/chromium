@@ -1,8 +1,9 @@
 # Declared PCH experiment
 
 Reuse parsed headers through the registered hermetic LLVM toolchain. Keep Clang
-validation enabled. Relocatable PCH and prefix mapping preserve original filename
-strings. Producer depfiles must match captured project header closures; consumers
+validation enabled. PCH metadata omits timestamps; explicit content validation
+rejects changed headers. Relocatable PCH and prefix mapping preserve original
+filename strings. Producer depfiles must match captured project header closures; consumers
 declare those headers explicitly. Missing or ambiguous mappings fail.
 
 The larger variant uses document PCH on 116 byte-compatible consumers, string PCH
@@ -70,3 +71,23 @@ Generated bindings: three pinned-compiler traces preserve original objects;
 all three also match with a direct `idl_types.h` PCH pilot. No sandboxed full
 binding cohort or timing claim yet. That header appears in all 1,030 original
 binding depfiles and 1,800 core depfiles.
+
+Native integration uses `--define=CHROMIUM_BLINK_PCH=1` with matching native tool
+sharing on Linux AMD64 GNU 2.31. A separate header context avoids depending on the
+original owner. Replacement objects retain the original library position;
+propagated include roots, defines, headers, dependency libraries and flags match.
+Default native commands remain unchanged. Native execution toolchain is required.
+
+Before the content-validation fix, all 2,398 native objects/archive and actual
+source executions pass; link/context audit also passes. Timestamp-free flags
+pass native command preflight. Full core/binding rebuild with those flags remains
+required before rollout. Binding objects are not routed into the browser yet.
+
+`tools/ci/compile/pch_reproducibility.py` uses shared production flags and the
+pinned compiler. PCH bytes match across checkout roots and header mtimes;
+relocated unchanged content loads; same-size modified content is rejected with
+original or zero mtime. Producer/consumer command guards require these options.
+The earlier timing samples predate this fix; remeasurement remains required.
+
+Full producer header context remains declared, preserving header lookup and
+`__has_include` behavior. Sandbox setup remains a cost.

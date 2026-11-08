@@ -1,5 +1,6 @@
 """Experimental upstream PCH with declared hermetic compiler inputs."""
 
+load("@chromium//native:pch_flags.bzl", "PCH_CONSUMER_FLAGS", "PCH_PRODUCER_FLAGS")
 load("@rules_cc//cc:action_names.bzl", "ACTION_NAMES")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cpp_toolchain")
@@ -46,7 +47,7 @@ def _pch_impl(ctx):
         source_file = ctx.file._header.path,
         output_file = pch.path,
         variables_extension = {"dependency_file": dependency.path},
-        user_compile_flags = ctx.attr.copts + ["-x", "c++-header", "--relocatable-pch"],
+        user_compile_flags = ctx.attr.copts + PCH_PRODUCER_FLAGS,
         preprocessor_defines = depset(defines, transitive = [context.defines]),
         use_pic = True,
     )
@@ -97,7 +98,7 @@ def blink_pch_probe(name, libraries, target_compatible_with):
     )
     for suffix, pch_inputs, pch_options in [
         ("_baseline", [], []),
-        ("", [":" + pch, "@chromium//build:precompile.h"], ["-include-pch", "$(location :" + pch + ")"]),
+        ("", [":" + pch, "@chromium//build:precompile.h"], PCH_CONSUMER_FLAGS + ["-include-pch", "$(location :" + pch + ")"]),
     ]:
         cc_library(
             name = name + suffix,
@@ -171,7 +172,7 @@ def _project_pch_impl(ctx):
         source_file = ctx.file.header.path,
         output_file = raw.path,
         variables_extension = {"dependency_file": dependency.path},
-        user_compile_flags = ctx.attr.copts + ["-x", "c++-header", "--relocatable-pch"],
+        user_compile_flags = ctx.attr.copts + PCH_PRODUCER_FLAGS,
         preprocessor_defines = depset(defines, transitive = [context.defines]),
         include_directories = context.includes,
         quote_include_directories = context.quote_includes,
@@ -206,7 +207,7 @@ _project_pch = rule(
         "paths": attr.string_list(default = PROJECT_HEADER_PATHS),
         "copts": attr.string_list(),
         "local_defines": attr.string_list(),
-        "_validator": attr.label(default = "//tools/ci/compile:validate_pch.py", allow_single_file = True),
+        "_validator": attr.label(default = Label("@chromium//native:pch_validate.py"), allow_single_file = True),
         "_python": attr.label(default = "@rules_python//python:current_py_toolchain", cfg = "exec"),
     },
     fragments = ["cpp"],
@@ -264,7 +265,7 @@ def _compile_groups(ctx, groups):
 
 def _source_aware_compile_impl(ctx):
     return _compile_groups(ctx, [
-        ("_pch", ctx.files.pch_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.pch.path], ctx.files.extra_inputs + [ctx.file.pch] + ctx.files.pch_headers),
+        ("_pch", ctx.files.pch_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./="] + PCH_CONSUMER_FLAGS + ["-include-pch", ctx.file.pch.path], ctx.files.extra_inputs + [ctx.file.pch] + ctx.files.pch_headers),
         ("_plain", ctx.files.plain_sources, ctx.attr.copts, ctx.files.extra_inputs),
     ])
 
@@ -328,8 +329,8 @@ def blink_project_pch_probe(name, libraries, target_compatible_with):
 
 def _hybrid_compile_impl(ctx):
     return _compile_groups(ctx, [
-        ("_document", ctx.files.document_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.document_pch.path], ctx.files.extra_inputs + [ctx.file.document_pch] + ctx.files.document_headers),
-        ("_string", ctx.files.string_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.string_pch.path], ctx.files.extra_inputs + [ctx.file.string_pch] + ctx.files.string_headers),
+        ("_document", ctx.files.document_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./="] + PCH_CONSUMER_FLAGS + ["-include-pch", ctx.file.document_pch.path], ctx.files.extra_inputs + [ctx.file.document_pch] + ctx.files.document_headers),
+        ("_string", ctx.files.string_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./="] + PCH_CONSUMER_FLAGS + ["-include-pch", ctx.file.string_pch.path], ctx.files.extra_inputs + [ctx.file.string_pch] + ctx.files.string_headers),
         ("_plain", ctx.files.plain_sources, ctx.attr.copts, ctx.files.extra_inputs),
     ])
 

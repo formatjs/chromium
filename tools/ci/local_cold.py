@@ -122,12 +122,15 @@ def main():
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
+    parser.add_argument('--blink-pch', action='store_true', help='Opt into validated native Blink PCH')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--compiler-archive', type=Path, help='Explicit SHA-pinned experimental compiler dependency')
     parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
+    if args.blink_pch and (not args.native_tools or args.platform != 'linux-amd64'):
+        parser.error('--blink-pch requires --native-tools on linux-amd64')
     if args.profile and args.profile.exists():
         parser.error('--profile must start absent')
     if args.compiler_archive and args.platform != 'linux-amd64':
@@ -213,6 +216,8 @@ def main():
         if args.native_tools:
             command.extend(['--define=CHROMIUM_NATIVE_TOOLS=1',
                             '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution'])
+        if args.blink_pch:
+            command.append('--define=CHROMIUM_BLINK_PCH=1')
         if args.binding_workers != 1:
             command.append('--define=CHROMIUM_BINDINGS_WORKERS=' + str(args.binding_workers))
         if args.platform.startswith('windows-'):
@@ -256,6 +261,7 @@ def main():
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,
+                       'blink_pch_requested': args.blink_pch,
                        'compiler_dependency': compiler_dependency,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
@@ -263,6 +269,11 @@ def main():
                                                   if args.sandbox_base else None),
                        'bazel_sha256': BAZEL_SHA256,
                        'build_uid': os.geteuid(), 'machine': machine_limits()})
+        action_data = report.get('build_metrics', {}).get('actionSummary', {}).get('actionData', [])
+        report['project_pch_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
+                                           if row['mnemonic'] == 'ChromiumProjectPch')
+        report['pch_closure_actions'] = sum(int(row.get('actionsExecuted', 0)) for row in action_data
+                                          if row['mnemonic'] == 'ChromiumPchClosure')
         report['elapsed_seconds'] = time.monotonic() - started
         report['under_one_hour'] = report['local_execution_verified'] and report['elapsed_seconds'] < 3600
         (directory / 'cold-build.json').write_text(json.dumps(report, indent=2) + '\n')

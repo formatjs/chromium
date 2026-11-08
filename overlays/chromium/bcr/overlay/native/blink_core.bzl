@@ -2,6 +2,7 @@
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":blink_core_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
+load(":blink_pch.bzl", "blink_bindings_pch", "blink_core_pch")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
 
@@ -46,12 +47,25 @@ def native_blink_core():
                 **common
             )
             common["deps"] = common["deps"] + [":" + library["name"] + "_c"]
+        sources = [p for p in library["srcs"] if p not in c_sources]
+        if original == "//third_party/blink/renderer/core:core":
+            replacement = blink_core_pch(library["name"], library, common)
+            sources = select({
+                "//native/tool_configuration:blink_pch": [],
+                "//conditions:default": sources,
+            })
+            common["deps"] = select({
+                "//native/tool_configuration:blink_pch": [replacement] + common["deps"],
+                "//conditions:default": common["deps"],
+            })
         cc_library(
             name = library["name"],
-            srcs = [p for p in library["srcs"] if p not in c_sources],
+            srcs = sources,
             copts = library["copts"],
             **common
         )
+        if original == "//third_party/blink/renderer/bindings/core/v8:v8":
+            blink_bindings_pch(library, common)
     native.alias(
         name = "blink_core",
         actual = ":" + LIBRARIES["//third_party/blink/renderer/core:core"]["name"],

@@ -17,6 +17,7 @@ import urllib.request
 from tools.ci.chromium import ROOT
 from tools.ci.compile.experiment import archive_outputs, batch_sources
 from tools.ci.compile.local import local_compile_times, verify_ram_sandbox
+from tools.ci.compile.pch_reproducibility import verify as verify_pch_reproducibility, verify_producer_options
 from tools.ci.compiler_archive import configure_compiler, verify_compiler
 from tools.ci.local_cold import BAZEL_SHA256, machine_limits
 
@@ -71,6 +72,9 @@ def normalized_commands(rows, pch_path=None, eligible_sources=None):
             if '-include-pch' in arguments:
                 raise ValueError('Unexpected PCH on source: ' + source)
         else:
+            if arguments.count('-fpch-validate-input-files-content') != 1:
+                raise ValueError('Expected PCH content validation')
+            arguments.remove('-fpch-validate-input-files-content')
             if arguments.count('-include-pch') != 1:
                 raise ValueError('Expected one explicit PCH input')
             index = arguments.index('-include-pch')
@@ -325,6 +329,7 @@ def main():
                         or '/' + PACKAGE + '/' not in pch.as_posix() or pch.suffix != '.pch'):
                     raise ValueError('PCH output outside probe inventory')
                 pch_files.append(pch)
+            producer_targets = [] if args.include_context or args.hybrid else [pch_target]
             raw_pch = None
             if args.project_header:
                 raw_rows = query(startup, flags, source,
@@ -342,6 +347,7 @@ def main():
                 for group in ('document', 'string'):
                     producer = candidate_owner + '_' + group + '_pch'
                     target = '//' + PACKAGE + ':' + producer
+                    producer_targets.append(target)
                     verified, = query(startup, flags, source,
                                       '[f.path for f in target.files.to_list()]', target)[0]
                     raw, = query(startup, flags, source,
@@ -356,6 +362,12 @@ def main():
                     group_paths[group] = verified
                 pch_relative = {source: group_paths['document' if source in document_sources else 'string']
                                 for source in eligible}
+            for producer in producer_targets:
+                rows, = query(startup, flags, source,
+                              '[a.argv for a in target.actions if a.mnemonic in ["ChromiumPch", "ChromiumProjectPch"]]', producer)
+                if len(rows) != 1:
+                    raise ValueError('Expected one PCH producer action')
+                verify_producer_options(rows[0])
             for variant in targets:
                 owner = ((candidate_owner if args.include_context or args.hybrid else OWNER) + '_baseline'
                          if variant == 'baseline' else candidate_owner)
@@ -379,6 +391,11 @@ def main():
             report['compiler_context_sha256'] = hashlib.sha256(json.dumps(commands['baseline'], sort_keys=True).encode()).hexdigest()
             report['actual_binary_sha256'] = verify_compiler(root / 'output-base')
             verify_command_compilers(commands['baseline'], root / 'output-base', report['actual_binary_sha256'])
+            if not args.include_context:
+                compiler = next(iter(commands['baseline'].values()))[0][0]
+                report['pch_reproducibility'] = verify_pch_reproducibility(
+                    root / 'output-base' / compiler, root / 'pch-reproducibility',
+                    report['actual_binary_sha256'])
             reference = None
             for name, variant in [('warmup-baseline', 'baseline'), ('warmup-' + candidate_variant, candidate_variant),
                                   ('baseline-1', 'baseline'), (candidate_variant + '-1', candidate_variant),

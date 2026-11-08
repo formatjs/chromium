@@ -22,9 +22,12 @@ def main():
     parser.add_argument('--revision', required=True)
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--native-tools', action='store_true')
+    parser.add_argument('--blink-pch', action='store_true')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--trained-compiler', action='store_true')
     args = parser.parse_args()
+    if args.blink_pch and not args.native_tools:
+        parser.error('--blink-pch requires --native-tools')
     destination = args.directory.resolve()
     destination.mkdir(parents=True, exist_ok=False)
     profile = destination / 'cold-profile.json'
@@ -33,6 +36,7 @@ def main():
     cache.mkdir(parents=True, exist_ok=True)
     report = {'revision': args.revision, 'platform': 'linux-amd64',
               'machine': machine_limits(), 'cold_result_verified': False,
+              'blink_pch_requested': args.blink_pch,
               'trained_compiler': args.trained_compiler, 'binding_workers': args.binding_workers,
               'under_one_hour': False, 'runner': 'BuildBuddy workflow; RBE disabled',
               'os_page_cache': 'uncontrolled; workflow VM may be restored from a snapshot'}
@@ -71,6 +75,8 @@ def main():
                 command.extend(['--binding-workers', str(args.binding_workers)])
             if args.native_tools:
                 command.append('--native-tools')
+            if args.blink_pch:
+                command.append('--blink-pch')
             with subprocess.Popen(command) as process:
                 while True:
                     try:

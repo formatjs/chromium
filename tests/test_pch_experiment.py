@@ -5,9 +5,21 @@ import unittest
 from unittest import mock
 
 from tools.ci.compile import pch_experiment
+from tools.ci.compile.pch_reproducibility import verify_producer_options
 
 
 class PchExperimentTest(unittest.TestCase):
+    def test_producer_requires_timestamp_free_content_validation(self):
+        flags = ['--relocatable-pch', '-Xclang', '-fno-pch-timestamp',
+                 '-fpch-validate-input-files-content']
+        verify_producer_options(flags)
+        for missing in ['-Xclang', '-fno-pch-timestamp', '-fpch-validate-input-files-content']:
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                verify_producer_options([flag for flag in flags if flag != missing])
+        for bypass in ['-fno-validate-pch', '-disable-pch-validation']:
+            with self.subTest(bypass=bypass), self.assertRaises(ValueError):
+                verify_producer_options(flags + [bypass])
+
     def test_compiler_verification_works_before_execroot_symlinks_exist(self):
         with tempfile.TemporaryDirectory() as temporary:
             output_base = Path(temporary)
@@ -30,11 +42,15 @@ class PchExperimentTest(unittest.TestCase):
             return [([
                 'clang++', '-DVALUE=1', '-Ifirst', '-Isecond', '-c', source,
                 '-o', owner + '/' + source + '.o', '-MF', owner + '/' + source + '.d',
-            ] + (['-include-pch', 'probe.pch'] if pch else []), {'PATH': '/pinned/bin'})
+            ] + (['-fpch-validate-input-files-content', '-include-pch', 'probe.pch'] if pch else []), {'PATH': '/pinned/bin'})
                     for source in ['first.cc', 'second.cc']]
         with mock.patch.object(pch_experiment, 'SOURCES', ('first.cc', 'second.cc')):
             baseline = pch_experiment.normalized_commands(rows('baseline'))
             candidate = rows('candidate', pch=True)
+            missing_validation = rows('candidate', pch=True)
+            missing_validation[0][0].remove('-fpch-validate-input-files-content')
+            with self.assertRaisesRegex(ValueError, 'content validation'):
+                pch_experiment.normalized_commands(missing_validation, 'probe.pch')
             self.assertEqual(baseline, pch_experiment.normalized_commands(candidate, 'probe.pch'))
             for change in ['macro', 'include_order', 'environment']:
                 changed = rows('candidate', pch=True)
@@ -56,7 +72,7 @@ class PchExperimentTest(unittest.TestCase):
     def test_project_gate_only_changes_existing_header_consumers(self):
         baseline = [(['clang++', '-DVALUE=1', '-c', source, '-o', source + '.o',
                      '-isysroot', '.'], {}) for source in ['first.cc', 'second.cc']]
-        candidate = [([*baseline[0][0], '-ffile-prefix-map=./=', '-include-pch', 'project.pch'], {}),
+        candidate = [([*baseline[0][0], '-ffile-prefix-map=./=', '-fpch-validate-input-files-content', '-include-pch', 'project.pch'], {}),
                      (baseline[1][0][:-2], {})]
         eligible = {'first.cc'}
         with mock.patch.object(pch_experiment, 'SOURCES', ('first.cc', 'second.cc')):
@@ -93,7 +109,7 @@ class PchExperimentTest(unittest.TestCase):
         baseline = [(['clang++', '-DVALUE=1', '-c', source, '-o', source + '.o'], {}) for source in sources]
         mapping = {'document.cc': 'document.pch', 'string.cc': 'string.pch'}
         eligible = set(mapping)
-        candidate = [(args + (['-isysroot', '.', '-ffile-prefix-map=./=', '-include-pch', mapping[source]]
+        candidate = [(args + (['-isysroot', '.', '-ffile-prefix-map=./=', '-fpch-validate-input-files-content', '-include-pch', mapping[source]]
                               if source in mapping else []), environment)
                      for source, (args, environment) in zip(sources, baseline)]
         with mock.patch.object(pch_experiment, 'SOURCES', sources):

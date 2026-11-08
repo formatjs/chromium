@@ -1,12 +1,26 @@
+from contextlib import redirect_stderr
+import io
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
-from tools.ci.local_cold import local_cold_report
+from tools.ci.local_cold import local_cold_report, main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_pch_requires_matching_native_linux_configuration(self):
+        command = ['local-cold', '--directory', '/unused-trial', '--repository-cache', '/unused-cache',
+                   '--revision', 'a' * 40, '--bazel', '/unused-bazel', '--blink-pch']
+        for flags in [[], ['--native-tools', '--platform', 'linux-arm64']]:
+            error = io.StringIO()
+            with self.subTest(flags=flags), mock.patch('sys.argv', command + flags), redirect_stderr(error):
+                with self.assertRaises(SystemExit) as stopped:
+                    main()
+            self.assertEqual(stopped.exception.code, 2)
+            self.assertIn('--blink-pch requires --native-tools on linux-amd64', error.getvalue())
+
     def test_local_proof_requires_fresh_roots_canonical_disabling_and_real_sandboxes(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
