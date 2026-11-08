@@ -30,3 +30,11 @@ consumer correctly fails Clang's PCH compatibility checks. No validation bypass.
 An incorrect-workspace consumer attempt was discarded; subsequent repository
 state proved inconsistent. Consumer validation now uses a separate fresh
 source/install/output/user fixture; saved baseline object hashes remain intact.
+
+The BB harness uses CPU capacity as both CPU budget and job count, 14GB action
+memory, 8g JVM and a private 8GiB RAM sandbox. Warm both variants, then ABBA.
+Every measured pass must execute exactly 256 local compiles; each candidate
+rebuilds one PCH. Supporting Python/compile work must not rerun. Compare exact
+compiler flags/environment after removing the explicit PCH input and output
+paths. Reject different macros, include order, compiler binary or object/archive
+bytes. This remains a warm benchmark, not strict-cold proof.

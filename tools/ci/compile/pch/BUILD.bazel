@@ -17,3 +17,8 @@ linux_amd64_browser(
     name = "linux-amd64",
     srcs = [":blink_pch_compile_probe"],
 )
+
+linux_amd64_browser(
+    name = "baseline-linux-amd64",
+    srcs = [":blink_pch_compile_probe_baseline"],
+)

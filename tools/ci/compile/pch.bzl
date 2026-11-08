@@ -96,15 +96,19 @@ def blink_pch_probe(name, libraries, target_compatible_with):
         additional_inputs = inputs,
         target_compatible_with = target_compatible_with,
     )
-    cc_library(
-        name = name,
-        srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
-        copts = library["copts"] + ["-include-pch", "$(location :" + pch + ")"],
-        local_defines = library["defines"],
-        additional_compiler_inputs = inputs + [":" + pch],
-        features = ["cc_include_scanning"],
-        linkstatic = True,
-        deps = [":" + headers],
-        tags = ["manual"],
-        target_compatible_with = target_compatible_with,
-    )
+    for suffix, pch_inputs, pch_options in [
+        ("_baseline", [], []),
+        ("", [":" + pch], ["-include-pch", "$(location :" + pch + ")"]),
+    ]:
+        cc_library(
+            name = name + suffix,
+            srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
+            copts = library["copts"] + pch_options,
+            local_defines = library["defines"],
+            additional_compiler_inputs = inputs + pch_inputs,
+            features = ["cc_include_scanning"],
+            linkstatic = True,
+            deps = [":" + headers],
+            tags = ["manual"],
+            target_compatible_with = target_compatible_with,
+        )
