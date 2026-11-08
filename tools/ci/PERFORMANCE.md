@@ -780,6 +780,14 @@ of executed compiles or CPU usage. Remote execution task spans are absent.
 The timing verification gate correctly returns false. The last visible progress
 is 74,782/102,633 actions; that fraction cannot establish remaining build time.
 
+Local subprocess attribution records 40,494.98s inside C++ compiler subprocesses
+and 2,504.66s creating their sandboxes. Their containing action spans total
+45,279.13s. Python generator subprocess spans total 13,957.48s, including Blink
+bindings; the longest bindings action takes 569.83s. These are overlapping wall
+task sums from the incomplete trace, not CPU totals, complete action counts,
+or estimates of remaining work. Preserve that distinction when choosing the next
+optimization; the partial generator/compile ratio is not a full-build ratio.
+
 ## Compiler training lead
 
 The published LLVM 23.1.2-2 compiler's provenance points to hermetic-llvm
