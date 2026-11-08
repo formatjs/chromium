@@ -2,13 +2,14 @@
 
 import json
 from pathlib import Path
+import posixpath
 import shutil
 import sys
 
 
 def project_path(path):
     path = path.removeprefix('./')
-    if path.startswith('/') or any(part in ('', '.', '..') for part in path.split('/')):
+    if path.startswith('/'):
         raise ValueError(f'Unsafe PCH dependency: {path}')
     if path.startswith('bazel-out/'):
         parts = path.split('/', 3)
@@ -17,6 +18,10 @@ def project_path(path):
         path = parts[3]
     path = path.removeprefix('external/')
     repository = path.split('/', 1)[0]
+    normalized = posixpath.normpath(path)
+    if repository in ('', '.', '..') or normalized.split('/', 1)[0] != repository:
+        raise ValueError(f'PCH dependency escapes repository: {path}')
+    path = normalized
     if repository.startswith(('llvm+', 'llvm++')):
         return None
     return path

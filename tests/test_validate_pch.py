@@ -9,6 +9,9 @@ class PchClosureTest(unittest.TestCase):
     def test_source_and_generated_paths_match(self):
         validate('out.pch: external/repo/a.h \\\n bazel-out/k8-fastbuild/bin/external/repo/generated.h \\\n external/llvm++toolchain/include/stddef.h\n', ['repo/a.h', 'repo/generated.h'])
 
+    def test_declared_forwarder_can_return_within_repository(self):
+        validate('out: external/repo/native/forwarders/../../skia/config.h', ['repo/skia/config.h'])
+
     def test_changed_imports_fail(self):
         for dependency in ['out: external/repo/a.h external/repo/extra.h', 'out: external/repo/replacement.h', 'out: ']:
             with self.subTest(dependency=dependency), self.assertRaisesRegex(ValueError, 'closure changed'):

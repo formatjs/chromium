@@ -6,7 +6,7 @@ load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cpp_toolchain")
 load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":batch_sources.bzl", BATCH_SOURCES = "SOURCES")
-load(":project_pch_headers.bzl", "HEADER", "PROJECT_HEADER_PATHS")
+load(":project_pch_headers.bzl", "ELIGIBLE_SOURCES", "HEADER", "PROJECT_HEADER_PATHS")
 
 def _headers_impl(ctx):
     return [
@@ -210,8 +210,77 @@ _project_pch = rule(
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
 )
 
+def _source_aware_compile_impl(ctx):
+    toolchain = find_cpp_toolchain(ctx)
+    features = cc_common.configure_features(
+        ctx = ctx,
+        cc_toolchain = toolchain,
+        requested_features = ctx.features,
+        unsupported_features = ctx.disabled_features,
+    )
+    defines = []
+    for value in ctx.attr.local_defines:
+        tokens = ctx.tokenize(ctx.expand_make_variables("local_defines", value, {}))
+        if len(tokens) != 1:
+            fail("define must expand to one token: " + value)
+        defines.append(tokens[0])
+    objects = {}
+    for suffix, sources, options, inputs in [
+        ("_pch", ctx.files.pch_sources, ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./=", "-include-pch", ctx.file.pch.path], ctx.files.extra_inputs + [ctx.file.pch] + ctx.files.pch_headers),
+        ("_plain", ctx.files.plain_sources, ctx.attr.copts, ctx.files.extra_inputs),
+    ]:
+        _, outputs = cc_common.compile(
+            actions = ctx.actions,
+            feature_configuration = features,
+            cc_toolchain = toolchain,
+            name = ctx.label.name + suffix,
+            srcs = sources,
+            compilation_contexts = [ctx.attr.library[CcInfo].compilation_context],
+            user_compile_flags = options,
+            local_defines = defines,
+            additional_inputs = inputs,
+            disallow_nopic_outputs = True,
+        )
+        for file in outputs.pic_objects:
+            if file.basename in objects:
+                fail("Duplicate cohort object: " + file.basename)
+            objects[file.basename] = file
+    if sorted(objects.keys()) != sorted(ctx.attr.object_order):
+        fail("Unexpected cohort object inventory")
+    outputs = cc_common.create_compilation_outputs(pic_objects = depset([objects[name] for name in ctx.attr.object_order]))
+    linking_context, linking_outputs = cc_common.create_linking_context_from_compilation_outputs(
+        actions = ctx.actions,
+        name = ctx.label.name,
+        feature_configuration = features,
+        cc_toolchain = toolchain,
+        compilation_outputs = outputs,
+        disallow_dynamic_library = True,
+    )
+    library = linking_outputs.library_to_link
+    return [
+        CcInfo(compilation_context = ctx.attr.library[CcInfo].compilation_context, linking_context = linking_context),
+        DefaultInfo(files = depset([file for file in [library.static_library, library.pic_static_library] if file])),
+    ]
+
+_source_aware_compile = rule(
+    implementation = _source_aware_compile_impl,
+    attrs = {
+        "pch_sources": attr.label_list(allow_files = [".cc"]),
+        "plain_sources": attr.label_list(allow_files = [".cc"]),
+        "object_order": attr.string_list(),
+        "library": attr.label(mandatory = True, providers = [CcInfo]),
+        "pch": attr.label(mandatory = True, allow_single_file = True),
+        "pch_headers": attr.label_list(allow_files = True),
+        "extra_inputs": attr.label_list(allow_files = True),
+        "copts": attr.string_list(),
+        "local_defines": attr.string_list(),
+    },
+    fragments = ["cpp"],
+    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+)
+
 def blink_project_pch_probe(name, libraries, target_compatible_with):
-    """Test the captured WTF string closure against original objects."""
+    """Keep experimental PCH imports on their original consumers."""
     library = libraries["//third_party/blink/renderer/core:core"]
     copts = library["copts"] + ["-isysroot", ".", "-ffile-prefix-map=./="]
     headers = name + "_headers"
@@ -235,15 +304,18 @@ def blink_project_pch_probe(name, libraries, target_compatible_with):
         local_defines = library["defines"],
         target_compatible_with = target_compatible_with,
     )
-    cc_library(
+    _source_aware_compile(
         name = name,
-        srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
-        copts = copts + ["-include-pch", "$(location :" + pch + ")"],
+        pch_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source in ELIGIBLE_SOURCES],
+        plain_sources = ["@chromium//:" + source for source in BATCH_SOURCES[:256] if source not in ELIGIBLE_SOURCES],
+        object_order = [source.split("/")[-1][:-3] + ".pic.o" for source in BATCH_SOURCES[:256]],
+        library = ":" + headers,
+        pch = ":" + pch,
+        pch_headers = [":" + name + "_inputs"],
+        extra_inputs = inputs,
+        copts = library["copts"],
         local_defines = library["defines"],
-        additional_compiler_inputs = inputs + [":" + pch, ":" + name + "_inputs"],
         features = ["cc_include_scanning"],
-        linkstatic = True,
-        deps = [":" + headers],
         tags = ["manual"],
         target_compatible_with = target_compatible_with,
     )

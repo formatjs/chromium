@@ -56,3 +56,16 @@ PCH, one closure check, 256 actual compiles, no supporting rebuilds. Report:
 Original depfiles show that only 241/256 sources include WTF string, 253 include
 allocator, and 117 include `document.h`. Larger PCH experiments should compile
 only original consumers with that PCH; other sources retain their original flags.
+
+## Existing-consumer document PCH
+
+Splitting the original cohort into 117 document consumers and 139 unchanged
+sources avoids adding document imports. The archive rule restores original
+member order. A real build still changes `html_marquee_element.pic.o`: two trace
+function sections swap order. Other 255 objects match. Reject document PCH;
+no byte-gate exception. Report:
+`/tmp/chromium-source-aware-document-pch-256-correctness.json`.
+
+Producer trace also shows 205.53 s in `sandbox.filterInputsAndDirsToCreate`
+versus 3.93 s in the compiler. This run proves neither timing benefit nor a
+cold-build cause. Investigate sandbox reuse separately with fixed inputs.
