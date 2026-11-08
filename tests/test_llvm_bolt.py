@@ -1,4 +1,6 @@
 import copy
+from contextlib import redirect_stderr
+import io
 from pathlib import Path
 import struct
 import tempfile
@@ -76,8 +78,10 @@ class CompilerRelocationTest(unittest.TestCase):
 
             with patch('tools.ci.prepare_llvm_bolt.ROOT', root), patch(
                     'tools.ci.prepare_llvm_bolt.subprocess.run', side_effect=failed_formatter):
-                with self.assertRaisesRegex(ValueError, 'LLVM compiler action query failed'):
+                error = io.StringIO()
+                with redirect_stderr(error), self.assertRaisesRegex(ValueError, 'LLVM compiler action query failed'):
                     compiler_actions(['bazel'], [], root, 'baseline')
+                self.assertIn('target lacks actions', error.getvalue())
 
     def test_compile_commands_and_environment_must_survive_relink(self):
         before = {('CppCompile', ('compiler.o',)): (['clang++', '-c', 'compiler.cpp'], {'LANG': 'C'}),

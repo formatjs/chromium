@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
@@ -83,6 +84,7 @@ def compiler_actions(startup, flags, workspace, name):
                                   'deps(labels(actual, ' + RAW_TARGET + '))'],
                                  cwd=workspace, stdout=output, stderr=error)
     if process.returncode or any(line.startswith(('ERROR:', 'Error:')) for line in log.read_text().splitlines()):
+        print(log.read_text()[-12000:], file=sys.stderr, flush=True)
         raise ValueError('LLVM compiler action query failed: ' + name)
     result = {}
     for line in path.read_text().splitlines():
