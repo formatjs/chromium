@@ -1599,3 +1599,39 @@ workflow checkout/setup takes 42.95 s and counts toward the one-hour acceptance
 gate. Final proof also requires exact executed PCH/validator counts; missing or
 extra actions reject it. No completed cold result yet. Other four triples remain
 unmeasured for strict-cold performance.
+
+### Representative LLVM artifact and profiling recovery
+
+Compiler preparation at `dc5ddb5` succeeds in 720.45 s (797.68 s for the whole
+workflow), using cache-enabled RBE. Artifact
+`llvm-23.1.2-linux-amd64-chromium.tar.zst` has SHA-256
+`c04cdca0eb8f94a93a2193200f5375356c7769cb53d3eb42ef75fd7ac95f0fa0`.
+Both captured preprocessing hashes match the original local inputs exactly.
+This compiler is not benchmarked or adopted, and no new public release exists.
+Collector `42484017709` retains its provenance.
+
+Module comparison `78cf9da7` reaches the hosted one-hour cap during baseline
+warmup. No measured pass completes. Its partial profile contains 23,930 C++
+spans and 47,452.28 subprocess task-seconds; these are not CPU measurements or a
+complete cold forecast. Collector `42483895341` retains the diagnostic profile.
+Repeating the same setup cannot establish full ABBA timing within this limit.
+
+Cold trial `0fefa722` is terminal failed: Bazel exit 36 after 2,616.91 protocol
+seconds with a clipped sandbox output-copy error, followed by Python
+`MemoryError` in eager profile loading. The raw profile upload also fails.
+The output-copy cause remains unproven. A separate same-configuration guest
+exposes 99,913,961,472 disk bytes despite the 200GB request; workspace and `/tmp`
+share one device. Moving temporary directories does not add capacity.
+
+The streaming collector preserves every metric from a completed 1,022,314-event
+reference using 182,320KiB peak RSS instead of 776,596KiB. It also reads an actual
+46,638,712-event compressed profile using 29,992KiB. HTTP profiles stream directly;
+raw profile JSON is not copied into the collector runner's disk.
+
+[Retry d3c6d7fd](https://formatjs.buildbuddy.io/invocation/d3c6d7fd-b471-45da-999c-daf96c1a621d)
+at `d325eeb` uses standard compressed Bazel profiling, streaming analysis and
+five-second disk/inode/profile-size samples. It retains the approved compiler,
+all six PCH producers, compiler flags and strict cache policy. Normal short-span
+coalescing is explicit; BEP counts and compact execution logging remain enabled.
+212 tests pass. The new guest confirms the same disk capacity; the retry is
+still running. No complete strict-cold timing or archive validation exists yet.
