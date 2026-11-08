@@ -1635,3 +1635,24 @@ all six PCH producers, compiler flags and strict cache policy. Normal short-span
 coalescing is explicit; BEP counts and compact execution logging remain enabled.
 212 tests pass. The new guest confirms the same disk capacity; the retry is
 still running. No complete strict-cold timing or archive validation exists yet.
+
+### Representative compiler correctness and comparison
+
+The compiler artifact is relayed through authenticated CI artifact download
+(`42486504030`), with its exact size and pinned SHA-256 verified before use.
+Driver SHA-256 is
+`274f6c48c5de1dad64037c6239fb5310faf1d1844bd1f5bc56feef50b5ee85a4`.
+Both closed V8 and Content training-source compiles produce the original object
+bytes. These two inputs check correctness; they do not establish a performance
+gain or coverage for other sources.
+
+[Comparison eac547bb](https://formatjs.buildbuddy.io/invocation/eac547bb-3b32-451e-a975-79faadb607d6)
+at `b1c0140` compares this compiler against the approved D94 compiler on six fixed
+V8 sources. Both compiler variants use separate Bazel state, identical expanded
+commands and environment, sandboxed local execution and ABBA measured passes.
+Every measured pass must execute exactly six compiles; all object and archive
+bytes must match. Supporting warmups are outside measured passes. This experiment
+is not strict-cold proof. 212 tests pass; the comparison is running.
+
+No new public compiler release or compiler adoption. Strict-cold d3c6d7fd keeps
+its original compiler and continues independently.
