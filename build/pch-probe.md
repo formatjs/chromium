@@ -1,40 +1,39 @@
-# Upstream PCH experiment
+# Upstream standard PCH experiment
 
-Not enabled in browser builds. Linux upstream disables PCH because it was slower.
-Measure current toolchain before adopting it.
+Experimental Linux amd64 targets only. Browser defaults stay unchanged.
+Upstream disables Linux PCH because it was slower; measure before rollout.
 
-The trained LLVM compiler spends 2.67s of a 2.70s instrumented Blink compile in
-its frontend. Diagnostic object bytes match the sandboxed baseline. This one
-source enters 2,475 files and tracks 1,604 headers; backend time is 0.007s.
+The trained compiler's Blink trace spends 2.67s of 2.70s in its frontend.
+Instrumented object bytes match the sandboxed baseline. An initial eight-source
+direct ABBA pilot saves 7.1% wall time and 5.9% CPU including PCH preparation;
+all 32 objects match. This direct pilot did not exercise independent sandboxes.
 
-A direct eight-source ABBA pilot uses Chromium's unchanged `build/precompile.h`
-and the exact trained compiler/context. All 32 objects match sandboxed baseline
-objects. Candidate phases rebuild their PCH: mean wall time falls 32.70s to
-30.38s (7.1%); compiler CPU falls 32.21s to 30.32s (5.9%). This is warm diagnostic
-evidence, not a cold or complete browser result.
+The corrected sandboxed prototype matches all 256 original object hashes and
+the complete cohort archive. Actual compiler SHA256 is verified. This proves
+cohort correctness, not a timing or complete-browser improvement.
 
-The Bazel prototype declares its header, compiler, full header context, extra
-inputs, PCH and dependency file. Consumers declare the PCH as a compiler input.
-No host compiler, validation bypass or prior-build PCH reuse. Only experimental
-Linux amd64 probe targets use it. The upstream header export adds no default
-actions.
+The PCH imports fixed upstream `build/precompile.h` through hermetic toolchain
+include paths. Project include paths otherwise pulled Crashpad's `signal.h`
+into the PCH, creating an undeclared consumer dependency. Project include
+options in the producer are rejected. Consumer flags and inputs stay intact.
+Consumers also declare the original upstream header.
 
-Next gates: real sandboxed PCH and 256 compiles, expanded command/context
-comparison, matching all objects/archive, then fixed-resource ABBA including
-fresh PCH preparation. Full browser payload, ABI/rendering and strict-cold
-timing remain mandatory before rollout. Other four triples remain unmeasured.
+Clang's documented `--relocatable-pch` with `-isysroot .` makes PCH paths relative
+to each sandbox. Both benchmark variants use that explicit sysroot; corrected
+PCH objects still match the original baseline without it. Compiler validation
+stays enabled. No host headers or prior-build PCH reuse.
 
-The first sandboxed PCH generation succeeds (29.58s command elapsed with warm
-support; 15.53s critical path). Consumers remain unverified. A mismatched RTTI
-consumer correctly fails Clang's PCH compatibility checks. No validation bypass.
-An incorrect-workspace consumer attempt was discarded; subsequent repository
-state proved inconsistent. Consumer validation now uses a separate fresh
-source/install/output/user fixture; saved baseline object hashes remain intact.
+The BB harness fixes CPU capacity/job count, 14GB action memory, 8g JVM and a
+private 8GiB RAM sandbox. Warm both variants, then ABBA. Each measured pass must
+execute exactly 256 local compiles; each candidate rebuilds one PCH. Supporting
+Python/compile work must not rerun. Exact consumer flags/environment must match
+after removing the explicit PCH input and output paths. Objects and archive
+must match too. This remains a warm benchmark, not strict-cold proof.
 
-The BB harness uses CPU capacity as both CPU budget and job count, 14GB action
-memory, 8g JVM and a private 8GiB RAM sandbox. Warm both variants, then ABBA.
-Every measured pass must execute exactly 256 local compiles; each candidate
-rebuilds one PCH. Supporting Python/compile work must not rerun. Compare exact
-compiler flags/environment after removing the explicit PCH input and output
-paths. Reject different macros, include order, compiler binary or object/archive
-bytes. This remains a warm benchmark, not strict-cold proof.
+The first BB attempt failed before compilation: analysis had not materialized
+execroot repository links. Compiler verification now reads the fetched repository
+path directly. Regression reproduces that failure, then passes after the fix.
+186 Python tests and actual 256-command/inventory/compiler preflight pass.
+
+Remaining gates: fixed-resource BB timing, complete browser payload, ABI/rendering
+and strict-cold duration. Other four triples' strict-cold timings remain unmeasured.

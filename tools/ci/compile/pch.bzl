@@ -27,6 +27,9 @@ def _pch_impl(ctx):
         unsupported_features = ctx.disabled_features,
     )
     context = ctx.attr.library[CcInfo].compilation_context
+    for option in ctx.attr.copts:
+        if option.startswith(("-I", "-iquote", "-isystem", "-include", "-imacros", "-iframework", "-F", "-ivfsoverlay", "-idirafter")):
+            fail("Standard PCH requires toolchain include paths: " + option)
     defines = []
     for value in ctx.attr.local_defines:
         tokens = ctx.tokenize(ctx.expand_make_variables("local_defines", value, {}))
@@ -38,14 +41,10 @@ def _pch_impl(ctx):
     variables = cc_common.create_compile_variables(
         cc_toolchain = toolchain,
         feature_configuration = features,
-        source_file = ctx.file.header.path,
+        source_file = ctx.file._header.path,
         output_file = pch.path,
         variables_extension = {"dependency_file": dependency.path},
-        user_compile_flags = ctx.attr.copts + ["-x", "c++-header"],
-        include_directories = context.includes,
-        quote_include_directories = depset([".", ctx.bin_dir.path], transitive = [context.quote_includes]),
-        system_include_directories = context.system_includes,
-        framework_include_directories = context.framework_includes,
+        user_compile_flags = ctx.attr.copts + ["-x", "c++-header", "--relocatable-pch"],
         preprocessor_defines = depset(defines, transitive = [context.defines]),
         use_pic = True,
     )
@@ -53,21 +52,20 @@ def _pch_impl(ctx):
         executable = cc_common.get_tool_for_action(feature_configuration = features, action_name = ACTION_NAMES.cpp_compile),
         arguments = cc_common.get_memory_inefficient_command_line(feature_configuration = features, action_name = ACTION_NAMES.cpp_compile, variables = variables),
         env = cc_common.get_environment_variables(feature_configuration = features, action_name = ACTION_NAMES.cpp_compile, variables = variables),
-        inputs = depset([ctx.file.header] + ctx.files.additional_inputs, transitive = [context.headers, toolchain.all_files]),
+        inputs = depset([ctx.file._header], transitive = [toolchain.all_files]),
         outputs = [pch, dependency],
         mnemonic = "ChromiumPch",
         progress_message = "Precompiling upstream Chromium header",
     )
     return [DefaultInfo(files = depset([pch]))]
 
-chromium_pch = rule(
+chromium_standard_pch = rule(
     implementation = _pch_impl,
     attrs = {
-        "header": attr.label(mandatory = True, allow_single_file = [".h"]),
+        "_header": attr.label(default = "@chromium//build:precompile.h", allow_single_file = [".h"]),
         "library": attr.label(mandatory = True, providers = [CcInfo]),
         "copts": attr.string_list(),
         "local_defines": attr.string_list(),
-        "additional_inputs": attr.label_list(allow_files = True),
     },
     fragments = ["cpp"],
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
@@ -76,6 +74,7 @@ chromium_pch = rule(
 def blink_pch_probe(name, libraries, target_compatible_with):
     """Keep the fixed Blink cohort and upstream compiler options."""
     library = libraries["//third_party/blink/renderer/core:core"]
+    copts = library["copts"] + ["-isysroot", "."]
     headers = name + "_headers"
     pch = name + "_pch"
     inputs = [
@@ -87,23 +86,21 @@ def blink_pch_probe(name, libraries, target_compatible_with):
         "@chromium//native:blink_core_forwarders/third_party/re2/src/re2/re2.h",
     ]
     _headers(name = headers, library = "@chromium//native:" + library["name"])
-    chromium_pch(
+    chromium_standard_pch(
         name = pch,
-        header = "@chromium//build:precompile.h",
         library = ":" + headers,
-        copts = library["copts"],
+        copts = copts,
         local_defines = library["defines"],
-        additional_inputs = inputs,
         target_compatible_with = target_compatible_with,
     )
     for suffix, pch_inputs, pch_options in [
         ("_baseline", [], []),
-        ("", [":" + pch], ["-include-pch", "$(location :" + pch + ")"]),
+        ("", [":" + pch, "@chromium//build:precompile.h"], ["-include-pch", "$(location :" + pch + ")"]),
     ]:
         cc_library(
             name = name + suffix,
             srcs = ["@chromium//:" + source for source in BATCH_SOURCES[:256]],
-            copts = library["copts"] + pch_options,
+            copts = copts + pch_options,
             local_defines = library["defines"],
             additional_compiler_inputs = inputs + pch_inputs,
             features = ["cc_include_scanning"],

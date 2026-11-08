@@ -1,4 +1,6 @@
 from pathlib import Path
+import hashlib
+import tempfile
 import unittest
 from unittest import mock
 
@@ -6,6 +8,23 @@ from tools.ci.compile import pch_experiment
 
 
 class PchExperimentTest(unittest.TestCase):
+    def test_compiler_verification_works_before_execroot_symlinks_exist(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output_base = Path(temporary)
+            relative = 'external/pinned-llvm/bin/clang++'
+            binary = output_base / relative
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b'pinned compiler')
+            commands = {'source.cc': ([relative], {})}
+            expected = hashlib.sha256(binary.read_bytes()).hexdigest()
+            pch_experiment.verify_command_compilers(commands, output_base, expected)
+            binary.write_bytes(b'changed compiler')
+            with self.assertRaises(ValueError):
+                pch_experiment.verify_command_compilers(commands, output_base, expected)
+            for compiler in ['/usr/bin/clang++', 'external/../foreign/compiler']:
+                with self.subTest(compiler=compiler), self.assertRaises(ValueError):
+                    pch_experiment.verify_command_compilers({'source.cc': ([compiler], {})}, output_base, expected)
+
     def test_command_gate_preserves_macro_include_order_and_environment(self):
         def rows(owner, pch=False):
             return [([

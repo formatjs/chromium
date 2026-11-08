@@ -75,6 +75,17 @@ def normalized_commands(rows, pch_path=None):
     return result
 
 
+def verify_command_compilers(commands, output_base, expected):
+    """Verify compiler inputs before Bazel materializes its execution root."""
+    for compiler_path in {arguments[0] for arguments, _ in commands.values()}:
+        relative = Path(compiler_path)
+        if relative.is_absolute() or relative.parts[:1] != ('external',) or '..' in relative.parts:
+            raise ValueError('Expected fetched hermetic compiler')
+        actual = hashlib.sha256((output_base / relative).read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValueError('Compile command uses a different compiler binary')
+
+
 def query(startup, flags, source, expression, target):
     result = subprocess.run([*startup, 'cquery', *flags, '--output=starlark',
                              '--starlark:expr=' + expression, target],
@@ -196,11 +207,7 @@ def main():
             report['consumer_commands_equivalent'] = True
             report['compiler_context_sha256'] = hashlib.sha256(json.dumps(commands['baseline'], sort_keys=True).encode()).hexdigest()
             report['actual_binary_sha256'] = verify_compiler(root / 'output-base')
-            compiler_paths = {arguments[0] for arguments, _ in commands['baseline'].values()}
-            for compiler_path in compiler_paths:
-                actual = hashlib.sha256((execution_root / compiler_path).read_bytes()).hexdigest()
-                if actual != report['actual_binary_sha256']:
-                    raise ValueError('Compile command uses a different compiler binary')
+            verify_command_compilers(commands['baseline'], root / 'output-base', report['actual_binary_sha256'])
             reference = None
             for name, variant in [('warmup-baseline', 'baseline'), ('warmup-pch', 'pch'),
                                   ('baseline-1', 'baseline'), ('pch-1', 'pch'),
