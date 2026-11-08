@@ -21,6 +21,7 @@ from tools.ci.llvm_elf import compare_relinked_compiler
 
 RAW_TARGET = '//toolchain/bootstrap/stage3:llvm_unstripped_for_bolt'
 BOLT_TARGET = '@llvm-project//bolt:llvm-bolt'
+MERGE_TARGET = '@llvm-project//bolt:merge-fdata'
 EXPECTED_STRIPPED_SHA256 = '274f6c48c5de1dad64037c6239fb5310faf1d1844bd1f5bc56feef50b5ee85a4'
 
 
@@ -137,6 +138,7 @@ def main():
     parser.add_argument('--source-archive', type=Path)
     parser.add_argument('--prepare-only', action='store_true')
     parser.add_argument('--relocations', action='store_true')
+    parser.add_argument('--merge-fdata', action='store_true')
     args = parser.parse_args()
     if not args.prepare_only and not os.environ.get('BUILDBUDDY_CI_RUNNER_ABSPATH'):
         parser.error('BOLT preparation requires a BuildBuddy workflow runner')
@@ -164,19 +166,27 @@ def main():
         report['bazel_version'] = version
         startup = [bazel, '--host_jvm_args=-Xmx8g']
         flags = build_flags(args.directory / 'events.json') + ['--platforms=//platforms:linux_amd64_musl']
-        subprocess.run([*startup, 'build', *flags, RAW_TARGET, BOLT_TARGET], cwd=workspace, check=True)
+        targets = [RAW_TARGET, BOLT_TARGET] + ([MERGE_TARGET] if args.merge_fdata else [])
+        subprocess.run([*startup, 'build', *flags, *targets], cwd=workspace, check=True)
         query_flags = flags + ['--nodiscard_analysis_cache', '--track_incremental_state', '--keep_state_after_build']
         output = subprocess.check_output([
             *startup, 'cquery', *query_flags, '--output=starlark',
             '--starlark:expr=(str(target.label), [f.path for f in target.files.to_list()])',
-            'set(' + RAW_TARGET + ' ' + BOLT_TARGET + ')',
+            'set(' + ' '.join(targets) + ')',
         ], cwd=workspace, text=True)
         rows = [ast.literal_eval(line) for line in output.splitlines()]
-        if len(rows) != 2 or any(len(files) != 1 for _, files in rows):
+        if len(rows) != len(targets) or any(len(files) != 1 for _, files in rows):
             raise ValueError('Unexpected BOLT preparation artifact inventory')
         artifacts = {}
         for label, files in rows:
-            name = 'llvm-unstripped' if label.endswith(':llvm_unstripped_for_bolt') else 'llvm-bolt' if label.endswith('//bolt:llvm-bolt') else None
+            if label.endswith(':llvm_unstripped_for_bolt'):
+                name = 'llvm-unstripped'
+            elif label.endswith('//bolt:llvm-bolt'):
+                name = 'llvm-bolt'
+            elif label.endswith('//bolt:merge-fdata'):
+                name = 'merge-fdata'
+            else:
+                name = None
             path = workspace / files[0]
             if name is None or name in artifacts or not path.is_file() or path.is_symlink():
                 raise ValueError('Unexpected BOLT preparation output')
@@ -184,7 +194,8 @@ def main():
             shutil.copyfile(path, destination)
             destination.chmod(0o755)
             artifacts[name] = {'sha256': digest(destination), 'bytes': destination.stat().st_size}
-        if set(artifacts) != {'llvm-unstripped', 'llvm-bolt'}:
+        expected_artifacts = {'llvm-unstripped', 'llvm-bolt'} | ({'merge-fdata'} if args.merge_fdata else set())
+        if set(artifacts) != expected_artifacts:
             raise ValueError('Missing BOLT preparation artifact')
         report['compiler_verification'] = inspect_compiler(args.directory / 'llvm-unstripped', args.directory)
         report['bolt_version'] = subprocess.check_output([str(args.directory / 'llvm-bolt'), '--version'], text=True)

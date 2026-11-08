@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from tools.ci.llvm_elf import compare_relinked_compiler
+from tools.ci.prepare_chromium_llvm import main as prepare_chromium_llvm
 from tools.ci.prepare_llvm_bolt import compiler_actions, verify_relocation_actions
 
 
@@ -65,6 +66,14 @@ class CompilerRelocationTest(unittest.TestCase):
     def test_truncated_elf_rejected(self):
         with self.assertRaisesRegex(ValueError, 'ELF range'):
             self.compare(executable(), executable()[:1100])
+
+    def test_profile_merger_requires_explicit_bolt_mode(self):
+        error = io.StringIO()
+        with patch('sys.argv', ['prepare', '--directory', '/unused', '--bolt-merge-fdata']), redirect_stderr(error):
+            with self.assertRaises(SystemExit) as stopped:
+                prepare_chromium_llvm()
+        self.assertEqual(stopped.exception.code, 2)
+        self.assertIn('--bolt-merge-fdata requires --bolt-feasibility', error.getvalue())
 
     def test_query_diagnostics_reject_partial_inventory_even_with_zero_exit(self):
         with tempfile.TemporaryDirectory() as temporary:

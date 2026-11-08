@@ -17,7 +17,10 @@ def main():
     parser.add_argument('--directory', type=Path, required=True)
     parser.add_argument('--bolt-feasibility', action='store_true')
     parser.add_argument('--bolt-relocations', action='store_true')
+    parser.add_argument('--bolt-merge-fdata', action='store_true')
     args = parser.parse_args()
+    if args.bolt_merge_fdata and not args.bolt_feasibility:
+        parser.error('--bolt-merge-fdata requires --bolt-feasibility')
     if args.bolt_relocations and not args.bolt_feasibility:
         parser.error('--bolt-relocations requires --bolt-feasibility')
     if not os.environ.get('BUILDBUDDY_CI_RUNNER_ABSPATH'):
@@ -43,6 +46,8 @@ def main():
     mode = [] if args.bolt_feasibility else ['--mode', 'chromium']
     if args.bolt_relocations:
         mode.append('--relocations')
+    if args.bolt_merge_fdata:
+        mode.append('--merge-fdata')
     subprocess.run([sys.executable, '-m', preparation, *mode,
                     '--training-inputs', str(parents.pop()), '--directory', str(args.directory)],
                    cwd=ROOT, check=True)

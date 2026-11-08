@@ -1,6 +1,6 @@
 # Timeouts remain subject to the BuildBuddy plan's limits.
 actions:
-  - name: Chromium LLVM BOLT relocation preparation
+  - name: Chromium LLVM BOLT profile tools
     container_image: ubuntu-24.04
     user: buildbuddy
     allow_concurrent_runs: false
@@ -11,10 +11,10 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: ["perf/llvm-bolt-relocations"]
+        branches: ["perf/llvm-bolt-profile-tools"]
     steps:
       - run: >-
-          python3 -m tools.ci.prepare_chromium_llvm --bolt-feasibility --bolt-relocations
+          python3 -m tools.ci.prepare_chromium_llvm --bolt-feasibility --bolt-merge-fdata
           --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/llvm-bolt"
 
   - name: Chromium representative LLVM compiler preparation
