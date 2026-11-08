@@ -170,7 +170,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: ["perf/strict-cold-c04-content-run"]
+        branches: ["perf/strict-cold-ten-pch-run"]
     steps:
       - run: |
           python3 -m tools.ci.bb_cold \

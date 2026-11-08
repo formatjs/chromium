@@ -922,3 +922,20 @@ unproven. Final file memory includes shared memory, so those values must not be
 added. The trace is partial: its completed-action totals cannot establish final
 work, remaining duration, archive identity, ABI or rendering. Other four triples
 remain cold-unmeasured.
+
+### Held ten-PCH cold candidate
+
+The next held candidate combines the unchanged C04 compiler, seven qualified
+PCHs and resource sampling with separate Chrome Browser.h, Profile.h and Content
+public RenderFrameHost.h producers. The selected cohorts contain 312, 672 and
+343 additional original consumers; known differing sources stay plain. Compiler
+contexts, source coverage, alwayslink and object order remain unchanged.
+
+The cold verifier requires exactly ten producers, ten closure validators and
+one prefix guard. The complete Linux amd64 archive target, fresh state, no RBE
+and no action/disk/remote/repository-contents caches remain unchanged. Only the
+perf/strict-cold-ten-pch-run alias triggers this candidate. Hold that alias until
+all 1,042 UI, 1,430 Profile and 1,161 Content objects, each archive, and the combined
+9,350-object browser relink pass against frozen original outputs. Narrow local
+ABBA results do not predict complete cold timing. Other four triples remain
+cold-unmeasured. BOLT remains excluded pending full compiler/package validation.

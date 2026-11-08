@@ -301,7 +301,7 @@ def main():
         raise
     finally:
         report = local_cold_report(events, time.monotonic() - started, success, directory, cache, fresh, command,
-                                   expected_pch_count=7 if args.project_pch else 3 if args.blink_pch else 0,
+                                   expected_pch_count=10 if args.project_pch else 3 if args.blink_pch else 0,
                                    expected_prefix_count=1 if args.project_pch else 0)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,

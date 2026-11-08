@@ -4,6 +4,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_python//python:defs.bzl", "py_binary")
+load(":browser_pch.bzl", "browser_project_pch")
 load(":browser_sources.bzl", "ACTIONS", "ASSET_GROUPS", "BRIDGES", "COPIES", "LIBRARIES", "RUNTIME_FILES", "SHARED_HEADERS", "TOOLS")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 load(":public_dependency.bzl", "chromium_snapshot_dependencies")
@@ -216,9 +217,20 @@ def native_browser():
             if sources:
                 cc_library(name = library["name"] + suffix, srcs = sources, copts = options + include_options, **common)
                 common["deps"] = common["deps"] + [":" + library["name"] + suffix]
+        sources = [path for path in library["srcs"] if path not in c_sources and path not in asm_sources]
+        if original in ["//chrome/browser/ui:ui", "//chrome/browser:browser"]:
+            replacement = browser_project_pch(library, common, sources, cpp_options)
+            sources = select({
+                "//native/tool_configuration:project_pch": [],
+                "//conditions:default": sources,
+            })
+            common["deps"] = select({
+                "//native/tool_configuration:project_pch": [replacement] + common["deps"],
+                "//conditions:default": common["deps"],
+            })
         cc_library(
             name = library["name"],
-            srcs = [path for path in library["srcs"] if path not in c_sources and path not in asm_sources],
+            srcs = sources,
             copts = cpp_options,
             **common
         )
