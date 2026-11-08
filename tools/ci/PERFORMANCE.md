@@ -948,3 +948,59 @@ objects reproduces browser SHA-256
 `21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
 218 tests pass. These are warm correctness gates, not cold timing or artifact
 ABI/rendering proof. The separate V8 compiler pilot is excluded.
+
+### Shared Base Bind.h experiment
+
+A read-only survey finds 18,127 Bind.h consumers outside the 7,117 existing
+project-PCH consumers. It covers 31,376 original native fastbuild C++ records;
+all depfiles are present and parse without escaping exceptions. This is header
+membership, not CPU attribution or a cold-duration forecast.
+
+A 36-file pilot across twelve original owners reproduces every baseline object.
+One producer cannot serve both member-pointer language modes: Clang rejects
+33 cases. Two matching producer variants preserve all 144 object outputs across
+four passes, retaining every consumer flag and normal Clang PCH validation.
+Mean compiler CPU falls 83.408 to 66.488 seconds (20.29%), including both fresh
+producers in each candidate pass. Four workers, warm inputs and shared local
+hardware; no whole-build or BB timing claim.
+
+An empty-source configuration probe accepts 1,558 of 1,559 contexts, covering
+18,086 source records. The remaining 41 have a different optimization level and
+stay plain. This probe does not qualify real source objects. Full source byte
+qualification is running separately, including a no-PCH baseline for any reject.
+
+Both manual producer declarations retain complete SDK inputs and validate the
+same 112 project header paths. A separate Base context avoids a dependency cycle.
+Default Base sources, dependency order, flags and link options stay unchanged.
+Both producers and both closure validators execute under Linux sandbox, each
+with 1,841 declared inputs. All 425 original Base compiler commands and effective
+environments remain unchanged. The actual Bazel PCHs reproduce all 36 pilot
+objects and accept the same 1,558 contexts. Their bytes differ from the prototype
+PCHs; prototype full-corpus validation was retired after 8,054 matching objects.
+The full 18,086-source comparison now uses the actual Bazel artifacts. Consumer
+rollout remains pending. The ten-PCH cold trial excludes this experiment; other
+triples are unmeasured.
+
+### Ten-PCH strict-cold result
+
+Revision `92762b2190978ba33dae91ea534e551cf07de3e1`, invocation
+`d1499426-618f-4e2b-a5d8-e64fc0c9c861`, reached the hosted one-hour limit at
+3,600.546015 seconds without a completed archive. The under-one-hour goal remains
+unmet; artifact ABI and rendering cannot be verified for this run. Fresh build
+state, archive-only dependency reuse and disabled RBE/action caches were retained.
+The collector succeeded in GitHub Actions run `42527193855`.
+
+The 710 resource samples span elapsed 5.571–3,555.947 seconds. After elapsed
+1,800 seconds, cgroup CPU usage averages 18.809 CPU equivalents: 16.607 user and
+2.172 system. Guest I/O wait averages 0.014 CPUs and steal 0.030; quota throttling
+does not increase. The observed guest exposes 19 CPUs and 35,262,926,848 bytes of
+memory. Physical allocation and host page-cache state are not independently
+controlled. Peak sampled Bazel RSS is 7,158,951,936 bytes; pressure and cgroup
+memory peak/events remain unavailable. Shared memory is included in file memory.
+
+The partial trace contains 19,092 completed CppCompile spans, 41,097.715 compiler
+subprocess task-seconds and 2,798.672 sandbox task-seconds. These are overlapping
+wall spans, not CPU measurements. Different scheduling and incomplete coverage
+prevent throughput comparisons with earlier terminated runs. Late-stage CPU
+saturation still favors reducing compiler work. Other four triples remain
+cold-unmeasured.

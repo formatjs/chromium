@@ -1,6 +1,7 @@
 """Compile Chromium's complete Linux base library with native actions."""
 
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":base_bind_pch.bzl", "base_bind_pchs")
 load(":base_sources.bzl", "COPTS", "DEFINES", "HEADERS", "SOURCES")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 load(":python_action.bzl", "chromium_python_action")
@@ -84,6 +85,19 @@ def native_base(name):
         includes = ["gen"],
         deps = [":base_headers"],
     )
+    base_dependencies = [
+        ":base_headers",
+        ":base_base_static",
+        ":base_cityhash_v103",
+        ":base_symbolize",
+        ":base_xdg_user_dirs",
+        ":base_dwarf_helpers",
+        "//native/rust:rust_logger",
+        "//native/rust:serde_json_wrapper",
+        "@glib//gmodule",
+        "@glib//gobject",
+    ]
+    base_bind_pchs(COPTS["base"], ["BASE_IMPLEMENTATION", "IS_RAW_PTR_IMPL"], base_dependencies)
     cc_library(
         name = name,
         linkstatic = True,
@@ -91,18 +105,7 @@ def native_base(name):
         copts = COPTS["base"],
         local_defines = ["BASE_IMPLEMENTATION", "IS_RAW_PTR_IMPL"],
         linkopts = ["-pthread", "-ldl", "-lrt"],
-        deps = [
-            ":base_headers",
-            ":base_base_static",
-            ":base_cityhash_v103",
-            ":base_symbolize",
-            ":base_xdg_user_dirs",
-            ":base_dwarf_helpers",
-            "//native/rust:rust_logger",
-            "//native/rust:serde_json_wrapper",
-            "@glib//gmodule",
-            "@glib//gobject",
-        ],
+        deps = base_dependencies,
     )
     cc_library(
         name = name + "_i18n",
