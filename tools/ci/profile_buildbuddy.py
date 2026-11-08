@@ -334,6 +334,9 @@ def collect(identifier):
     elif pattern == ['Chromium compiler preparation']:
         report_key = 'compiler_preparation'
         report_path = 'compiler-preparation/report.json'
+    elif pattern == ['Chromium representative LLVM compiler preparation']:
+        report_key = 'compiler_preparation'
+        report_path = 'llvm-compiler/report.json'
     elif pattern == ['Chromium compiler comparison']:
         report_key = 'compiler_preparation'
         report_path = 'compiler-comparison/report.json'
@@ -368,6 +371,19 @@ def collect(identifier):
             if len(payload) > 4 * 1024 * 1024:
                 raise ValueError('Build measurement report exceeds 4 MiB')
             result[report_key] = json.loads(payload)
+            if report_key == 'pch_experiment' and not result[report_key].get('complete'):
+                phase = result[report_key].get('active_phase')
+                if phase in {'warmup-baseline', 'warmup-candidate', 'baseline-1', 'baseline-2',
+                             'candidate-1', 'candidate-2'}:
+                    path = report_path.removesuffix('report.json') + phase + '.profile.gz'
+                    profiles = [artifact for invocation in invocations
+                                for artifact in invocation.get('artifacts', [])
+                                if artifact.get('name', '').endswith('/' + path) or artifact.get('name') == path]
+                    if len(profiles) == 1:
+                        with api_request('GetFile', {'uri': profiles[0]['uri']},
+                                         os.environ['BUILDBUDDY_API_KEY']) as response:
+                            result['incomplete_pch_profile'] = {
+                                'phase': phase, 'summary': trace_summary(_ProfileDownload(response), allow_partial=True)}
         if report_key == 'cold_build':
             summary_path = report_path.removesuffix('cold-build.json') + 'trace-summary.json'
             summaries = [artifact for invocation in invocations
