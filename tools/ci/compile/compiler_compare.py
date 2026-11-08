@@ -120,12 +120,12 @@ class Build:
         self.objects = object_paths(rows, self.execution_root)
         commands = compiler_commands(json.loads(self.query(
             'aquery', '--output=jsonproto', '--include_param_files', 'mnemonic("CppCompile", ' + query + ')')))
-        if any(not item['arguments'][0].endswith('/toolchain/stage0_linux_x86_64/bin/clang++')
-               for item in commands.values()):
-            raise ValueError('Compiler comparison must use the indexed stage-0 compiler')
-        binary = self.execution_root / ('external/llvm++llvm_toolchain_minimal+'
-                                        'llvm-toolchain-minimal-linux-amd64/bin/llvm')
-        self.compiler_binary_sha256 = digest(binary)
+        driver = ('external/llvm++llvm_toolchain_minimal+'
+                  'llvm-toolchain-minimal-linux-amd64/bin/clang++')
+        actual = {item['arguments'][0] for item in commands.values()}
+        if actual != {driver}:
+            raise ValueError('Expected indexed stage-0 compiler; got ' + ', '.join(sorted(actual)))
+        self.compiler_binary_sha256 = digest(self.execution_root / driver)
         return commands
 
     def build(self, phase, measured):
