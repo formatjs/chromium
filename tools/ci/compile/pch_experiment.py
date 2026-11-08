@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import posixpath
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -170,13 +171,17 @@ def verify_command_compilers(commands, output_base, expected):
 
 
 def query(startup, flags, source, expression, target):
-    result = subprocess.run([*startup, 'cquery', *flags, '--output=starlark',
-                             '--starlark:expr=' + expression, target],
-                            cwd=source, capture_output=True, text=True)
-    if result.returncode:
-        print(result.stderr[-6000:], flush=True)
-        raise ValueError('PCH probe analysis failed')
-    return [ast.literal_eval(line) for line in result.stdout.splitlines()]
+    for attempt in range(3):
+        result = subprocess.run([*startup, 'cquery', *flags, '--output=starlark',
+                                 '--starlark:expr=' + expression, target],
+                                cwd=source, capture_output=True, text=True)
+        if not result.returncode:
+            return [ast.literal_eval(line) for line in result.stdout.splitlines()]
+        if attempt == 2 or not re.search(r'GET returned (502|503|504)\b', result.stderr):
+            print(result.stderr[-6000:], flush=True)
+            raise ValueError('PCH probe analysis failed')
+        print('Dependency server returned 5xx; retrying metadata query', flush=True)
+        time.sleep(5 * (attempt + 1))
 
 
 def measure(startup, flags, source, name, target, directory):

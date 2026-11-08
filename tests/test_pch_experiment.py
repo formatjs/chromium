@@ -1,6 +1,7 @@
 from pathlib import Path
 import hashlib
 import tempfile
+import subprocess
 import unittest
 from unittest import mock
 
@@ -9,6 +10,23 @@ from tools.ci.compile.pch_reproducibility import verify_producer_options
 
 
 class PchExperimentTest(unittest.TestCase):
+    def test_metadata_query_retries_only_transient_fetch_errors(self):
+        failed = subprocess.CompletedProcess([], 1, '', 'Error downloading archive: GET returned 504 Gateway Time-out')
+        success = subprocess.CompletedProcess([], 0, "['target']\n", '')
+        with mock.patch.object(pch_experiment.subprocess, 'run', side_effect=[failed, success]) as run, \
+                mock.patch.object(pch_experiment.time, 'sleep') as sleep:
+            self.assertEqual(pch_experiment.query(['bazel'], [], '/source', 'expression', '//target'), [['target']])
+            self.assertEqual(run.call_count, 2)
+            sleep.assert_called_once_with(5)
+        for error, attempts in [('GET returned 503 Service Unavailable', 3), ('unknown target', 1)]:
+            with self.subTest(error=error), \
+                    mock.patch.object(pch_experiment.subprocess, 'run', return_value=subprocess.CompletedProcess([], 1, '', error)) as run, \
+                    mock.patch.object(pch_experiment.time, 'sleep'), self.assertRaises(ValueError):
+                try:
+                    pch_experiment.query(['bazel'], [], '/source', 'expression', '//target')
+                finally:
+                    self.assertEqual(run.call_count, attempts)
+
     def test_producer_requires_timestamp_free_content_validation(self):
         flags = ['--relocatable-pch', '-Xclang', '-fno-pch-timestamp',
                  '-fpch-validate-input-files-content']
