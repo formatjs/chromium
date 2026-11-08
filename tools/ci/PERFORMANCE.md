@@ -868,3 +868,28 @@ While compiler release approval remains pending, an independent
 at `c92f1eb` is running. It retains the original published compiler and tests
 the validated generator change with the full archive target and existing
 strict cache policy. No completed cold result or artifact is available yet.
+
+## Private compiler dependency handoff
+
+The [CI-only handoff](https://formatjs.buildbuddy.io/invocation/5551fe15-a956-45d5-b50c-09560bb37d1f)
+at `f70d82a` succeeds using BuildBuddy's supported managed workflow API auth.
+It fetches the pinned compiler archive from its existing CI artifact store and
+checks exact size/SHA256. Credentials are neither printed nor extracted from RC
+files. No public release is required for this benchmark; the earlier public
+publication request is now optional.
+
+Protocol `b45e37c` accepts that explicit compiler archive input, checks cached
+archives too, generates a root LLVM index from a committed upstream template,
+and records configuration hashes. It retains fresh output/install/user/auxiliary
+state. Compiler fetch/setup time counts. A successful build must match the actual
+compiler binary digest as well. Default builds retain the published compiler.
+182 tests pass, including corrupt archives, unrelated host-index preservation
+and wrong compiler rejection. Actual Bazel preflight confirms six identical
+expanded commands/environments, the intended binary hash, four workers and all
+5,574 bindings outputs. No build actions execute in this preflight.
+
+The [combined strict-cold trial](https://formatjs.buildbuddy.io/invocation/4a088b2c-e46e-468a-95ee-e20ff5e1914a)
+is running alongside the worker-only trial in separate workflows. Each requests
+the current 16-CPU/32GB tier. This overlap prevents an isolated full-build wall
+A/B claim; it does not relax timing, cache-policy or artifact acceptance gates.
+Neither trial has produced a verified complete result yet.
