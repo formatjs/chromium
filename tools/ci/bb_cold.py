@@ -76,6 +76,7 @@ def main():
                        '--bazel', str(bazel), '--jobs', str(args.jobs),
                        '--heap-gib', '8', '--action-memory-mb', '14000', '--sandbox-base', '{sandbox}',
                        '--profile', str(profile),
+                       '--resource-log', str(destination / 'cold-resources.jsonl'),
                        '--max-seconds', '0']
             if compiler is not None:
                 command.extend(['--compiler-archive', str(compiler), '--compiler-profile', args.compiler_profile])

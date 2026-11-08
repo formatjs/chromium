@@ -144,6 +144,7 @@ def main():
     parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
     parser.add_argument('--compiler-archive', type=Path, help='Explicit SHA-pinned experimental compiler dependency')
     parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
+    parser.add_argument('--resource-log', type=Path, help='Streaming Linux resource counters')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
     parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
     args = parser.parse_args()
@@ -153,6 +154,8 @@ def main():
         parser.error('--project-pch requires --blink-pch')
     if args.blink_pch and (not args.native_tools or args.platform != 'linux-amd64'):
         parser.error('--blink-pch requires --native-tools on linux-amd64')
+    if args.resource_log and args.resource_log.exists():
+        parser.error('--resource-log must start absent')
     if args.profile and args.profile.exists():
         parser.error('--profile must start absent')
     if args.compiler_archive and args.platform != 'linux-amd64':
@@ -179,13 +182,16 @@ def main():
     source = directory / 'source'
     events = directory / 'events.json'
     profile = args.profile.resolve() if args.profile else directory / 'profile.json.gz'
+    resource_log = args.resource_log.resolve() if args.resource_log else directory / 'resources.jsonl'
     roots = [directory / name for name in ['source', 'output-base', 'install-base', 'bazel-root']]
     fresh = all(not path.exists() for path in roots)
     assert fresh
     from tools.ci.storage_probe import filesystem_snapshot
+    from tools.ci.resource_probe import resource_snapshot
     storage_paths = {'output': directory}
     if args.sandbox_base:
         storage_paths['sandbox'] = args.sandbox_base
+    resource_initial = resource_snapshot()
     storage_initial = filesystem_snapshot(storage_paths)
     storage_minimum = {name: row['available_bytes'] for name, row in storage_initial.items()}
     success, code, error, cancelled = False, None, None, False
@@ -266,9 +272,12 @@ def main():
                 storage = filesystem_snapshot(storage_paths)
                 for name, row in storage.items():
                     storage_minimum[name] = min(storage_minimum[name], row['available_bytes'])
+                resources = resource_snapshot(process.pid)
+                with resource_log.open('a') as samples:
+                    samples.write(json.dumps({'elapsed_seconds': elapsed, 'resources': resources}) + '\n')
                 (directory / 'progress.json').write_text(json.dumps({'elapsed_seconds': elapsed,
                     'platform': args.platform, 'bazel_pid_in_namespace': process.pid,
-                    'storage': storage, 'profile_bytes': profile.stat().st_size if profile.exists() else 0}) + '\n')
+                    'storage': storage, 'resources': resources, 'profile_bytes': profile.stat().st_size if profile.exists() else 0}) + '\n')
                 if args.max_seconds and elapsed >= args.max_seconds:
                     cancelled = True
                     process.send_signal(signal.SIGINT)
@@ -302,6 +311,7 @@ def main():
                        'binding_workers': args.binding_workers,
                        'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
                        'compiler_dependency': compiler_dependency,
+                       'resource_initial': resource_initial, 'resource_final': resource_snapshot(),
                        'storage_initial': storage_initial, 'storage_final': filesystem_snapshot(storage_paths),
                        'minimum_sampled_available_bytes': storage_minimum,
                        'source_checkout': 'fresh git archive from local fetched objects',

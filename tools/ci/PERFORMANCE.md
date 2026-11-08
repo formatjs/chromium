@@ -893,3 +893,10 @@ Chrome UI/Profile candidates and BOLT are excluded here. Complete target,
 fresh state, seven producer/closure checks, one prefix guard and cache policy
 remain unchanged. Only perf/strict-cold-c04-content-run triggers this candidate;
 the ready branch is held while the existing seven-PCH run finishes.
+
+Cold trials also stream `cold-resources.jsonl` beside the Bazel profile. Samples
+contain cumulative cgroup CPU/throttling, memory/reclaim/OOM, pressure counters,
+kernel CPU ticks and Bazel RSS. Compare counter deltas across elapsed timestamps;
+old peak/OOM totals are not evidence that this trial hit those conditions.
+Kernel and ancestor counters may include other workloads. Missing counters stay
+unknown. Sampling changes no compiler flags, action inputs or cache settings.
