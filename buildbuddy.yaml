@@ -170,7 +170,7 @@ actions:
       disk: 200GB
     triggers:
       push:
-        branches: ["perf/strict-cold-base-bind-run"]
+        branches: ["codex/strict-cold-plugin-parents"]
     steps:
       - run: |
           python3 -m tools.ci.bb_cold \
