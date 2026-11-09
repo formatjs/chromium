@@ -1569,3 +1569,57 @@ V8 therefore keeps its original context and extends only SDK headers. All new
 project closures must be discovered with declared inputs, pinned, then validated
 before source timing. Complete population, graph and cold qualification remain
 required before rollout.
+
+The expanded 128-source pilot now preserves 110 normal and 92 eager contexts.
+All 32 full-input PCH/depfile pairs match their frozen-closure versions exactly.
+Fixed compatibility priority (eager, normal, original) models 17.5% less whole
+C++ CPU, or about 96.1 minutes before new producer and graph costs. This remains
+a training-sample estimate, not a cold result.
+
+An early prefix forced `field_trial_params.h` into previously unrelated sources.
+Its explicit `FeatureParam` instantiations added weak constructors, including to
+otherwise empty generated objects. Those byte changes are rejected. Prefixes now
+add that dependency only where the original closure already owned it; no symbol
+stripping or compiler validation bypass is used.
+
+SDK-only prefixes built with each original source's exact context preserve all
+25 sampled plain-source objects. Normal/eager compiler CPU ratios are 0.8907 and
+0.8834. Combining this fallback with the expanded prefix by fixed compatibility
+priority preserves 125/128 contexts and models 19.8% less whole C++ CPU, about
+94.1 minutes. The SDK trial uses 50 per-source producers, so it is an upper bound
+until shared producer families and their costs are qualified. No production
+routing uses these experimental prefixes. A separate, disjoint 128-source
+holdout is selected but has not run.
+
+One Parallel GC diagnostic preserves all 128 native object controls. Bazel CPU
+falls from 674.70 to 643.48 seconds (4.6%); build wall falls from 104.19 to 96.97
+seconds. Compiler CPU rises 1.3%. Both include analysis and cached graph checks;
+neither establishes complete cold-build savings. Runtime tuning needs replicated
+measurements before adoption. Current work targets deeper component prefixes,
+shared SDK contexts and independent holdout validation before another cold run.
+
+Two component pilots extend existing Blink, Chrome UI/Profile, Content and V8
+prefixes with headers identified by the frontend traces. Across 45 training
+contexts, 35 normal and 26 eager imports preserve native object bytes. Each
+pilot's full-input PCHs and depfiles match their scoped counterparts. The first
+30-context pilot's compatible eager subset uses 0.3877 times baseline compiler
+CPU; the remaining 15-context pilot uses 0.2995 times baseline on its compatible
+eager subset. Rejected imports retain their earlier route.
+
+The SDK prefix now shares eight representative contexts across all 25 sampled
+plain sources: 16 producers instead of 50. Normal/eager CPU ratios are 0.8813
+and 0.8777, with all object bytes preserved. Seven initial families rejected two
+imports because `SK_USER_CONFIG_HEADER` values differed. Grouping also checks
+overlapping command macros; no compiler or consumer flags are overridden.
+All 16 dependency files contain only the generated prefix and declared SDK
+files/tree children. Every consumer retains the same 1,729 SDK inputs.
+
+The frozen priority is component eager, component normal, global eager, global
+normal, shared SDK eager, shared SDK normal, original. Across the 128 training
+contexts, 125 import a byte-compatible prefix. The whole-C++ point estimate is
+28.0% less CPU. Counting 383.37 measured CPU seconds for all 70 additional
+producers gives about 87.7 minutes at the completed cold run's CPU utilization.
+New graph/validator costs and sampling uncertainty remain; this is not a cold
+build result. The disjoint 128-source holdout now has queued global, component
+and SDK trials, using frozen families and priority. Unsupported SDK contexts
+keep original/global routing. No production routing has changed.
