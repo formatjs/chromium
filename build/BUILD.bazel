@@ -1,6 +1,7 @@
 exports_files([
     "lazy-bats-toolchain.patch",
     "blink-bounded-workers.patch",
+    "chromium-rollup-logical-paths.patch",
     "chromium-macos-headless-quit.patch",
     "libvpx-rtcd-lf.patch",
     "libvpx-rtcd-config-features.patch",
