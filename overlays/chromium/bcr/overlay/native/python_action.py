@@ -23,12 +23,16 @@ def run(manifest):
     with tempfile.TemporaryDirectory(prefix='chromium-action-') as directory:
         root = Path(directory)
         staged = set()
+        directories = set()
         for actual, logical in manifest['inputs']:
             if logical in staged:
                 raise ValueError(f'duplicate logical input: {logical}')
             staged.add(logical)
             destination = logical_path(root, logical)
-            destination.parent.mkdir(parents=True, exist_ok=True)
+            parent = destination.parent
+            if parent not in directories:
+                parent.mkdir(parents=True, exist_ok=True)
+                directories.add(parent)
             if logical in manifest.get('executable_inputs', manifest.get('symlink_inputs', [])):
                 executable = str(execution_root / actual)
                 # Preserve the tool directory and multicall executable name.

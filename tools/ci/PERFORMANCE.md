@@ -1146,3 +1146,13 @@ qualification candidates, not adopted routing or proven speedups. Full source
 byte qualification, integration/context/link checks and cold timing remain
 required. Existing larger Browser/Profile/private-RenderFrameHost/IDL PCH
 consumers keep their current producers.
+
+### Generator input directory setup
+
+Staging creates each input parent directory once per action. Each action still
+starts with a private temporary directory; copying, metadata and logical paths
+stay unchanged. A pinned Python 3.11 ABBA replay of twelve real WebUI/TypeScript/
+GRIT actions preserves all 69 output files across 48 executions. Mean child CPU
+falls from 15.294 to 14.584 seconds, a 4.64% reduction in this sample. The local
+header-preparation build remained active, so wall time was uncontrolled. This
+is warm supporting evidence, not a complete cold-build speedup.
