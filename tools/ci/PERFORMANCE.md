@@ -1128,3 +1128,21 @@ Real sandbox builds compile and link all five plugins, then execute 159 existing
 generation actions across target and execution configurations. All 1,556 generated
 files and all seven plugin objects match baseline bytes. Plugin executables
 relink with different layouts. These are warm correctness checks, not cold timing.
+
+### Wider existing PCH reuse pilot
+
+A warm raw-compiler ABBA pilot compares current compilation against wider reuse
+of three existing PCHs, with twelve sources per header. All 144 object checks
+match frozen originals. Mean compiler CPU falls 19.6% for public RenderFrameHost,
+14.2% for Document and 5.4% for String. Existing PCHs are reused, so these totals
+exclude producer and sandbox costs; they are not a cold-build forecast. The
+last baseline phase overlaps a read-only Bazel dependency query.
+
+A configured graph query excludes owners already reachable from each producer,
+including their existing compilation-context/cohort variants. After this
+conservative cycle check and source deduplication, 3,502 candidates remain:
+2,234 public RenderFrameHost, 395 Document and 873 String. These counts describe
+qualification candidates, not adopted routing or proven speedups. Full source
+byte qualification, integration/context/link checks and cold timing remain
+required. Existing larger Browser/Profile/private-RenderFrameHost/IDL PCH
+consumers keep their current producers.
