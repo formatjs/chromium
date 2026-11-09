@@ -49,6 +49,7 @@ def main():
         '        dep = "@protobuf//:protobuf_lite",', '    )',
         '    chromium_tool_inputs(', '        name = "protoc_tool",',
         '        tool = ":protobuf_compiler",',
+        '        allow_native_sharing = False,',
         '        logical_path = ' + json.dumps(compiler[2:]) + ',',
         *(['        additional_logical_paths = ["out/bazel-import/protoc"],']
           if compiler != BUILD_DIR + 'protoc' else []),

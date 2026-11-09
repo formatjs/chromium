@@ -2122,7 +2122,8 @@ def main():
                     deps.append(':protoc_tool')
                 else:
                     tool_name = name(dependency) + '_tool'
-                    tools[tool_name] = dict(tool=':protobuf_compiler', logical_path=output[2:])
+                    tools[tool_name] = dict(tool=':protobuf_compiler', logical_path=output[2:],
+                                            allow_native_sharing=False)
                     deps.append(':' + tool_name)
             plugin = '//third_party/dom_distiller_js/protoc_plugins/json_values_converter.py'
             if target['script'] == '//tools/protoc_wrapper/protoc_wrapper.py' and plugin in inputs:
