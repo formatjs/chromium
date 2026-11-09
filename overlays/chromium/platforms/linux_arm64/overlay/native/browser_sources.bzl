@@ -1547030,6 +1547030,7 @@ TOOLS = {
     "browser_gperf_tool": {
         "tool": "@gperf//:gperf",
         "logical_path": "out/bazel-import/gperf",
+        "argv0": "gperf",
     },
     "browser_d7b47b215f767a02_tool": {
         "tool": ":blink_platform_d7b47b215f767a02",

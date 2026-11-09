@@ -1656,3 +1656,22 @@ zero original `CppCompile` actions execute, and its object matches the actual co
 digest with all 1,729 SDK inputs retained. The original object, fixture and
 compiler selection are restored. This supports avoiding duplicate baseline work
 during qualification; full-population input provenance still needs verification.
+
+Actual shared-prefix declarations preserve 247/256 training and holdout contexts
+under frozen priority. All 70 full-input/scoped PCH and dependency-file pairs
+match. SDK contexts use captured effective macros without GN library dependencies,
+so lower libraries can import them without dependency cycles. All 57 affected
+plain contexts retain their earlier decisions after this change. Candidates remain
+manual; production source routing is not enabled.
+
+Cold input auditing covers 157,758 logical files. It exposed two generator leaks:
+gperf recorded executable paths in comments; SPIRV-Tools eagerly queried ambient
+Git even when its version description was forced. gperf now uses an explicit stable
+invocation name through staged tools. Other tools retain directory and multicall
+lookup. SPIRV-Tools uses declared `BCR-2026.1` metadata and never queries Git when
+forced. Regression tests exercise real pinned tools across different paths and
+fake parent Git descriptions. These fixes change generated provenance, not compiler
+options. Four freshly executed gperf native objects match completed cold digests after
+the invocation-name fix. All 228 Python tests pass; the real Bazel generator
+regression passes all three cases. Full population qualification still gates every
+replacement against its actual cold digest and command/environment signature.

@@ -78,6 +78,7 @@ def _tool_inputs_impl(ctx):
         ChromiumFilesInfo(
             mappings = depset([(executable, path) for path in logical_paths]),
             executables = [(runner, path) for path in logical_paths],
+            executable_names = {path: ctx.attr.argv0 for path in logical_paths} if ctx.attr.argv0 else {},
             native_linux = native_linux,
         ),
     ]
@@ -89,6 +90,7 @@ _tool_inputs = rule(
         "native_tool": attr.label(executable = True, cfg = "target"),
         "logical_path": attr.string(mandatory = True),
         "additional_logical_paths": attr.string_list(),
+        "argv0": attr.string(doc = "Stable invocation name for tools that embed argv[0] in generated output."),
         "runtime_data": attr.label_keyed_string_dict(allow_files = True, cfg = "exec"),
         "stage_runtime": attr.bool(default = False),
         "runtime_deps": attr.label_list(providers = [ChromiumFilesInfo], cfg = "exec"),

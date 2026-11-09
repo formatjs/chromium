@@ -21,3 +21,21 @@ diff --git a/BUILD.bazel b/BUILD.bazel
  
  py_binary(
      # The script that generates compressed grammar tables for
+@@ -109,4 +122,5 @@
+     outs = ["build-version.inc"],
+-    cmd = "SOURCE_DATE_EPOCH=0 $(location :update_build_version) $(location CHANGES) $(location build-version.inc)",
+-    cmd_bat = "set SOURCE_DATE_EPOCH=0  && $(location :update_build_version) $(location CHANGES) $(location build-version.inc)",
++    cmd = "SOURCE_DATE_EPOCH=0 FORCED_BUILD_VERSION_DESCRIPTION=BCR-2026.1 $(location :update_build_version) $(location CHANGES) $(location build-version.inc)",
++    cmd_bat = 'set "SOURCE_DATE_EPOCH=0" && set "FORCED_BUILD_VERSION_DESCRIPTION=BCR-2026.1" && $(location :update_build_version) $(location CHANGES) $(location build-version.inc)',
+     tools = [":update_build_version"],
++    visibility = ["//visibility:public"],
+diff --git a/utils/update_build_version.py b/utils/update_build_version.py
+--- a/utils/update_build_version.py
++++ b/utils/update_build_version.py
+@@ -153,3 +153,5 @@
+     repo_path = os.path.dirname(changes_file_path)
+-    description = os.getenv("FORCED_BUILD_VERSION_DESCRIPTION", describe(repo_path))
++    description = os.getenv("FORCED_BUILD_VERSION_DESCRIPTION")
++    if description is None:
++        description = describe(repo_path)
+     content = OUTPUT_FORMAT.format(version_tag=version, description=description)

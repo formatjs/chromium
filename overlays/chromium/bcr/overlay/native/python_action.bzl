@@ -15,6 +15,7 @@ ChromiumFilesInfo = provider(
     fields = {
         "mappings": "Depset of (file, Chromium-relative path) pairs.",
         "executables": "Optional list of (files_to_run, logical path) pairs.",
+        "executable_names": "Optional logical executable path to stable argv[0] mapping.",
         "native_linux": "Optional requirement to execute shared native tools on Linux AMD64 GNU 2.31.",
         "node_symlinks": "Optional requirement to preserve logical Node module paths.",
     },
@@ -36,6 +37,15 @@ def _executables(deps):
                 fail("conflicting logical executable: %s" % logical)
             tools[logical] = runner
     return [(tools[path], path) for path in sorted(tools)]
+
+def _executable_names(deps):
+    names = {}
+    for dep in deps:
+        for logical, name in getattr(dep[ChromiumFilesInfo], "executable_names", {}).items():
+            if logical in names and names[logical] != name:
+                fail("conflicting executable invocation name: %s" % logical)
+            names[logical] = name
+    return names
 
 def requires_native_linux(deps):
     return any([getattr(dep[ChromiumFilesInfo], "native_linux", False) for dep in deps])
@@ -62,6 +72,7 @@ def _logical_group_impl(ctx):
         ChromiumFilesInfo(
             mappings = mappings,
             executables = _executables(ctx.attr.deps),
+            executable_names = _executable_names(ctx.attr.deps),
             native_linux = requires_native_linux(ctx.attr.deps),
             node_symlinks = requires_node_symlinks(ctx.attr.deps),
         ),
@@ -130,6 +141,9 @@ def _python_action_impl(ctx):
     executables = _executables(ctx.attr.deps)
     if executables:
         description["executable_inputs"] = [logical for _, logical in executables]
+    names = _executable_names(ctx.attr.deps)
+    if names:
+        description["executable_names"] = names
     ctx.actions.write(manifest, json.encode(description))
     ctx.actions.run(
         executable = runtime.interpreter,
@@ -154,6 +168,7 @@ def _python_action_impl(ctx):
                 for out, logical in zip(outputs, ctx.attr.logical_outputs)
             ], transitive = [mappings] if ctx.attr.propagate_inputs else []),
             executables = executables if ctx.attr.propagate_inputs else [],
+            executable_names = names if ctx.attr.propagate_inputs else {},
             native_linux = native_linux and ctx.attr.propagate_inputs,
             node_symlinks = ctx.attr.propagate_inputs and requires_node_symlinks(ctx.attr.deps),
         ),

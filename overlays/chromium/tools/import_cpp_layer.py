@@ -2141,7 +2141,7 @@ def main():
                 inputs.add(BUILD + 'icudtl.dat')
             needs_gperf = layer in ('blink_platform', 'blink_core', 'blink_modules', 'content', 'browser') and 'gperf' in target.get('args', [])
             if needs_gperf:
-                tools[layer + '_gperf_tool'] = dict(tool='@gperf//:gperf', logical_path=BUILD[2:] + 'gperf')
+                tools[layer + '_gperf_tool'] = dict(tool='@gperf//:gperf', logical_path=BUILD[2:] + 'gperf', argv0='gperf')
                 deps.append(':' + layer + '_gperf_tool')
             if layer == 'browser_v8' and target['script'] == '//v8/tools/run.py':
                 inputs.add(BUILD + target['args'][0].removeprefix('./'))

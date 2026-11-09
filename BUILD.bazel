@@ -127,6 +127,7 @@ test_suite(
         ":dawn_native_runtime_test",
         ":dawn_runtime_test",
         ":fonts_runtime_test",
+        ":generator_hermeticity_test",
         ":generator_runtime_test",
         ":geometry_runtime_test",
         ":gfx_runtime_test",
@@ -1100,4 +1101,28 @@ exports_files(
         "tests/gpu_client_runtime_test.cc",
     ],
     visibility = ["//tools/ci:__pkg__"],
+)
+
+py_test(
+    name = "generator_hermeticity_test",
+    size = "small",
+    srcs = ["tests/generator_hermeticity_test.py"],
+    args = [
+        "$(rlocationpath @gperf//:gperf)",
+        "$(rlocationpath @chromium//native:python_action.py)",
+        "$(rlocationpath @chromium//:third_party/blink/renderer/build/scripts/gperf.py)",
+        "$(rlocationpath @spirv_tools//:utils/update_build_version.py)",
+        "$(rlocationpath @spirv_tools//:CHANGES)",
+        "$(rlocationpath @spirv_tools//:build_version_inc)",
+    ],
+    data = [
+        "@gperf//:gperf",
+        "@chromium//native:python_action.py",
+        "@chromium//:third_party/blink/renderer/build/scripts/gperf.py",
+        "@spirv_tools//:utils/update_build_version.py",
+        "@spirv_tools//:CHANGES",
+        "@spirv_tools//:build_version_inc",
+    ],
+    deps = ["@rules_python//python/runfiles"],
+    target_compatible_with = ["@platforms//os:linux", "@platforms//cpu:x86_64"],
 )

@@ -74,10 +74,11 @@ def run(manifest):
                 directories.add(parent)
             if logical in manifest.get('executable_inputs', manifest.get('symlink_inputs', [])):
                 executable = str(execution_root / actual)
-                # Preserve the tool directory and multicall executable name.
+                # Keep runtime lookup intact; generators may declare a stable invocation name.
+                invocation = manifest.get('executable_names', {}).get(logical, executable)
                 destination.write_text(
                     '#!' + sys.executable + ' -I\nimport os, sys\n'
-                    'os.execv(' + repr(executable) + ', [' + repr(executable) + '] + sys.argv[1:])\n')
+                    'os.execv(' + repr(executable) + ', [' + repr(invocation) + '] + sys.argv[1:])\n')
                 destination.chmod(0o755)
             elif (execution_root / actual).is_dir():
                 stage_tree(execution_root / actual, destination)

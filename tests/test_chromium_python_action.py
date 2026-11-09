@@ -89,6 +89,34 @@ pathlib.Path('gen/second.txt').write_text(arguments[0])
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual((root / 'tool.txt').read_text(), 'clang')
 
+    @unittest.skipUnless(Path('/bin/sh').exists(), 'POSIX native executable')
+    def test_explicit_invocation_name_survives_staging(self):
+        with tempfile.TemporaryDirectory() as directory:
+            outputs = []
+            for attempt in ('first', 'different path'):
+                root = Path(directory) / attempt
+                root.mkdir()
+                (root / 'native-tool').symlink_to('/bin/sh')
+                (root / 'generator.py').write_text(
+                    'import pathlib, subprocess\n'
+                    'result = subprocess.run(["../../tools/gperf", "-c", '
+                    '\'printf "%s" "$0"\'], check=True, capture_output=True)\n'
+                    'pathlib.Path("result.txt").write_bytes(result.stdout)\n')
+                manifest = {
+                    'inputs': [['generator.py', 'scripts/generator.py'], ['native-tool', 'tools/gperf']],
+                    'executable_inputs': ['tools/gperf'],
+                    'executable_names': {'tools/gperf': 'gperf'},
+                    'outputs': [['result.txt', 'result.txt']],
+                    'build_dir': 'out/import', 'script': 'scripts/generator.py',
+                    'args': [], 'response_file_contents': [],
+                }
+                (root / 'manifest.json').write_text(json.dumps(manifest))
+                result = subprocess.run([sys.executable, str(RUNNER), 'manifest.json'],
+                                        cwd=root, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                outputs.append((root / 'result.txt').read_text())
+            self.assertEqual(outputs, ['gperf', 'gperf'])
+
     def _run_tree_alias_action(self, root, alias_contents):
         package = root / 'packages/@lit/core'
         package.mkdir(parents=True)

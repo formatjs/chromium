@@ -196777,6 +196777,7 @@ TOOLS = {
     "blink_platform_gperf_tool": {
         "tool": "@gperf//:gperf",
         "logical_path": "out/bazel-import/gperf",
+        "argv0": "gperf",
     },
 }
 
