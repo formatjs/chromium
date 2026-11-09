@@ -7,11 +7,42 @@ import unittest
 from unittest import mock
 
 from tools.ci.local_cold import (NORMAL_PROJECT_PCH_NAMES, eager_template_pch_producers,
-                               local_cold_report, main, serialization_pch_producers)
+                               local_cold_report, main, serialization_pch_producers, v8_objects_pch_producers)
 from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_v8_manifest_requires_eager_subset_and_only_used_variants(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            self.assertEqual(v8_objects_pch_producers(source), frozenset())
+            manifest = source / 'overlays/chromium/bcr/overlay/native/v8_objects_pch_data.bzl'
+            manifest.parent.mkdir(parents=True)
+            for sources, eager, expected in [
+                ({}, {}, set()),
+                ({'owner': ['one.cc']}, {}, {'v8_objects_normal_pch'}),
+                ({'owner': ['one.cc']}, {'owner': ['one.cc']}, {'v8_objects_eager_pch'}),
+                ({'owner': ['one.cc', 'two.cc']}, {'owner': ['one.cc']},
+                 {'v8_objects_normal_pch', 'v8_objects_eager_pch'}),
+            ]:
+                manifest.write_text('V8_OBJECTS_SOURCES = ' + repr(sources) + '\n'
+                                    + 'V8_OBJECTS_EAGER_SOURCES = ' + repr(eager) + '\n')
+                with self.subTest(sources=sources, eager=eager):
+                    self.assertEqual(v8_objects_pch_producers(source), expected)
+            for sources, eager in [([], {}), ({'owner': []}, {}),
+                                   ({'owner': ['one.cc']}, {'other': ['one.cc']}),
+                                   ({'owner': ['one.cc']}, {'owner': ['two.cc']}),
+                                   ({'owner': [None]}, {}), ({}, {'owner': ['one.cc']})]:
+                manifest.write_text('V8_OBJECTS_SOURCES = ' + repr(sources) + '\n'
+                                    + 'V8_OBJECTS_EAGER_SOURCES = ' + repr(eager) + '\n')
+                with self.subTest(sources=sources, eager=eager), self.assertRaises(ValueError):
+                    v8_objects_pch_producers(source)
+            for text in ['V8_OBJECTS_SOURCES = {}\n',
+                         'V8_OBJECTS_SOURCES = {}\nV8_OBJECTS_SOURCES = {}\nV8_OBJECTS_EAGER_SOURCES = {}\n']:
+                manifest.write_text(text)
+                with self.subTest(text=text), self.assertRaises(ValueError):
+                    v8_objects_pch_producers(source)
+
     def test_serialization_manifest_requires_valid_nonempty_routes(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)

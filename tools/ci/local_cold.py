@@ -111,6 +111,37 @@ def serialization_pch_producers(source):
     return frozenset({'serialization_eager_pch'} if owners else ())
 
 
+def v8_objects_pch_producers(source):
+    manifest = source / 'overlays/chromium/bcr/overlay/native/v8_objects_pch_data.bzl'
+    if not manifest.exists():
+        return frozenset()
+    values = {}
+    for node in ast.parse(manifest.read_text()).body:
+        if not isinstance(node, ast.Assign):
+            continue
+        for target in node.targets:
+            if isinstance(target, ast.Name) and target.id in {'V8_OBJECTS_SOURCES', 'V8_OBJECTS_EAGER_SOURCES'}:
+                if target.id in values:
+                    raise ValueError('Duplicate V8 object source manifest')
+                values[target.id] = ast.literal_eval(node.value)
+    if values.keys() != {'V8_OBJECTS_SOURCES', 'V8_OBJECTS_EAGER_SOURCES'}:
+        raise ValueError('Expected both V8 object source manifests')
+    for owners in values.values():
+        if not isinstance(owners, dict):
+            raise ValueError('Expected V8 object owner mapping')
+        for owner, paths in owners.items():
+            if (not isinstance(owner, str) or not owner or not isinstance(paths, list) or not paths
+                    or any(not isinstance(path, str) or not path for path in paths)):
+                raise ValueError('Invalid V8 object source list')
+    sources, eager = values['V8_OBJECTS_SOURCES'], values['V8_OBJECTS_EAGER_SOURCES']
+    if any(not set(paths) <= set(sources.get(owner, [])) for owner, paths in eager.items()):
+        raise ValueError('Eager V8 objects must belong to the expanded source set')
+    required = {'v8_objects_eager_pch'} if eager else set()
+    if any(set(paths) - set(eager.get(owner, [])) for owner, paths in sources.items()):
+        required.add('v8_objects_normal_pch')
+    return frozenset(required)
+
+
 def pch_output_proof(directory, eager_producers, additional_producers=()):
     native = directory / ('output-base/execroot/_main/bazel-out/k8-fastbuild/bin/'
                           'external/+chromium_dependencies+chromium/native')
@@ -326,7 +357,7 @@ def main():
             raise ValueError('Source commit does not select Bazel 9.2.0')
         if args.base_bind_pch:
             expected_eager_producers = eager_template_pch_producers(source)
-            expected_additional_producers = serialization_pch_producers(source)
+            expected_additional_producers = serialization_pch_producers(source) | v8_objects_pch_producers(source)
         if args.compiler_archive:
             from tools.ci.compiler_archive import configure_compiler
             compiler_dependency = configure_compiler(source, args.compiler_archive, args.compiler_profile)

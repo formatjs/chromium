@@ -1414,3 +1414,20 @@ owner, preserves all 128 objects and uses 180.24 versus 324.67 compiler CPU seco
 SDK/global graph checks and a new cold archive remain required. No overall cold
 speedup claimed. Linux amd64 still exceeds one hour; BB goal remains unmet and
 the other four triples remain strict-cold unmeasured.
+
+Expanded V8 imports are now integrated behind the existing fastbuild/native Linux
+PCH opt-in: 289 eager, 135 normal, 129 retain the prior eager isolate import. Two
+explicit producers share the same qualified prefix and public C++ context. Cold
+verification requires both additional producers when their source sets are used.
+
+The mixed-route correctness run selects exact C04 compiler through the LLVM root
+index API, then restores the original index/compiler. All 424 selected objects
+execute in Linux sandboxes and match original bytes; both new raw/validated PCHs
+match the qualified artifacts and the 12 original PCH byte hashes remain equal.
+The run executes 2,794 C++ compiles including prerequisites, with only sandbox
+and internal runners. All 21 producer SDK path sets contain the same 1,729 files;
+the original 12 complete producer input sets are unchanged. Full registered graph
+checks preserve 52,312 C++ compile commands, 854 link commands, 5,784 archive
+commands and archive member order after only qualified import normalization.
+226 Python tests and formatting pass. This is warm correctness evidence, not a
+new cold archive or overall speedup result. BB under-hour remains unproven.

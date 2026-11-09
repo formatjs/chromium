@@ -51,17 +51,22 @@ def _pch_impl(ctx):
             fail("define must expand to one token: " + value)
         defines.append(tokens[0])
     eager_sources = {}
+    eager_variant = None
     alternate = None
     alternate_sources = {}
     if ctx.var.get("CHROMIUM_BASE_BIND_PCH") == "1" and ctx.var.get("COMPILATION_MODE") == "fastbuild":
-        eager_sources = EAGER_TEMPLATE_SOURCES.get(ctx.label.name, {})
+        if bool(ctx.attr.eager_variant) != bool(ctx.attr.eager_sources):
+            fail("Explicit eager imports require both a variant and qualified sources")
+        eager_sources = ctx.attr.eager_sources or EAGER_TEMPLATE_SOURCES.get(ctx.label.name, {})
+        if ctx.attr.eager_variant:
+            eager_variant = ctx.attr.eager_variant[ChromiumPchInfo].pch
         if ctx.attr.alternate_sources:
             if not ctx.attr.alternate:
                 fail("Qualified alternate sources require a PCH producer")
             alternate = ctx.attr.alternate[ChromiumPchInfo]
             alternate_sources = ctx.attr.alternate_sources
     variants = {}
-    for suffix in (["", "_templates"] if eager_sources else [""]):
+    for suffix in (["", "_templates"] if eager_sources and not eager_variant else [""]):
         raw = ctx.actions.declare_file(ctx.label.name + suffix + ".raw.pch")
         dependency = ctx.actions.declare_file(ctx.label.name + suffix + ".d")
         pch = ctx.actions.declare_file(ctx.label.name + suffix + ".pch")
@@ -108,7 +113,7 @@ def _pch_impl(ctx):
         ChromiumPchInfo(
             pch = variants[""],
             headers = depset(headers + ctx.files.extras),
-            eager_pch = variants.get("_templates"),
+            eager_pch = eager_variant or variants.get("_templates"),
             eager_sources = eager_sources,
             alternate = alternate,
             alternate_sources = alternate_sources,
@@ -127,6 +132,8 @@ chromium_project_pch = rule(
         "local_defines": attr.string_list(),
         "alternate": attr.label(providers = [ChromiumPchInfo]),
         "alternate_sources": attr.string_list_dict(),
+        "eager_variant": attr.label(providers = [ChromiumPchInfo]),
+        "eager_sources": attr.string_list_dict(),
         "_validator": attr.label(default = Label("//native:pch_validate.py"), allow_single_file = True),
         "_python": attr.label(default = "@rules_python//python:current_py_toolchain", cfg = "exec"),
     },
@@ -159,12 +166,19 @@ def _groups(ctx):
         eager = []
         original = []
         alternate_files = []
+        alternate_eager_files = []
+        alternate_eager_paths = {path: True for path in producer.alternate.eager_sources.get(ctx.label.name, [])} if producer.alternate else {}
+        if any([path not in alternate_paths for path in alternate_eager_paths]):
+            fail("Eager alternate imports must belong to the alternate source set")
         for file in files:
             path = _project_path(file.path)
             if path in qualified and path in alternate_paths:
                 fail("Overlapping qualified PCH imports: " + file.path)
             if path in alternate_paths:
-                alternate_files.append(file)
+                if path in alternate_eager_paths:
+                    alternate_eager_files.append(file)
+                else:
+                    alternate_files.append(file)
             elif path in qualified:
                 eager.append(file)
             else:
@@ -172,9 +186,12 @@ def _groups(ctx):
         variants = [(producer.pch, original, producer.headers), (producer.eager_pch, eager, producer.headers)]
         if producer.alternate:
             variants.append((producer.alternate.pch, alternate_files, producer.alternate.headers))
+            variants.append((producer.alternate.eager_pch, alternate_eager_files, producer.alternate.headers))
         for pch, selected, headers in variants:
             if not selected:
                 continue
+            if not pch:
+                fail("Qualified sources require an available PCH variant")
             options = ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./="] + PCH_CONSUMER_FLAGS + ["-include-pch", pch.path]
             inputs = ctx.files.extra_inputs + [pch] + headers.to_list()
 
