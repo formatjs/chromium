@@ -1156,3 +1156,24 @@ GRIT actions preserves all 69 output files across 48 executions. Mean child CPU
 falls from 15.294 to 14.584 seconds, a 4.64% reduction in this sample. The local
 header-preparation build remained active, so wall time was uncontrolled. This
 is warm supporting evidence, not a complete cold-build speedup.
+
+### Reuse the execution-configured Protoc
+
+Protoc opts out of native target sharing and uses the BCR execution compiler
+already needed by Quiche. This replaces its extra target fastbuild configuration
+with the existing optimized execution configuration. Protobuf 33.4 and the
+bounds-checking/RTTI definitions stay pinned; other native tools keep their
+existing sharing policy. Both importers preserve this choice on regeneration.
+
+Real Linux sandbox builds execute all 423 selected generators: 422 Python actions
+and one genrule, including downstream asset generators carrying the tool input.
+All 4,028 generated outputs match original bytes. The resulting tool binary
+matches the original execution compiler. The full archive graph removes 187
+compile, 69 link and 68 archive action views, adds none, and preserves every
+retained command/environment, including all twelve PCH producers. Removed views
+belong only to the original Protoc dependency closure. Counts describe registered
+actions, not executed cold work.
+
+These are warm correctness checks, not a timing comparison: the original phase
+also built missing tools. All 219 tests pass. Full cold timing and final artifact
+validation remain required; the other four triples remain cold-unmeasured.

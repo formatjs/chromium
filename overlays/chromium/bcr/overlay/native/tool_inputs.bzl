@@ -101,11 +101,11 @@ _tool_inputs = rule(
     exec_groups = {"native_linux": native_linux_exec_group()},
 )
 
-def chromium_tool_inputs(name, tool, runtime_data = {}, runtime_deps = [], **kwargs):
+def chromium_tool_inputs(name, tool, runtime_data = {}, runtime_deps = [], allow_native_sharing = True, **kwargs):
     """Optionally share captured native Linux tools with target libraries."""
 
     # Configurable and external tools retain their execution transition.
-    if type(tool) != "string" or not tool.startswith(":") or type(runtime_data) != "dict" or type(runtime_deps) not in ["list", "tuple"]:
+    if not allow_native_sharing or type(tool) != "string" or not tool.startswith(":") or type(runtime_data) != "dict" or type(runtime_deps) not in ["list", "tuple"]:
         _tool_inputs(name = name, tool = tool, runtime_data = runtime_data, runtime_deps = runtime_deps, **kwargs)
         return
     shared = Label("//native/tool_configuration:share_native")

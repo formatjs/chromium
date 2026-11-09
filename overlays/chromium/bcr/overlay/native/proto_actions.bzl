@@ -22,6 +22,7 @@ def native_variations_proto(name):
     chromium_tool_inputs(
         name = "protoc_tool",
         tool = ":protobuf_compiler",
+        allow_native_sharing = False,
         logical_path = "out/bazel-import/protoc",
     )
     chromium_python_action(
