@@ -1,11 +1,43 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 from tools.ci.resource_probe import resource_snapshot
 
 
 class ResourceProbeTest(unittest.TestCase):
+    def test_process_cpu_keeps_units_and_handles_parentheses_in_command_name(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            proc = Path(temporary)
+            (proc / '7').mkdir()
+            fields = ['S'] + ['0'] * 10 + ['250', '75', '400', '125']
+            (proc / '7/stat').write_text('7 (private (worker) name) ' + ' '.join(fields) + '\n')
+            with mock.patch('tools.ci.resource_probe.os.sysconf', return_value=100):
+                result = resource_snapshot(7, proc, proc / 'unavailable')
+            self.assertEqual(result['bazel_process'], {
+                'cpu_user_seconds': 2.5, 'cpu_system_seconds': 0.75,
+                'reaped_children_user_seconds': 4.0, 'reaped_children_system_seconds': 1.25,
+            })
+            self.assertNotIn('private', str(result))
+
+    def test_exited_or_malformed_process_cpu_stays_unknown_without_losing_memory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            proc = Path(temporary)
+            (proc / '7').mkdir()
+            (proc / '7/status').write_text('VmRSS:\t12 kB\n')
+            fields = ['S'] + ['0'] * 10 + ['250', '75', '400', '125']
+            for value in ['', '7 (java) S', '8 (java) ' + ' '.join(fields),
+                          '7 (java) ' + ' '.join(fields[:11] + ['bad'] + fields[12:]),
+                          '7 (java) ' + ' '.join(fields[:11] + ['-1'] + fields[12:])]:
+                (proc / '7/stat').write_text(value)
+                with self.subTest(stat=value):
+                    result = resource_snapshot(7, proc, proc / 'unavailable')
+                    self.assertEqual(result['bazel_process'], {'VmRSS_bytes': 12288})
+            (proc / '7/stat').unlink()
+            self.assertEqual(resource_snapshot(7, proc, proc / 'unavailable')['bazel_process'],
+                             {'VmRSS_bytes': 12288})
+
     def test_leaf_and_ancestor_counters_keep_units_and_missing_values(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

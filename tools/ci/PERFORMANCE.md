@@ -1370,3 +1370,8 @@ only Linux sandbox and internal runners appear. Frozen-file and fixture cleanup
 checks pass. This warm correctness run reuses prerequisite outputs and makes no
 cold timing claim. Complete cold archive, ABI and rendering validation remain
 pending; other four triples remain cold-unmeasured.
+
+Cold resource samples also record cumulative Bazel process CPU and reaped child
+CPU when `/proc` counters are available. Compare deltas; running children are
+not yet included in child totals. This separates Java overhead from compiler
+work without changing compiler commands or cache policy.

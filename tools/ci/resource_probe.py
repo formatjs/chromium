@@ -86,4 +86,14 @@ def resource_snapshot(pid=None, proc=Path('/proc'), cgroups=Path('/sys/fs/cgroup
                 value = value.split()[0]
                 if value.isdigit():
                     result['bazel_process'][key + '_bytes'] = int(value) * 1024
+        # Split after command name; it may contain spaces and parentheses.
+        command, separator, values = text(proc / str(pid) / 'stat').rpartition(')')
+        fields = values.split()
+        if (separator and command.startswith(str(pid) + ' (') and len(fields) >= 15
+                and all(value.isascii() and value.isdigit() for value in fields[11:15])):
+            rate = os.sysconf('SC_CLK_TCK')
+            names = ('cpu_user_seconds', 'cpu_system_seconds',
+                     'reaped_children_user_seconds', 'reaped_children_system_seconds')
+            result['bazel_process'].update({name: int(value) / rate
+                                           for name, value in zip(names, fields[11:15])})
     return result
