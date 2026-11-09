@@ -1381,3 +1381,36 @@ The complete devbox baseline exposed a verifier bug: Bazel 9.2 reports only the
 that cutoff, so a successful archive with matching PCH files failed the action
 count check. Cold runs now request all mnemonic metrics. Existing reports stay
 unchanged; any retrospective proof must use the retained execution log.
+
+The completed devbox baseline at `da01479` took 6,955.77 seconds including archive
+copy (6,954.71 seconds inside the cold harness). Actual quota: 16 CPUs / 48 GiB,
+Xeon Platinum 8488C; exact C04 compiler. Fresh output/install/user/tool state,
+dependency archives only reused, RBE and action caches disabled, OS page cache
+uncontrolled. Local caches within one run are permitted for future experiments;
+no derived cache state may cross cold-run boundaries.
+
+BEP records 104,735 actions, including 48,768 C++ compiles. Independent decoding
+of the retained compact log verifies 58,754 Linux sandbox spawns, zero failed
+spawns/cache hits, all 17 PCH producers/validators and one prefix action. Raw and
+validated PCH output digests match. This supplements the original failed verifier
+report; it does not rewrite that report. Exact archive SHA-256:
+`85f60957ad372185d1b05606f8ffd033315fb984875f3f7b6bc1b7ba1aad39c8`.
+GNU ABI, relocated browser, JS/CSS/Intl/layout and both screenshot scenes pass;
+both scenes have zero changed pixels.
+
+Among 250 native cohorts complete in both traces (2,957 sources), devbox task
+wall time is 0.6187 times the timed-out BB run. This is a limited cohort comparison,
+not a completed BB total or isolated hardware speedup. C++ BEP user + system CPU
+is 81,653.40 seconds: 85.06 minutes at 16 CPUs before other work. Saving wrapper
+overhead alone cannot meet the hour target.
+
+Next V8 prototype adds `objects-inl.h` to the current eager isolate prefix. All
+553 current eager baseline objects reproduce with exact C04 compiler. Normal
+expanded imports preserve 424 objects; eager imports preserve 289 of those. The
+other 129 retain their existing route. Both compiler builds reproduce all three
+canonical sandbox PCH artifacts. Paired ABBA on 32 source-byte quantiles, 16 per
+owner, preserves all 128 objects and uses 180.24 versus 324.67 compiler CPU seconds
+(0.5551 ratio). This remains a warm prototype: production mixed routing, full
+SDK/global graph checks and a new cold archive remain required. No overall cold
+speedup claimed. Linux amd64 still exceeds one hour; BB goal remains unmet and
+the other four triples remain strict-cold unmeasured.
