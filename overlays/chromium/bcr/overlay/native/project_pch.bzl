@@ -146,6 +146,8 @@ def _groups(ctx):
     if "" in producers or len(producers) != len(ctx.attr.pchs):
         fail("PCH group names must be unique and nonempty")
     sources = {name: [] for name in [""] + producers.keys()}
+    if any([name not in sources for name in ctx.attr.object_suffixes]):
+        fail("Object suffix names must identify a source group")
     for target, name in ctx.attr.sources.items():
         if name not in sources:
             fail("Unknown PCH group: " + name)
@@ -158,7 +160,7 @@ def _groups(ctx):
         if not files:
             continue
         if not name:
-            groups.append(("_plain", files, ctx.attr.copts, ctx.files.extra_inputs))
+            groups.append((ctx.attr.object_suffixes.get(name, "_plain"), files, ctx.attr.copts, ctx.files.extra_inputs))
             continue
         producer = producers[name]
         qualified = {path: True for path in producer.eager_sources.get(ctx.label.name, [])}
@@ -196,7 +198,7 @@ def _groups(ctx):
             inputs = ctx.files.extra_inputs + [pch] + headers.to_list()
 
             # Keep original object paths and archive order across imports.
-            groups.append(("_" + name, selected, options, inputs))
+            groups.append((ctx.attr.object_suffixes.get(name, "_" + name), selected, options, inputs))
 
     return groups
 
@@ -259,6 +261,7 @@ chromium_pch_compile = rule(
         "sources": attr.label_keyed_string_dict(allow_files = [".cc", ".cpp"]),
         "pchs": attr.label_keyed_string_dict(providers = [ChromiumPchInfo]),
         "object_order": attr.string_list(mandatory = True),
+        "object_suffixes": attr.string_dict(doc = "Original object suffix for each replacement PCH group."),
         "alwayslink": attr.bool(default = False),
         "context": attr.label(mandatory = True, providers = [CcInfo]),
         "extra_inputs": attr.label_list(allow_files = True),

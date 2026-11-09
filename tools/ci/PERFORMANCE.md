@@ -1623,3 +1623,36 @@ New graph/validator costs and sampling uncertainty remain; this is not a cold
 build result. The disjoint 128-source holdout now has queued global, component
 and SDK trials, using frozen families and priority. Unsupported SDK contexts
 keep original/global routing. No production routing has changed.
+
+The disjoint holdout is complete. Global normal/eager imports preserve 106/80
+of 128 contexts; component prefixes preserve 32/19 of 44. All 28 supported SDK
+contexts preserve bytes in both modes; four unmatched plain contexts retain
+their original/global route. Frozen priority imports 122/128 contexts and models
+26.0% less whole C++ CPU: 89.43 minutes including producer CPU, before new graph
+and validator costs. Training/holdout average is 88.57 minutes; two systematic
+offsets do not establish a confidence interval. Margin remains thin.
+
+Raw holdout collectors rejected an environment comparison: execution logs include
+sandbox-injected `PWD=/proc/self/cwd`, while public action metadata omits it.
+Original failures remain preserved. Recovery checks every argument and effective
+environment, then verifies all 128 native controls and 256 probe baseline objects
+against SHA256 digests from the actual completed cold build. Accepted imports
+must match those same digests. Probe children omit injected `PWD`; relative CPU
+estimates retain that limitation. Production native execution is unchanged.
+All 48,768 cold object digests are indexed as correctness references. Reusing
+them for qualification requires command/environment and input provenance checks;
+the final cold benchmark still starts with fresh build state.
+
+`chromium_pch_compile` now accepts optional `object_suffixes` so replacement
+prefix groups can retain existing object paths and archive order. An actual C04
+Bazel integration test compares canonical and aliased groups: compiler flags,
+paths, object bytes and archive bytes match. Default suffixes, explicit empty
+suffixes and invalid group rejection are checked. No routing tables are enabled
+by this interface change. All 227 Python tests pass.
+
+A reference-free qualification probe removes its original object temporarily,
+then builds only a public shadowed compile. One sandboxed candidate executes,
+zero original `CppCompile` actions execute, and its object matches the actual cold
+digest with all 1,729 SDK inputs retained. The original object, fixture and
+compiler selection are restored. This supports avoiding duplicate baseline work
+during qualification; full-population input provenance still needs verification.
