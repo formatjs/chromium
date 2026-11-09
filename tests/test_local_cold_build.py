@@ -12,6 +12,21 @@ from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_nonpositive_target_rejected_before_build_state_is_created(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / 'build'
+            for seconds in ['0', '-1']:
+                arguments = ['local_cold', '--directory', str(directory),
+                             '--repository-cache', str(Path(temporary) / 'fetch-cache'),
+                             '--revision', 'a' * 40, '--bazel', '/verified-bazel',
+                             '--target-seconds', seconds]
+                with self.subTest(seconds=seconds), mock.patch('sys.argv', arguments), \
+                        redirect_stderr(io.StringIO()) as errors, self.assertRaises(SystemExit) as exit:
+                    main()
+                self.assertEqual(exit.exception.code, 2)
+                self.assertIn('--target-seconds must be positive', errors.getvalue())
+                self.assertFalse(directory.exists())
+
     def test_v8_manifest_requires_eager_subset_and_only_used_variants(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
@@ -121,7 +136,8 @@ class LocalColdBuildTest(unittest.TestCase):
             def measure(changes=None, runners=None, fresh=True, success=True, compiles=16, client_command=None,
                         expected_pch_count=0, pch_count=0, validator_count=0,
                         expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
-                        additional_pchs=(), omitted_original=(), mutate_pch_files=None):
+                        additional_pchs=(), omitted_original=(), mutate_pch_files=None,
+                        elapsed=500, target_seconds=3600):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -153,19 +169,30 @@ class LocalColdBuildTest(unittest.TestCase):
                             (native / (name + suffix)).write_bytes(('fixture:' + name).encode())
                 if mutate_pch_files:
                     mutate_pch_files(native)
-                result = local_cold_report(events, 500, success, root, cache, fresh,
+                result = local_cold_report(events, elapsed, success, root, cache, fresh,
                                            command if client_command is None else client_command,
                                            expected_pch_count=expected_pch_count,
                                            expected_prefix_count=expected_prefix_count,
                                            expected_base_bind_pch=base_bind_pch,
                                            expected_eager_producers=eager_producers,
-                                           expected_additional_producers=additional_pchs)
+                                           expected_additional_producers=additional_pchs,
+                                           target_seconds=target_seconds)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
             result = measure()
             self.assertTrue(result['cold_result_verified'])
             self.assertTrue(result['local_execution_verified'])
+            longer_target = measure(elapsed=4000, target_seconds=5400)
+            self.assertTrue(longer_target['cold_result_verified'])
+            self.assertTrue(longer_target['under_target'])
+            self.assertEqual(longer_target['target_seconds'], 5400)
+            self.assertFalse(longer_target['under_one_hour'])
+            self.assertFalse(measure(elapsed=4000)['under_target'])
+            boundary = measure(elapsed=5400, target_seconds=5400)
+            self.assertTrue(boundary['cold_result_verified'])
+            self.assertFalse(boundary['under_target'])
+            self.assertFalse(measure({'use_action_cache': 'true'}, target_seconds=5400)['under_target'])
             self.assertTrue(measure(expected_pch_count=6, pch_count=6, validator_count=6)['cold_result_verified'])
             self.assertTrue(measure(expected_pch_count=7, pch_count=7, validator_count=7,
                                     expected_prefix_count=1, prefix_count=1)['cold_result_verified'])

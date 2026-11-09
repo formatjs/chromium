@@ -1431,3 +1431,141 @@ checks preserve 52,312 C++ compile commands, 854 link commands, 5,784 archive
 commands and archive member order after only qualified import normalization.
 226 Python tests and formatting pass. This is warm correctness evidence, not a
 new cold archive or overall speedup result. BB under-hour remains unproven.
+
+The complete `ec52236-003` devbox run finished on 2026-11-09: 6,638.58 seconds
+including archive copy, 6,637.51 seconds inside the harness. Same 16-CPU / 48-GiB
+machine, exact C04 compiler and cache policy as the baseline. Cold verification
+passes, with zero cached actions, 104,744 BEP actions and 48,768 C++ compiles.
+One run per revision: elapsed time decreased 4.6%; this is not a confidence interval
+or an isolated estimate of each optimization. The complete trace is retained.
+Archive SHA-256:
+`a671344aaa7ead39e554a4472c9020d2ec5d87cc36dc83107504e433355b018e`.
+
+The browser binary is byte-identical to the passing baseline, SHA-256
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
+Relocated native JS/CSS/Unicode/Intl/layout smoke and Qt 5.15.2 / 6.4.2 GNU ABI
+checks pass. Initial layout screenshot failed: 1,512 changed pixels, 0.5833%
+versus the unchanged 0.5% threshold. Its bottom region contains duplicated page
+content. Three alternating replays per baseline/new binary all pass, both scenes
+with zero changed pixels. Preserve the original failure; capture instability is
+unresolved. No baseline, tolerance or browser flags were changed for these replays.
+
+Under one hour remains unproven. Current C++ user + system CPU is 78,202.30 seconds:
+81.46 minutes at 16 CPUs, excluding all other work. Reaching 3,600 seconds requires
+46% less elapsed time. Small PCH gains and scheduling changes cannot close that gap.
+
+Next experiment is explicit Clang header modules, starting with consistent SDK
+ownership and one real Chromium source. Gate adoption on original object bytes,
+complete declared SDK inputs, normal validation, cross-sandbox imports and
+reproducible outputs. A representative slice must include module production,
+Bazel/sandbox costs and enough source owners to expose context fragmentation.
+Require throughput near twice the current build before spending another full
+cold run on this route. SDK bootstrap alone is not Chromium compatibility or
+performance evidence. If that gate fails, no demonstrated under-hour route exists
+on this hardware; keep the target and report the gap honestly. Other four triples
+remain strict-cold unmeasured.
+
+Feasibility budget after the completed run: leaf cgroup CPU increased by
+104,030.80 seconds, averaging 15.67 of 16 CPUs. Last sampled Bazel process CPU
+is 19,265.98 seconds; C++ BEP CPU is 78,202.30 seconds. The remaining 6,562.53
+seconds include generators, sandbox processes and unmeasured process tails.
+Bazel's last process sample precedes exit; same-container unrelated work could
+also affect cgroup totals. These are attribution estimates, not disjoint sampled
+stacks. High CPU utilization leaves little scheduling-only opportunity.
+
+Holding other CPU work and observed efficiency constant gives this optimistic
+sensitivity model; new producer costs and context fragmentation are excluded:
+
+| Hypothetical change | Estimated minutes |
+| --- | ---: |
+| C++ 1.5x faster | 82.9 |
+| C++ 2x faster | 69.1 |
+| C++ 2.5x faster | 60.7 |
+| C++ 2.7x faster | 58.3 |
+| C++ 2x and Bazel 2x faster | 58.8 |
+
+The earlier near-2x compiler gate is insufficient by itself. Before another full
+cold run, require a weighted CPU budget covering compiler, Bazel, generation and
+new producer costs that predicts at most 50–55 minutes, leaving margin for graph
+tails and variance. First measure frontend share across a CPU-weighted source
+sample, not only the eight deliberately selected hot sources. Use that share to
+bound possible gains before expanding module infrastructure. Separately profile
+Bazel's roughly three-core average CPU usage; reducing half is a hypothesis,
+not a demonstrated optimization. No new experiments started after the user pause.
+
+Pure proportional hardware scaling estimates 73.8 minutes at 24 equivalent CPUs,
+55.3 at 32 and 36.9 at 48. These are optimistic arithmetic bounds, not measured
+predictions: serial work, memory bandwidth/capacity and CPU model affect scaling.
+A 32-CPU machine has little margin for one hour; 48 provides more room if a future
+hardware change is authorized. The current goal still names the existing devbox.
+
+The final bounded module probe completed during pause cleanup: consistent explicit
+SDK dependencies plus a Base Bind module compile a real
+`render_process_host_impl.cc` object byte-identically with exact C04 and all 1,729
+SDK inputs. Fixture and original compiler were restored. This establishes only
+one-source compatibility, not population coverage, reproducibility or speed.
+
+Executed-work audit of `ec52236-003` decodes all 48,768 C++ compile spawns from
+its compact execution log, matching the invocation ID. They cover 46,168 distinct
+source paths. 1,522 paths appear more than once, accounting for 2,600 additional
+compiles (5.3% of compile actions). Identical command/environment/input-set-ID
+replays: zero. After normalizing output, depfile and random-seed paths, only two
+matching command pairs remain: NSS `empty.c`, about 0.023 aggregate task-seconds
+beyond one compile per pair. Their input-set IDs differ, so even these are not
+fully proven equivalent actions.
+
+Configuration-path normalization exposes a concrete remaining candidate:
+libc++ `locale.cpp` executes in five configurations with matching flags after
+configuration paths and output seeds are normalized. Header/input digests and ABI
+still need comparison before sharing. The expensive inspected Protobuf repeats
+include distinct bounds-checking/RTTI defines; SQLite also has differing build
+flags. Sharing these blindly would change behavior. Output-path normalization
+alone cannot prove configurations interchangeable.
+
+All repeated-source groups together contain 1,288.36 aggregate subprocess
+wall-seconds beyond their cheapest compile per source. This is neither CPU nor
+elapsed savings; removing variants can also affect prerequisite and Bazel costs.
+The evidence supports targeted stdlib/configuration cleanup, not a claim that
+Chromium is being compiled twice or that duplicate-source cleanup closes the
+under-hour gap. No new builds were run for this audit.
+
+The current user target is now 90 minutes (5,400 seconds), with the same complete
+archive, cache policy and hermeticity requirements. The 6,638.58-second result
+needs 18.7% less elapsed time. The local harness accepts `--target-seconds 5400`;
+its cancellation limit follows that target unless explicitly overridden.
+`--max-seconds 0` still permits an overrun to finish. Reports retain the literal
+`under_one_hour` fact and add `target_seconds` / `under_target`; success still
+requires the complete cold-policy proof. Final acceptance also checks the outer
+launcher duration and exact archive ABI/rendering. 227 Python tests pass,
+including a 4,000-second verified build accepted only under the longer target,
+the strict 5,400-second boundary and rejection of cached or invalid runs.
+
+A 128-source systematic PPS diagnostic samples the native inventory matching
+81.8% of complete cold compiler task wall time. Every traced object matches its
+independent native control with exact C04. Replay-CPU-adjusted frontend fraction
+is 91.6%. Weights approximate CPU using prior task wall; tracing overhead and
+another CPU model limit precision. Detailed Source/template spans overlap.
+
+The explicit Base Bind/SDK module pilot preserves the real Content object's
+bytes and full SDK but uses 45.83 versus 44.75 compiler CPU seconds in ABBA
+(two compiles per variant). That one-source pilot offers no demonstrated win.
+A separate 56-source broad serialization/tracing/Abseil/Protobuf prefix preserves
+51 normal and 41 eager contexts. Compatible subsets use 0.8977 and 0.8300 times
+baseline compiler CPU. Unchanged rejected/untested contexts reduce the weighted
+whole-compiler estimate to roughly 3–6%, before producer/graph costs; this alone
+cannot reach 90 minutes. Normal/eager closures each contain 416 project headers.
+
+Bazel's supported command CPU profiler captures stacks on the 128-source warm
+diagnostic. Nested-set flattening, hashing and sandbox symlink creation/deletion
+appear prominently. This includes cached graph checks and is not a complete cold
+CPU attribution. Sandbox reuse preserves all 128 native object hashes. Warm build
+wall falls 104.13 to 93.88 seconds, while Bazel CPU rises 674.70 to 683.65 seconds;
+this pair does not establish cold CPU savings. Fresh private RAM mounts keep reuse
+within each run. Neither modules nor sandbox reuse is adopted as an optimization.
+
+The next bounded pilot retains each sampled context's original prefix, adding
+measured shared roots and SDK headers. V8's tracing registry conflicts with Base's;
+V8 therefore keeps its original context and extends only SDK headers. All new
+project closures must be discovered with declared inputs, pinned, then validated
+before source timing. Complete population, graph and cold qualification remain
+required before rollout.

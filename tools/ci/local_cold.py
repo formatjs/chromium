@@ -167,9 +167,17 @@ def pch_output_proof(directory, eager_producers, additional_producers=()):
             'unused_original': sorted(NORMAL_PROJECT_PCH_NAMES - raw.keys())}
 
 
+def set_timing_target(report, target_seconds):
+    if target_seconds <= 0:
+        raise ValueError('Timing target must be positive')
+    report['target_seconds'] = target_seconds
+    report['under_target'] = report['cold_result_verified'] and report['elapsed_seconds'] < target_seconds
+    report['under_one_hour'] = report['cold_result_verified'] and report['elapsed_seconds'] < 3600
+
+
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
-                      expected_eager_producers=(), expected_additional_producers=()):
+                      expected_eager_producers=(), expected_additional_producers=(), target_seconds=3600):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -263,6 +271,7 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
         'auxiliary_tool_caches': 'fresh per run' if policy else 'unverified',
         'os_page_cache': 'uncontrolled',
     })
+    set_timing_target(report, target_seconds)
     return report
 
 
@@ -286,8 +295,12 @@ def main():
     parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
     parser.add_argument('--resource-log', type=Path, help='Streaming Linux resource counters')
     parser.add_argument('--sandbox-base', type=Path, help='Optional empty private tmpfs mount')
-    parser.add_argument('--max-seconds', type=int, default=3600, help='Cancel over-target builds; 0 disables the limit')
+    parser.add_argument('--target-seconds', type=int, default=3600, help='Elapsed-time acceptance target')
+    parser.add_argument('--max-seconds', type=int,
+                        help='Cancel after this many seconds; defaults to target, 0 disables the limit')
     args = parser.parse_args()
+    if args.max_seconds is None:
+        args.max_seconds = args.target_seconds
     if args.base_bind_pch and not args.project_pch:
         parser.error('--base-bind-pch requires --project-pch')
     if args.compiler_profile != 'cxx' and not args.compiler_archive:
@@ -308,8 +321,8 @@ def main():
         parser.error('Local benchmark currently requires a Linux amd64 host')
     if not re.fullmatch(r'[0-9a-f]{40}', args.revision):
         parser.error('--revision must be a full source commit SHA')
-    if min(args.jobs, args.heap_gib, args.action_memory_mb) < 1 or args.max_seconds < 0:
-        parser.error('Resource limits must be positive; --max-seconds must be nonnegative')
+    if min(args.jobs, args.heap_gib, args.action_memory_mb, args.target_seconds) < 1 or args.max_seconds < 0:
+        parser.error('Resource limits and --target-seconds must be positive; --max-seconds must be nonnegative')
     directory, cache = args.directory.resolve(), args.repository_cache.resolve()
     if directory.is_relative_to(cache) or cache.is_relative_to(directory):
         parser.error('Fetch cache and benchmark directory must be separate')
@@ -455,7 +468,8 @@ def main():
                                    expected_prefix_count=1 if args.project_pch else 0,
                                    expected_base_bind_pch=args.base_bind_pch,
                                    expected_eager_producers=expected_eager_producers,
-                                   expected_additional_producers=expected_additional_producers)
+                                   expected_additional_producers=expected_additional_producers,
+                                   target_seconds=args.target_seconds)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
@@ -475,11 +489,11 @@ def main():
                        'bazel_sha256': BAZEL_SHA256,
                        'build_uid': os.geteuid(), 'machine': machine_limits()})
         report['elapsed_seconds'] = time.monotonic() - started
-        report['under_one_hour'] = report['local_execution_verified'] and report['elapsed_seconds'] < 3600
+        set_timing_target(report, args.target_seconds)
         (directory / 'cold-build.json').write_text(json.dumps(report, indent=2) + '\n')
         print(json.dumps({key: report[key] for key in ['elapsed_seconds', 'cpp_compile_actions',
-              'cold_result_verified', 'under_one_hour', 'exit_code']}), flush=True)
-    return 0 if report['under_one_hour'] else 1
+              'cold_result_verified', 'target_seconds', 'under_target', 'under_one_hour', 'exit_code']}), flush=True)
+    return 0 if report['under_target'] else 1
 
 
 if __name__ == '__main__':
