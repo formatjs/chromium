@@ -1258,3 +1258,26 @@ PCH qualification runs concurrently; these warm task-CPU samples exclude tree
 setup and sandbox costs. They do not forecast full cold timing. Strict-cold
 archive timing and artifact validation remain required. Other four target
 triples remain cold-unmeasured.
+
+### Qualified wider PCH routing
+
+A persistent rerun supersedes the lost raw pilot. Routing reuses existing
+public RenderFrameHost, String and Document PCHs for 3,455 sources across 524
+owners: 2,210 RFH, 859 String and 386 Document. Existing larger PCH cohorts stay
+intact. Sources with changed object bytes or no measured single-pass CPU gain
+remain outside this routing.
+
+The complete configured archive graph retains all 52,312 compile, 854 link,
+5,784 archive and twelve producer commands/environments after only explicit PCH
+imports and expected object/depfile/random-seed path substitutions. Archive
+member ordering stays unchanged. Real Linux sandboxes then execute all 3,455
+routed compiles; every object matches its frozen original reference. All twelve
+PCH producer artifacts remain byte-identical. Producer extras now propagate to
+importers, preserving directory anchors in Clang's recorded header paths.
+Validation and complete SDK inputs remain enabled.
+
+A separate stratified 36-source ABBA sample executes 144 compiles with identical
+objects. Compiler CPU falls 12.8% for public RFH, 16.1% for String and 13.7% for
+Document. These warm samples exclude sandbox/producer costs and do not forecast
+cold timing. Full strict-cold archive completion, ABI and rendering validation
+remain required; other four triples remain cold-unmeasured.

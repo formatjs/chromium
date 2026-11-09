@@ -87,7 +87,9 @@ def _pch_impl(ctx):
         outputs = [pch],
         mnemonic = "ChromiumPchClosure",
     )
-    return [DefaultInfo(files = depset([pch])), ChromiumPchInfo(pch = pch, headers = depset(headers))]
+
+    # Preserve producer directory anchors used by Clang's recorded header paths.
+    return [DefaultInfo(files = depset([pch])), ChromiumPchInfo(pch = pch, headers = depset(headers + ctx.files.extras))]
 
 chromium_project_pch = rule(
     implementation = _pch_impl,
