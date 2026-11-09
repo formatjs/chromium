@@ -1088,6 +1088,19 @@ producers and twelve closure validators. The under-one-hour goal remains unmet;
 other four triples remain cold-unmeasured. Plugin dependency pruning below was
 excluded from this run.
 
+Same-run resource samples show 18.866 CPU equivalents during seconds 2,401–3,497
+on the observed 19-CPU guest, with zero cgroup throttling and about 0.0014 CPU
+equivalents of kernel I/O wait. These counters describe the guest/cgroup, not
+individual compiler CPU. Early seconds 301–1,200 average 15.432 CPU equivalents.
+The late bottleneck is CPU work; the trace does not establish a full-build
+completion estimate.
+
+All twelve closure validators finish in the partial trace. String and Base Bind
+are ready by 567.4 seconds, public RenderFrameHost by 686.8, Document by 1,014.3,
+and the two V8 producers by 2,733.0. Wider reuse must preserve compiler context,
+object bytes and dependency acyclicity. Counts from unfinished traces do not
+prove throughput improvements over previous trials.
+
 The terminated ten-PCH trial's captured trace contains completed actions for
 seven producers and their validators; it contains no completion for the newer
 UI/Profile/public-RFH producers. The trace ends before outer termination, so
