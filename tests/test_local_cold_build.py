@@ -6,11 +6,30 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.ci.local_cold import local_cold_report, main
+from tools.ci.local_cold import NORMAL_PROJECT_PCH_NAMES, eager_template_pch_producers, local_cold_report, main
 from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_eager_manifest_identifies_producers_and_rejects_invalid_entries(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            self.assertEqual(eager_template_pch_producers(source), frozenset())
+            manifest = source / 'overlays/chromium/bcr/overlay/native/eager_template_pch_data.bzl'
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text('EAGER_TEMPLATE_SOURCES = {}\n')
+            self.assertEqual(eager_template_pch_producers(source), frozenset())
+            mapping = {'base_bind_default_pch': {'a': ['one.cc', 'two.cc'], 'b': ['three.cc']},
+                       'base_bind_complete_pch': {'c': ['four.cc']}}
+            manifest.write_text('EAGER_TEMPLATE_SOURCES = ' + repr(mapping) + '\n')
+            self.assertEqual(eager_template_pch_producers(source),
+                             {'base_bind_default_pch', 'base_bind_complete_pch'})
+            for invalid in [[], {'base_bind_default_pch': {}}, {'base_bind_default_pch': {'a': []}},
+                            {'base_bind_default_pch': {'a': [None]}}, {'unknown': {'a': ['one.cc']}}]:
+                manifest.write_text('EAGER_TEMPLATE_SOURCES = ' + repr(invalid) + '\n')
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    eager_template_pch_producers(source)
+
     def test_base_bind_requires_project_pch_before_creating_build_state(self):
         command = ['cold-build', '--directory', '/unused-trial', '--revision', 'a' * 40,
                    '--base-bind-pch']
@@ -55,7 +74,7 @@ class LocalColdBuildTest(unittest.TestCase):
 
             def measure(changes=None, runners=None, fresh=True, success=True, compiles=16, client_command=None,
                         expected_pch_count=0, pch_count=0, validator_count=0,
-                        expected_prefix_count=0, prefix_count=0, base_bind_pch=False):
+                        expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0, omitted_original=(), mutate_pch_files=None):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -73,11 +92,26 @@ class LocalColdBuildTest(unittest.TestCase):
                     }}},
                 ]
                 events.write_text('\n'.join(json.dumps(record) for record in records))
+                eager_producers = tuple(sorted(NORMAL_PROJECT_PCH_NAMES))[:eager_pchs]
+                native = root / ('output-base/execroot/_main/bazel-out/k8-fastbuild/bin/'
+                                 'external/+chromium_dependencies+chromium/native')
+                native.mkdir(parents=True, exist_ok=True)
+                for path in native.glob('*.pch'):
+                    path.unlink()
+                if eager_producers:
+                    produced = (NORMAL_PROJECT_PCH_NAMES - set(omitted_original)
+                                | {name + '_templates' for name in eager_producers})
+                    for name in produced:
+                        for suffix in ['.raw.pch', '.pch']:
+                            (native / (name + suffix)).write_bytes(('fixture:' + name).encode())
+                if mutate_pch_files:
+                    mutate_pch_files(native)
                 result = local_cold_report(events, 500, success, root, cache, fresh,
                                            command if client_command is None else client_command,
                                            expected_pch_count=expected_pch_count,
                                            expected_prefix_count=expected_prefix_count,
-                                           expected_base_bind_pch=base_bind_pch)
+                                           expected_base_bind_pch=base_bind_pch,
+                                           expected_eager_producers=eager_producers)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
@@ -89,6 +123,41 @@ class LocalColdBuildTest(unittest.TestCase):
                                     expected_prefix_count=1, prefix_count=1)['cold_result_verified'])
             self.assertTrue(measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, base_bind_pch=True,
                                     pch_count=12, validator_count=12, prefix_count=1)['cold_result_verified'])
+            self.assertTrue(measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, base_bind_pch=True,
+                                    eager_pchs=2, pch_count=14, validator_count=14,
+                                    prefix_count=1)['cold_result_verified'])
+            pruned = measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, base_bind_pch=True,
+                             eager_pchs=2, pch_count=13, validator_count=13, prefix_count=1,
+                             omitted_original=['base_bind_default_pch'])
+            self.assertTrue(pruned['cold_result_verified'])
+            self.assertEqual(pruned['pch_output_proof']['unused_original'], ['base_bind_default_pch'])
+            eager_name = sorted(NORMAL_PROJECT_PCH_NAMES)[0] + '_templates'
+            mutations = {
+                'missing_eager': lambda folder: [(folder / (eager_name + suffix)).unlink()
+                                                 for suffix in ['.raw.pch', '.pch']],
+                'missing_validation': lambda folder: (folder / (eager_name + '.pch')).unlink(),
+                'wrong_validation_bytes': lambda folder: (folder / (eager_name + '.pch')).write_bytes(
+                    b'x' * (folder / (eager_name + '.pch')).stat().st_size),
+                'unexpected_producer': lambda folder: [(folder / ('unexpected_pch' + suffix)).write_bytes(b'extra')
+                                                       for suffix in ['.raw.pch', '.pch']],
+            }
+            for reason, mutation in mutations.items():
+                with self.subTest(pch_files=reason):
+                    invalid = measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, base_bind_pch=True,
+                                      eager_pchs=2, pch_count=13 if reason == 'missing_eager' else 15 if reason == 'unexpected_producer' else 14,
+                                      validator_count=13 if reason == 'missing_eager' else 15 if reason == 'unexpected_producer' else 14,
+                                      prefix_count=1, mutate_pch_files=mutation)
+                    self.assertFalse(invalid['cold_result_verified'])
+                    self.assertFalse(invalid['requested_pch_actions_verified'])
+            for producers, validators in [(12, 12), (13, 14), (14, 13), (15, 15)]:
+                with self.subTest(eager_producers=producers, eager_validators=validators):
+                    invalid = measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, base_bind_pch=True,
+                                      eager_pchs=2, pch_count=producers, validator_count=validators,
+                                      prefix_count=1)
+                    self.assertFalse(invalid['cold_result_verified'])
+                    self.assertFalse(invalid['requested_pch_actions_verified'])
+            self.assertFalse(measure(expected_pch_count=2, pch_count=2, validator_count=2,
+                                     eager_pchs=2)['cold_result_verified'])
             for define, producers, validators, prefixes in [
                 (None, 12, 12, 1), ('CHROMIUM_BASE_BIND_PCH=0', 12, 12, 1),
                 ('CHROMIUM_BASE_BIND_PCH=1', 10, 10, 1), ('CHROMIUM_BASE_BIND_PCH=1', 11, 12, 1),

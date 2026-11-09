@@ -1281,3 +1281,57 @@ objects. Compiler CPU falls 12.8% for public RFH, 16.1% for String and 13.7% for
 Document. These warm samples exclude sandbox/producer costs and do not forecast
 cold timing. Full strict-cold archive completion, ABI and rendering validation
 remain required; other four triples remain cold-unmeasured.
+
+### Strict-cold result after npm and wider PCH reuse
+
+[693db8c](https://formatjs.buildbuddy.io/invocation/edbca27b-a0d6-4fdd-b279-584b33c85291)
+timed out after 3,603.32 seconds without an archive. The 19-CPU runner sustains
+18.90 CPU equivalents late in the run, with no quota throttling and negligible
+I/O wait. Against b31c0bb, 7,608 matching generator groups take 0.7311 times
+the task duration; 235 complete native control cohorts take 1.0603 times.
+Both traces are incomplete. Task durations include scheduling and host variation;
+neither comparison proves a complete cold speedup.
+
+Nine deterministic V8 samples run with Clang time tracing preserve original
+object bytes. Frontend work accounts for 82.2% of their traced compiler time;
+generated samples repeat about two seconds of pending template instantiation.
+Standard PCH code emission with companion objects shows no CPU gain and stays
+rejected. Eager template instantiation is a separate candidate: it precomputes
+template bodies while retaining normal object emission and content validation.
+
+The candidate keeps original PCHs and routes only explicitly qualified sources
+to separately validated eager variants. Mixed routing executes nine real sandbox
+compiles with identical objects, including one original fallback. All 1,014
+registered compile commands and three archive commands retain flags, environments
+and object paths, except eight expected PCH operands. Original archive member
+order stays intact. Raw qualification then compares all 5,183 available source consumers across six
+families: 4,716 objects match originals, 467 changed candidates stay on original
+PCHs, and every original control succeeds. The manifest contains only matching
+sources. Routing is enabled only with the measured Base Bind configuration in
+fastbuild mode; other configurations retain original imports.
+
+A separate 72-source stratified ABBA replay preserves all 288 object hashes.
+Compiler CPU falls 6.7% for Document, 3.7% for String, 4.6% for module IDL,
+53.3% for generated V8, 7.7% for V8 isolate, and 45.0% for private RFH.
+Both paired comparisons improve in every family. The smaller String/IDL gains
+save 81.7/167.9 CPU-seconds in their full raw identical-source replays; their
+complete extra eager producers cost 1.35/1.56 CPU-seconds. These are warm CPU
+measurements, excluding sandbox/setup costs, not cold timing forecasts.
+
+Cold verification requires every named eager output, matching raw/validated PCH
+bytes, allowed producer names and execution counts matching produced pairs.
+Unused original variants may be pruned; an isolated Bazel provider test confirms
+that behavior. Missing eager outputs, missing or changed validation copies,
+unexpected producers and inconsistent counts fail verification. Cache policy,
+fresh roots and actual sandbox requirements stay unchanged.
+
+Full configured-graph audit preserves all 52,312 compile commands, 854 link
+commands and 5,784 archive commands, including environments and archive member
+ordering, except the 4,716 qualified PCH imports and six extra eager producers.
+Final mixed routing executes all 4,716 selected objects in actual Linux
+sandboxes; every object matches its original hash. All 12 original PCH hashes
+remain unchanged, and all six eager PCH hashes match raw qualification. Fixture
+cleanup and frozen input checks pass. This warm correctness run uses cached
+prerequisites; it makes no cold timing claim. Complete strict-cold archive, ABI
+and rendering validation remain pending. Other four triples remain
+cold-unmeasured.

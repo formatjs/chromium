@@ -1,6 +1,7 @@
 """Measure a complete local cold archive build, reusing dependency downloads only."""
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -49,8 +50,74 @@ def machine_limits():
             'reported_processor_model': model, 'memory_limit_bytes': memory, 'system': platform.platform()}
 
 
+NORMAL_PROJECT_PCH_NAMES = frozenset({
+    'base_bind_complete_pch',
+    'base_bind_default_pch',
+    'blink_core_83e906bc2e906865_document_pch',
+    'blink_core_83e906bc2e906865_string_pch',
+    'blink_core_9d3a9043a4edc87b_idl_pch',
+    'blink_modules_d49fc862a2e90d4a_idl_pch',
+    'browser_9541da8b21719506_browser_pch',
+    'browser_d48195c21c933c30_profile_pch',
+    'browser_v8_0583b2bb19f5557f_generated_pch',
+    'browser_v8_25a5dd0bb5046cea_isolate_pch',
+    'content_b640bd1dddd3ce1d_frame_host_pch',
+    'content_b640bd1dddd3ce1d_public_frame_host_pch',
+})
+
+
+def eager_template_pch_producers(source):
+    manifest = source / 'overlays/chromium/bcr/overlay/native/eager_template_pch_data.bzl'
+    if not manifest.exists():
+        return frozenset()
+    assignments = [node.value for node in ast.parse(manifest.read_text()).body
+                   if isinstance(node, ast.Assign) and any(
+                       isinstance(target, ast.Name) and target.id == 'EAGER_TEMPLATE_SOURCES'
+                       for target in node.targets)]
+    if len(assignments) != 1:
+        raise ValueError('Expected one eager-template source manifest')
+    producers = ast.literal_eval(assignments[0])
+    if not isinstance(producers, dict):
+        raise ValueError('Expected eager-template producer mapping')
+    for name, owners in producers.items():
+        if not isinstance(name, str) or not name or not isinstance(owners, dict) or not owners:
+            raise ValueError('Invalid eager-template producer')
+        for owner, paths in owners.items():
+            if (not isinstance(owner, str) or not owner or not isinstance(paths, list) or not paths
+                    or any(not isinstance(path, str) or not path for path in paths)):
+                raise ValueError('Invalid eager-template source list')
+    if not producers.keys() <= NORMAL_PROJECT_PCH_NAMES:
+        raise ValueError('Unknown eager-template producer')
+    return frozenset(producers)
+
+
+def pch_output_proof(directory, eager_producers):
+    native = directory / ('output-base/execroot/_main/bazel-out/k8-fastbuild/bin/'
+                          'external/+chromium_dependencies+chromium/native')
+    required = {name + '_templates' for name in eager_producers}
+    allowed = NORMAL_PROJECT_PCH_NAMES | required
+    raw = {path.name.removesuffix('.raw.pch'): path for path in native.glob('*.raw.pch')}
+    validated = {path.name.removesuffix('.pch'): path for path in native.glob('*.pch')
+                 if not path.name.endswith('.raw.pch')}
+    verified = bool(required <= raw.keys() and raw.keys() == validated.keys() and raw.keys() <= allowed)
+    if verified:
+        for name, path in raw.items():
+            other = validated[name]
+            if path.is_symlink() or other.is_symlink() or not path.stat().st_size:
+                verified = False
+                break
+            with path.open('rb') as first, other.open('rb') as second:
+                if hashlib.file_digest(first, 'sha256').digest() != hashlib.file_digest(second, 'sha256').digest():
+                    verified = False
+                    break
+    return {'verified': verified, 'produced': sorted(raw), 'validated': sorted(validated),
+            'required_eager': sorted(required),
+            'unused_original': sorted(NORMAL_PROJECT_PCH_NAMES - raw.keys())}
+
+
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
-                      expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False):
+                      expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
+                      expected_eager_producers=()):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -111,6 +178,16 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
                                      if row['mnemonic'] == 'ChromiumPchPrefix')
     report['expected_prefix_count'] = expected_prefix_count
     report['expected_pch_count'] = expected_pch_count
+    report['expected_eager_template_pch_count'] = len(expected_eager_producers)
+    if expected_eager_producers:
+        # Unused original variants may be pruned; eager outputs remain mandatory.
+        proof = pch_output_proof(directory, expected_eager_producers)
+        report['pch_output_proof'] = proof
+        expected_pch_count = len(proof['produced'])
+        report['expected_pch_count'] = expected_pch_count
+        report['max_expected_pch_count'] = len(NORMAL_PROJECT_PCH_NAMES) + len(expected_eager_producers)
+    else:
+        proof = {'verified': True}
     defines = dict(value.split('=', 1) for value in options.get('define', []) if '=' in value)
     report['base_bind_pch_configuration_verified'] = (
         defines.get('CHROMIUM_BASE_BIND_PCH') == '1' if expected_base_bind_pch else None)
@@ -118,6 +195,8 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
         (report['project_pch_actions'] == expected_pch_count and
          report['pch_closure_actions'] == expected_pch_count))
         and report['pch_prefix_actions'] == expected_prefix_count
+        and proof['verified']
+        and (not expected_eager_producers or expected_base_bind_pch)
         and (not expected_base_bind_pch or report['base_bind_pch_configuration_verified']))
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
@@ -207,6 +286,7 @@ def main():
     process = None
     command = None
     compiler_dependency = None
+    expected_eager_producers = ()
     try:
         bazel = args.bazel.resolve(strict=True)
         if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:
@@ -220,6 +300,8 @@ def main():
                 raise ValueError('Source checkout failed')
         if (source / '.bazelversion').read_text().strip() != '9.2.0':
             raise ValueError('Source commit does not select Bazel 9.2.0')
+        if args.base_bind_pch:
+            expected_eager_producers = eager_template_pch_producers(source)
         if args.compiler_archive:
             from tools.ci.compiler_archive import configure_compiler
             compiler_dependency = configure_compiler(source, args.compiler_archive, args.compiler_profile)
@@ -314,7 +396,8 @@ def main():
         report = local_cold_report(events, time.monotonic() - started, success, directory, cache, fresh, command,
                                    expected_pch_count=10 if args.project_pch else 3 if args.blink_pch else 0,
                                    expected_prefix_count=1 if args.project_pch else 0,
-                                   expected_base_bind_pch=args.base_bind_pch)
+                                   expected_base_bind_pch=args.base_bind_pch,
+                                   expected_eager_producers=expected_eager_producers)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
