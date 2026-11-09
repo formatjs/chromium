@@ -1177,3 +1177,16 @@ actions, not executed cold work.
 These are warm correctness checks, not a timing comparison: the original phase
 also built missing tools. All 219 tests pass. Full cold timing and final artifact
 validation remain required; the other four triples remain cold-unmeasured.
+
+### Remaining-work audit
+
+The current native inventory contains 38,848 distinct source/compiler-command
+views after normalizing only output, depfile and random-seed paths. No exact
+cross-owner duplicates remain. This does not establish equivalence between
+contexts with different flags or headers; no object-sharing change is adopted.
+
+All 72 surveyed stdlib sources have identical normalized flags/environments
+across eight registered views each. The old partial BB trace matches 237 spans
+and 214.704 task-seconds for these contexts. This is partial diagnostic coverage,
+not CPU savings or a cold-build forecast; complete input/ABI proof is missing.
+Broader reuse of existing PCHs remains the higher-priority experiment.
