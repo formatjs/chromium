@@ -1222,3 +1222,23 @@ work. An actual concurrent Bazel invocation exits with lock error 9. A public
 `CcInfo` object selector also rebuilt one original object through a real Linux
 sandbox and matched its raw reference bytes. Neither check qualifies wider
 routing; full source, configured graph, sandbox, link and archive proof remain.
+
+### Declared npm tree experiment
+
+Package closures become declared Bazel tree outputs, copied once with pinned
+Python. Generators link immutable package contents. Explicit file aliases get
+private copies with their original permissions; conflicting contents fail.
+Node preserves logical symlink paths, keeping Chromium's dependency guard intact.
+Each cold invocation builds its own tree; no cross-build cache is introduced.
+
+An initial raw ABBA replay of twelve real generators preserves all 69 output
+files across 48 executions. Child CPU falls from 26.435 to 17.654 seconds
+(33.2% in this sample), excluding tree setup and sandbox costs. This predates the
+permission-preserving alias merge and is not a production or cold-build forecast.
+
+The actual tree action runs in a Linux sandbox and matches all 3,935 original
+file hashes. The final wrapper also passes twelve real generator roots in Linux
+sandboxes, preserving all 69 original output hashes and the tree contents.
+All 220 tests pass. Full affected-generator proof, final-path CPU measurements
+and strict-cold timing remain required before adoption. The other four target
+triples remain cold-unmeasured.

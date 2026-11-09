@@ -16,6 +16,7 @@ ChromiumFilesInfo = provider(
         "mappings": "Depset of (file, Chromium-relative path) pairs.",
         "executables": "Optional list of (files_to_run, logical path) pairs.",
         "native_linux": "Optional requirement to execute shared native tools on Linux AMD64 GNU 2.31.",
+        "node_symlinks": "Optional requirement to preserve logical Node module paths.",
     },
 )
 
@@ -39,6 +40,9 @@ def _executables(deps):
 def requires_native_linux(deps):
     return any([getattr(dep[ChromiumFilesInfo], "native_linux", False) for dep in deps])
 
+def requires_node_symlinks(deps):
+    return any([getattr(dep[ChromiumFilesInfo], "node_symlinks", False) for dep in deps])
+
 def _direct_mappings(srcs):
     mappings = []
     for target, logical in srcs.items():
@@ -59,6 +63,7 @@ def _logical_group_impl(ctx):
             mappings = mappings,
             executables = _executables(ctx.attr.deps),
             native_linux = requires_native_linux(ctx.attr.deps),
+            node_symlinks = requires_node_symlinks(ctx.attr.deps),
         ),
         ChromiumGeneratedFilesInfo(mappings = depset(
             [pair for pair in _direct_mappings(ctx.attr.srcs) if pair[1].startswith("out/bazel-import/")],
@@ -120,6 +125,8 @@ def _python_action_impl(ctx):
         "response_file_contents": ctx.attr.response_file_contents,
         "build_dir": "out/bazel-import",
     }
+    if requires_node_symlinks(ctx.attr.deps):
+        description["preserve_node_symlinks"] = True
     executables = _executables(ctx.attr.deps)
     if executables:
         description["executable_inputs"] = [logical for _, logical in executables]
@@ -148,6 +155,7 @@ def _python_action_impl(ctx):
             ], transitive = [mappings] if ctx.attr.propagate_inputs else []),
             executables = executables if ctx.attr.propagate_inputs else [],
             native_linux = native_linux and ctx.attr.propagate_inputs,
+            node_symlinks = ctx.attr.propagate_inputs and requires_node_symlinks(ctx.attr.deps),
         ),
     ]
 

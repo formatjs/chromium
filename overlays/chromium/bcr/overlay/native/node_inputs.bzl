@@ -24,9 +24,23 @@ def _package_inputs_impl(ctx):
             if not selected:
                 continue
         mappings.append((file, ctx.attr.logical_root + "/" + relative))
+    tree = ctx.actions.declare_directory(ctx.label.name + ".node_modules")
+    manifest = ctx.actions.declare_file(ctx.label.name + ".files.json")
+    ctx.actions.write(manifest, json.encode([
+        [file.path, logical[len(ctx.attr.logical_root) + 1:]]
+        for file, logical in mappings
+    ]))
+    runtime = ctx.attr._python[platform_common.ToolchainInfo].py3_runtime
+    ctx.actions.run(
+        executable = runtime.interpreter,
+        arguments = ["-I", "-B", ctx.file._copier.path, manifest.path, tree.path],
+        inputs = depset([ctx.file._copier, manifest] + [file for file, _ in mappings], transitive = [runtime.files]),
+        outputs = [tree],
+        mnemonic = "ChromiumNpmTree",
+    )
     return [
-        DefaultInfo(files = depset([file for file, _ in mappings])),
-        ChromiumFilesInfo(mappings = depset(mappings)),
+        DefaultInfo(files = depset([tree])),
+        ChromiumFilesInfo(mappings = depset([(tree, ctx.attr.logical_root)]), node_symlinks = True),
     ]
 
 _package_inputs = rule(
@@ -36,6 +50,8 @@ _package_inputs = rule(
         "packages": attr.string_list(),
         "manifest": attr.label(allow_single_file = True, mandatory = True),
         "logical_root": attr.string(mandatory = True),
+        "_copier": attr.label(default = Label("//native:npm_tree.py"), allow_single_file = True),
+        "_python": attr.label(default = "@rules_python//python:current_py_toolchain", cfg = "exec"),
     },
 )
 
