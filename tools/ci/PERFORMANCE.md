@@ -1240,6 +1240,23 @@ The actual tree action runs in a Linux sandbox and matches all 3,935 original
 file hashes. The final wrapper also passes twelve real generator roots in Linux
 sandboxes, preserving all 69 original output hashes and the tree contents.
 All 222 tests pass, including permission and input-immutability regressions.
-Full affected-generator proof, final-path CPU measurements
-and strict-cold timing remain required before adoption. The other four target
+The full Linux sandbox proof covers all 2,440 actions whose actual inputs carry
+npm packages: 18,072 outputs match original hashes. The remaining 24 outputs
+already vary in 50 unchanged-original replays: 23 Rollup configs embed the
+private staging root, and DevTools workspace JSON derives its UUID from that
+root. Comparisons preserve every other byte in each config and every other JSON
+field; each UUID must equal UUIDv5 of its exact root and pinned namespace.
+These files are not claimed byte-identical or reproducible.
+
+Rollup resolves module symlinks independently of Node. Its standard
+`--preserveSymlinks` option keeps source-map and request-list paths logical;
+both maps and both request lists now match original bytes. The patch applies
+to all five Chromium source projections. Package contents remain immutable.
+
+The final wrapper's separate 48-execution ABBA replay preserves all 69 original
+outputs, including explicit alias permissions and immutable tree contents.
+Child CPU totals fall from 26.834 to 18.572 seconds (30.8% less).
+PCH qualification runs concurrently; these warm task-CPU samples exclude tree
+setup and sandbox costs. They do not forecast full cold timing. Strict-cold
+archive timing and artifact validation remain required. Other four target
 triples remain cold-unmeasured.

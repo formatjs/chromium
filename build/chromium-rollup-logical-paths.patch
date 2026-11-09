@@ -1,0 +1,10 @@
+--- a/ui/webui/resources/tools/bundle_js.py
++++ b/ui/webui/resources/tools/bundle_js.py
+@@ -166,6 +166,7 @@
+     bundle_names.append(os.path.join(bundle_dir_path, shared_file_name))
+ 
+   node.RunNode([node_modules.PathToRollup()] + rollup_args + [
++      '--preserveSymlinks',
+       '--format',
+       'esm',
+       '--dir',
