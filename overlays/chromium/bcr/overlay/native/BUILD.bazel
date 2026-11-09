@@ -65,6 +65,7 @@ exports_files(["pch_validate.py"])
 
 exports_files([
     "windows_resource_paths.py",
+    "npm_tree.py",
     "python_action.py",
     "stage_tool.py",
 ])

@@ -1177,3 +1177,66 @@ actions, not executed cold work.
 These are warm correctness checks, not a timing comparison: the original phase
 also built missing tools. All 219 tests pass. Full cold timing and final artifact
 validation remain required; the other four triples remain cold-unmeasured.
+
+### Remaining-work audit
+
+The current native inventory contains 38,848 distinct source/compiler-command
+views after normalizing only output, depfile and random-seed paths. No exact
+cross-owner duplicates remain. This does not establish equivalence between
+contexts with different flags or headers; no object-sharing change is adopted.
+
+All 72 surveyed stdlib sources have identical normalized flags/environments
+across eight registered views each. The old partial BB trace matches 237 spans
+and 214.704 task-seconds for these contexts. This is partial diagnostic coverage,
+not CPU savings or a cold-build forecast; complete input/ABI proof is missing.
+Broader reuse of existing PCHs remains the higher-priority experiment.
+
+
+### Strict-cold run after plugin and staging changes
+
+[Run c6bf993](https://formatjs.buildbuddy.io/invocation/83786630-fec6-42dc-9c34-8508c2b19bee)
+hit the free-tier timeout after 3,600.81 seconds. No archive completed. The runner
+reported 19 CPUs and 35,262,926,848 bytes of RAM despite the 16-CPU/32GB request.
+The recovered incomplete trace contains 20,024 completed C++ spans and 709
+resource samples. Late samples average 18.89 CPU equivalents, with no quota
+throttling. More parallel jobs would not address that CPU work.
+
+Against the preceding incomplete run, 260 matched complete native cohorts have
+a task-time ratio of 1.0043; 7,600 matched generator groups have a ratio of
+0.9296. These are task durations across different runs, not isolated CPU
+measurements or a full-build speedup. All twelve PCH validators finish by trace
+second 1,499; earlier readiness alone has not delivered a complete build.
+
+The next two attempts failed before compilation on GitHub HTTP 504 responses.
+An official, checksum-verified Skylib mirror now precedes upstream fallback.
+A separate [LLVM transport diagnostic](https://formatjs.buildbuddy.io/invocation/182d297f-1df3-4e9b-98d0-80acc73f3da2)
+then fetched the exact pinned 182,710,697-byte source archive through both
+Python (6.48 seconds) and Bazel (10.08 seconds). This proves transport recovery
+at that observation, not build performance. The subsequent strict-cold retry
+includes qualified Protoc reuse and retains the same compiler/cache policy.
+
+Wider PCH qualification now holds Bazel's output-base lock during raw compiler
+work. An actual concurrent Bazel invocation exits with lock error 9. A public
+`CcInfo` object selector also rebuilt one original object through a real Linux
+sandbox and matched its raw reference bytes. Neither check qualifies wider
+routing; full source, configured graph, sandbox, link and archive proof remain.
+
+### Declared npm tree experiment
+
+Package closures become declared Bazel tree outputs, copied once with pinned
+Python. Generators link immutable package contents. Explicit file aliases get
+private copies with their original permissions; conflicting contents fail.
+Node preserves logical symlink paths, keeping Chromium's dependency guard intact.
+Each cold invocation builds its own tree; no cross-build cache is introduced.
+
+An initial raw ABBA replay of twelve real generators preserves all 69 output
+files across 48 executions. Child CPU falls from 26.435 to 17.654 seconds
+(33.2% in this sample), excluding tree setup and sandbox costs. This predates the
+permission-preserving alias merge and is not a production or cold-build forecast.
+
+The actual tree action runs in a Linux sandbox and matches all 3,935 original
+file hashes. The final wrapper also passes twelve real generator roots in Linux
+sandboxes, preserving all 69 original output hashes and the tree contents.
+All 220 tests pass. Full affected-generator proof, final-path CPU measurements
+and strict-cold timing remain required before adoption. The other four target
+triples remain cold-unmeasured.
