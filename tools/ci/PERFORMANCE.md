@@ -1675,3 +1675,20 @@ options. Four freshly executed gperf native objects match completed cold digests
 the invocation-name fix. All 228 Python tests pass; the real Bazel generator
 regression passes all three cases. Full population qualification still gates every
 replacement against its actual cold digest and command/environment signature.
+
+Raw-library replacement now supports duplicate basenames through explicit numbered
+object order. Wrappers can hide the private compile context while retaining their
+original public headers and defines. A real C04 integration uses two `same.cc`
+files and an implementation dependency: object bytes, archive bytes/member order,
+public context and linked executable bytes all match the ordinary library.
+Reusing the ordinary owner's compile name collided with its module-map action,
+so that approach was dropped. Replacement keeps its own Bazel output/seed paths;
+these three objects remain byte-identical. Full-population routing still needs
+producer dependency checks and final native object validation.
+
+The routing planner also checks cycles introduced by combinations of imports,
+not only direct producer ancestry. It keeps producer reachability and adds an
+owner's import only when the resulting graph stays acyclic. Tests compare 2,000
+import decisions against independent whole-graph cycle detection, including
+existing producer dependencies. SDK-only fallbacks remain available. Actual routing
+must use a fresh configured dependency capture; no routes are enabled yet.

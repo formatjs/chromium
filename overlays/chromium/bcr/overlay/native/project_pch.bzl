@@ -218,6 +218,7 @@ def _compile_impl(ctx):
             fail("define must expand to one token: " + value)
         defines.append(tokens[0])
     objects = {}
+    expected = {name: True for name in ctx.attr.object_order}
     for suffix, sources, options, inputs in groups:
         _, outputs = cc_common.compile(
             actions = ctx.actions,
@@ -232,9 +233,12 @@ def _compile_impl(ctx):
             disallow_nopic_outputs = True,
         )
         for file in outputs.pic_objects:
-            if file.basename in objects:
-                fail("Duplicate cohort object: " + file.basename)
-            objects[file.basename] = file
+            key = file.basename
+            if key not in expected:
+                key = file.dirname.rsplit("/", 1)[-1] + "/" + key
+            if key in objects:
+                fail("Duplicate cohort object: " + key)
+            objects[key] = file
     if sorted(objects.keys()) != sorted(ctx.attr.object_order):
         fail("Unexpected cohort object inventory")
     outputs = cc_common.create_compilation_outputs(pic_objects = depset([objects[name] for name in ctx.attr.object_order]))
@@ -250,7 +254,10 @@ def _compile_impl(ctx):
     library = linking_outputs.library_to_link
     archives = depset([file for file in [library.static_library, library.pic_static_library] if file])
     return [
-        CcInfo(compilation_context = ctx.attr.context[CcInfo].compilation_context, linking_context = linking_context),
+        CcInfo(
+            compilation_context = ctx.attr.context[CcInfo].compilation_context if ctx.attr.expose_context else cc_common.create_compilation_context(),
+            linking_context = linking_context,
+        ),
         DefaultInfo(files = archives),
         OutputGroupInfo(archive = archives),
     ]
@@ -260,7 +267,8 @@ chromium_pch_compile = rule(
     attrs = {
         "sources": attr.label_keyed_string_dict(allow_files = [".cc", ".cpp"]),
         "pchs": attr.label_keyed_string_dict(providers = [ChromiumPchInfo]),
-        "object_order": attr.string_list(mandatory = True),
+        "object_order": attr.string_list(mandatory = True, doc = "Archive order; duplicate basenames include their numbered parent directory."),
+        "expose_context": attr.bool(default = True, doc = "Expose the compile context to consumers; wrappers can retain their original public context."),
         "object_suffixes": attr.string_dict(doc = "Original object suffix for each replacement PCH group."),
         "alwayslink": attr.bool(default = False),
         "context": attr.label(mandatory = True, providers = [CcInfo]),
