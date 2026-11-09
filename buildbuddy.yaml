@@ -26,10 +26,10 @@ actions:
       disk: 20GB
     triggers:
       push:
-        branches: ["perf/dependency-fetch-diagnostic"]
+        branches: ["codex/llvm-fetch-diagnostic"]
     steps:
       - run: >-
-          python3 -m tools.ci.dependency_fetch_probe
+          python3 -m tools.ci.llvm_source_fetch_probe
           --directory "$BUILDBUDDY_ARTIFACTS_DIRECTORY/dependency-fetch"
 
   - name: Chromium header include experiment
