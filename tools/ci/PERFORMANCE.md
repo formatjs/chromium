@@ -1145,7 +1145,9 @@ conservative cycle check and source deduplication, 3,502 candidates remain:
 qualification candidates, not adopted routing or proven speedups. Full source
 byte qualification, integration/context/link checks and cold timing remain
 required. Existing larger Browser/Profile/private-RenderFrameHost/IDL PCH
-consumers keep their current producers.
+consumers keep their current producers. The original temporary raw proof was
+lost during a host reset. These pilot numbers are historical; a new persistent
+fixture must requalify every adopted source.
 
 ### Generator input directory setup
 
@@ -1190,3 +1192,33 @@ across eight registered views each. The old partial BB trace matches 237 spans
 and 214.704 task-seconds for these contexts. This is partial diagnostic coverage,
 not CPU savings or a cold-build forecast; complete input/ABI proof is missing.
 Broader reuse of existing PCHs remains the higher-priority experiment.
+
+
+### Strict-cold run after plugin and staging changes
+
+[Run c6bf993](https://formatjs.buildbuddy.io/invocation/83786630-fec6-42dc-9c34-8508c2b19bee)
+hit the free-tier timeout after 3,600.81 seconds. No archive completed. The runner
+reported 19 CPUs and 35,262,926,848 bytes of RAM despite the 16-CPU/32GB request.
+The recovered incomplete trace contains 20,024 completed C++ spans and 709
+resource samples. Late samples average 18.89 CPU equivalents, with no quota
+throttling. More parallel jobs would not address that CPU work.
+
+Against the preceding incomplete run, 260 matched complete native cohorts have
+a task-time ratio of 1.0043; 7,600 matched generator groups have a ratio of
+0.9296. These are task durations across different runs, not isolated CPU
+measurements or a full-build speedup. All twelve PCH validators finish by trace
+second 1,499; earlier readiness alone has not delivered a complete build.
+
+The next two attempts failed before compilation on GitHub HTTP 504 responses.
+An official, checksum-verified Skylib mirror now precedes upstream fallback.
+A separate [LLVM transport diagnostic](https://formatjs.buildbuddy.io/invocation/182d297f-1df3-4e9b-98d0-80acc73f3da2)
+then fetched the exact pinned 182,710,697-byte source archive through both
+Python (6.48 seconds) and Bazel (10.08 seconds). This proves transport recovery
+at that observation, not build performance. The subsequent strict-cold retry
+includes qualified Protoc reuse and retains the same compiler/cache policy.
+
+Wider PCH qualification now holds Bazel's output-base lock during raw compiler
+work. An actual concurrent Bazel invocation exits with lock error 9. A public
+`CcInfo` object selector also rebuilt one original object through a real Linux
+sandbox and matched its raw reference bytes. Neither check qualifies wider
+routing; full source, configured graph, sandbox, link and archive proof remain.
