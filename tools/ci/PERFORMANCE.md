@@ -1237,6 +1237,7 @@ permission-preserving alias merge and is not a production or cold-build forecast
 The actual tree action runs in a Linux sandbox and matches all 3,935 original
 file hashes. The final wrapper also passes twelve real generator roots in Linux
 sandboxes, preserving all 69 original output hashes and the tree contents.
-All 220 tests pass. Full affected-generator proof, final-path CPU measurements
+All 222 tests pass, including permission and input-immutability regressions.
+Full affected-generator proof, final-path CPU measurements
 and strict-cold timing remain required before adoption. The other four target
 triples remain cold-unmeasured.
