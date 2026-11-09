@@ -152,7 +152,7 @@ def _groups(ctx):
         if name not in sources:
             fail("Unknown PCH group: " + name)
         files = target.files.to_list()
-        if len(files) != 1 or files[0].extension not in ["cc", "cpp"]:
+        if len(files) != 1 or files[0].extension not in ["cc", "cpp", "cxx"]:
             fail("Each PCH source must identify one C++ file: " + str(target.label))
         sources[name].append(files[0])
     groups = []
@@ -202,8 +202,49 @@ def _groups(ctx):
 
     return groups
 
+def _route_groups(ctx, groups):
+    if not ctx.attr.shared_sources:
+        if ctx.attr.shared_pchs:
+            fail("Shared PCH producers require qualified sources")
+        return groups
+    producers = {name: target[ChromiumPchInfo] for target, name in ctx.attr.shared_pchs.items()}
+    used = {name: True for name in ctx.attr.shared_sources.values()}
+    if "" in producers or len(producers) != len(ctx.attr.shared_pchs) or sorted(producers) != sorted(used):
+        fail("Shared PCH producers must match qualified source imports")
+    routed = {}
+    found = {}
+    for index, (suffix, sources, options, inputs) in enumerate(groups):
+        basenames = {}
+        for source in sources:
+            name = ctx.attr.shared_sources.get(source.path)
+            if source.basename in basenames and basenames[source.basename] != name:
+                fail("Duplicate basenames must retain one shared PCH group: " + source.basename)
+            basenames[source.basename] = name
+            key = (index, name)
+            if key not in routed:
+                flags = list(options)
+                files = inputs
+                if name:
+                    producer = producers[name]
+                    files = list(inputs)
+                    if "-include-pch" in flags:
+                        position = flags.index("-include-pch") + 1
+                        original = flags[position]
+                        flags[position] = producer.pch.path
+                        files = [file for file in files if file.path != original]
+                    else:
+                        flags += ["-isysroot", ".", "-ffile-prefix-map=./="] + PCH_CONSUMER_FLAGS + ["-include-pch", producer.pch.path]
+                    files += [producer.pch] + producer.headers.to_list()
+                routed[key] = (suffix, [], flags, files)
+            routed[key][1].append(source)
+            if name:
+                found[source.path] = True
+    if sorted(found) != sorted(ctx.attr.shared_sources):
+        fail("Qualified shared PCH source missing from compile owner")
+    return routed.values()
+
 def _compile_impl(ctx):
-    groups = _groups(ctx)
+    groups = _route_groups(ctx, _groups(ctx))
     toolchain = find_cpp_toolchain(ctx)
     features = cc_common.configure_features(
         ctx = ctx,
@@ -265,8 +306,10 @@ def _compile_impl(ctx):
 chromium_pch_compile = rule(
     implementation = _compile_impl,
     attrs = {
-        "sources": attr.label_keyed_string_dict(allow_files = [".cc", ".cpp"]),
+        "sources": attr.label_keyed_string_dict(allow_files = [".cc", ".cpp", ".cxx"]),
         "pchs": attr.label_keyed_string_dict(providers = [ChromiumPchInfo]),
+        "shared_sources": attr.string_dict(doc = "Qualified source File.path to shared producer name."),
+        "shared_pchs": attr.label_keyed_string_dict(providers = [ChromiumPchInfo]),
         "object_order": attr.string_list(mandatory = True, doc = "Archive order; duplicate basenames include their numbered parent directory."),
         "expose_context": attr.bool(default = True, doc = "Expose the compile context to consumers; wrappers can retain their original public context."),
         "object_suffixes": attr.string_dict(doc = "Original object suffix for each replacement PCH group."),

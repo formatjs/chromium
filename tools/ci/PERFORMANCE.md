@@ -1692,3 +1692,18 @@ owner's import only when the resulting graph stays acyclic. Tests compare 2,000
 import decisions against independent whole-graph cycle detection, including
 existing producer dependencies. SDK-only fallbacks remain available. Actual routing
 must use a fresh configured dependency capture; no routes are enabled yet.
+
+`shared_sources`/`shared_pchs` now remap qualified sources inside existing object
+groups. Replacing an old import removes its PCH input, so unused producers are not
+built. Actual C04 integrations cover plain sources, existing PCH replacement,
+duplicate basenames and an unchanged `.cxx` fallback. Objects, archive order/bytes,
+public context and linked executable remain identical. Bad producer mappings,
+stale source paths and split duplicate-basename groups fail during analysis.
+
+Fresh configured ancestry contains 277,924 nodes and 2,168,327 edges. All 16 SDK
+producers have no native compile owners upstream; the plain global prefixes have
+nine. All 247 byte-proven training/holdout imports remain acyclic when combined.
+The 4,002-owner catalog contains 2,350 PCH cohorts, 1,629 ordinary libraries and
+23 binaries. Ordinary cases need private header inputs, two implementation
+dependencies and eleven `.cxx` fallbacks; no mixed C/assembly handling is needed.
+Full-population qualification is still running. Production routing remains off.
