@@ -1,8 +1,15 @@
-"""Manual shared Bind.h cohorts with original compiler and archive contexts."""
+"""Manual shared project PCH cohorts with original compiler and archive contexts."""
 
 load("@rules_cc//cc:cc_library.bzl", original_cc_library = "cc_library")
 load(":base_bind_consumer_data.bzl", "BASE_BIND_CONSUMERS")
 load(":project_pch.bzl", "chromium_pch_compile")
+load(":shared_project_pch_data.bzl", "SHARED_PROJECT_PCH_CONSUMERS")
+
+_SHARED_PCHS = {
+    "document": ":blink_core_83e906bc2e906865_document_pch",
+    "string": ":blink_core_83e906bc2e906865_string_pch",
+    "public_frame_host": ":content_b640bd1dddd3ce1d_public_frame_host_pch",
+}
 
 def base_bind_library(**common):
     name = common["name"]
@@ -20,6 +27,7 @@ def base_bind_library(**common):
         supported = (
             all([source.endswith((".cc", ".cpp")) for source in sources]) and
             all([source in sources for source in BASE_BIND_CONSUMERS[name]]) and
+            all([source in sources for source in SHARED_PROJECT_PCH_CONSUMERS.get(name, {})]) and
             len(objects) == len({name: True for name in objects})
         )
     if supported:
@@ -34,6 +42,23 @@ def base_bind_library(**common):
         })
     original_cc_library(**common)
 
+def _shared_partitions(name, sources, groups, pchs):
+    combined = dict(groups)
+    for source, group in SHARED_PROJECT_PCH_CONSUMERS.get(name, {}).items():
+        if source not in sources or combined[source] not in ["", "bind"]:
+            fail("Shared PCH source missing or overlaps an existing cohort: " + source)
+        if group not in _SHARED_PCHS:
+            fail("Unknown shared PCH group: " + group)
+        combined[source] = group
+    used = combined.values()
+    producers = {producer: group for producer, group in pchs.items() if group in used}
+    for group, producer in _SHARED_PCHS.items():
+        if group in used:
+            if any([existing == group and target != producer for target, existing in producers.items()]):
+                fail("Conflicting shared PCH producer: " + group)
+            producers[producer] = group
+    return combined, producers
+
 def base_bind_partition(name, sources, groups, pchs):
     combined = dict(groups)
     for source in BASE_BIND_CONSUMERS[name]:
@@ -42,6 +67,7 @@ def base_bind_partition(name, sources, groups, pchs):
         combined[source] = "bind"
     producers = dict(pchs)
     producers[":base_bind_default_pch"] = "bind"
+    combined, producers = _shared_partitions(name, sources, combined, producers)
     return (
         select({
             "//native/tool_configuration:base_bind_pch": combined,
@@ -74,10 +100,13 @@ def base_bind_cohort(common):
         elif option == "-fno-complete-member-pointers":
             complete = False
     variant = "complete" if complete else "default"
+    groups = {source: "bind" if source in eligible else "" for source in sources}
+    producers = {":base_bind_" + variant + "_pch": "bind"} if "bind" in groups.values() else {}
+    groups, producers = _shared_partitions(name, sources, groups, producers)
     chromium_pch_compile(
         name = name + "_bind_pch",
-        sources = {source: "bind" if source in eligible else "" for source in sources},
-        pchs = {":base_bind_" + variant + "_pch": "bind"},
+        sources = groups,
+        pchs = producers,
         object_order = [source.split("/")[-1].rsplit(".", 1)[0] + ".pic.o" for source in sources],
         alwayslink = common.get("alwayslink", False),
         context = ":" + context,
