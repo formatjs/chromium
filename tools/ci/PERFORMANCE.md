@@ -1375,3 +1375,9 @@ Cold resource samples also record cumulative Bazel process CPU and reaped child
 CPU when `/proc` counters are available. Compare deltas; running children are
 not yet included in child totals. This separates Java overhead from compiler
 work without changing compiler commands or cache policy.
+
+The complete devbox baseline exposed a verifier bug: Bazel 9.2 reports only the
+20 busiest action mnemonics by default. PCH producers and validators fell below
+that cutoff, so a successful archive with matching PCH files failed the action
+count check. Cold runs now request all mnemonic metrics. Existing reports stay
+unchanged; any retrospective proof must use the retained execution log.

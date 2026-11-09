@@ -362,6 +362,7 @@ def main():
                    '--//tools/ci:revision=' + args.revision,
                    '--build_event_json_file=' + str(events), '--nobuild_event_json_file_path_conversion',
                    '--profile=' + str(profile), '--record_full_profiler_data',
+                   '--experimental_record_metrics_for_all_mnemonics',
                    '--execution_log_compact_file=' + str(directory / 'execution.log'),
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
         if args.sandbox_base:
