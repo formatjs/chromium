@@ -25,6 +25,11 @@ on:
         required: false
         type: boolean
         default: false
+      compiler_dependency_only:
+        description: Download verified compiler dependency for local correctness checks
+        required: false
+        type: boolean
+        default: false
       smoke_cold_artifact:
         description: Execute and render the selected cold artifact on its native runner
         required: false
@@ -43,6 +48,7 @@ permissions:
   contents: read
 jobs:
   profile:
+    if: ${{ !inputs.compiler_dependency_only }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -85,6 +91,32 @@ jobs:
         with:
           name: build-profile-${{ inputs.revision }}
           path: ${{ runner.temp }}/build-profile
+          if-no-files-found: error
+          retention-days: 7
+
+  compiler_dependency:
+    if: inputs.compiler_dependency_only
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: tools/ci
+      - name: Download verified compiler dependency
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_RO_PUBLIC_KEY }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          from tools.ci.compiler_archive import ARCHIVES, ensure_archive
+          destination = Path(os.environ['RUNNER_TEMP']) / 'compiler-dependency' / ARCHIVES['chromium']['name']
+          print(json.dumps(ensure_archive(destination, profile='chromium')))
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: compiler-dependency-${{ inputs.revision }}
+          path: ${{ runner.temp }}/compiler-dependency
           if-no-files-found: error
           retention-days: 7
 
