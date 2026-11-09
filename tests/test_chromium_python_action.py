@@ -89,6 +89,55 @@ pathlib.Path('gen/second.txt').write_text(arguments[0])
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual((root / 'tool.txt').read_text(), 'clang')
 
+    def _run_tree_alias_action(self, root, alias_contents):
+        package = root / 'packages/@lit/core'
+        package.mkdir(parents=True)
+        (package / 'index.d.ts').write_text('original declaration')
+        (package / 'index.d.ts').chmod(0o555)
+        (root / 'alias.d.ts').write_text(alias_contents)
+        (root / 'alias.d.ts').chmod(0o640)
+        (root / 'extra.d.ts').write_text('additional declaration')
+        (root / 'generator.py').write_text("import json, pathlib, stat\npackage = pathlib.Path('../../third_party/node/node_modules/@lit/core')\nresult = {\n    'existing': (package / 'index.d.ts').read_text(),\n    'extra': (package / 'extra.d.ts').read_text(),\n    'permissions': stat.S_IMODE((package / 'index.d.ts').stat().st_mode),\n}\npathlib.Path('result.json').write_text(json.dumps(result))\n")
+        logical = 'third_party/node/node_modules'
+        manifest = {
+            'inputs': [['packages', logical], ['alias.d.ts', logical + '/@lit/core/index.d.ts'],
+                       ['extra.d.ts', logical + '/@lit/core/extra.d.ts'],
+                       ['generator.py', 'tools/generator.py']],
+            'outputs': [['result.json', 'result.json']],
+            'build_dir': 'out/import', 'script': 'tools/generator.py',
+            'args': [], 'response_file_contents': [], 'preserve_node_symlinks': True,
+        }
+        (root / 'manifest.json').write_text(json.dumps(manifest))
+        return subprocess.run([sys.executable, str(RUNNER), 'manifest.json'],
+                              cwd=root, capture_output=True, text=True)
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX file permissions')
+    def test_tree_alias_preserves_permissions_and_adds_files_privately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self._run_tree_alias_action(root, 'original declaration')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads((root / 'result.json').read_text()), {
+                'existing': 'original declaration', 'extra': 'additional declaration',
+                'permissions': 0o640,
+            })
+            self.assertFalse((root / 'packages/@lit/core/extra.d.ts').exists())
+            original = root / 'packages/@lit/core/index.d.ts'
+            self.assertEqual(original.read_text(), 'original declaration')
+            self.assertEqual(original.stat().st_mode & 0o777, 0o555)
+
+    @unittest.skipUnless(os.name == 'posix', 'POSIX file permissions')
+    def test_tree_alias_conflict_rejects_generation_without_changing_input(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self._run_tree_alias_action(root, 'conflicting declaration')
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('conflicting logical input inside declared directory', result.stderr)
+            self.assertFalse((root / 'result.json').exists())
+            self.assertEqual((root / 'packages/@lit/core/index.d.ts').read_text(),
+                             'original declaration')
+            self.assertFalse((root / 'packages/@lit/core/extra.d.ts').exists())
+
     def test_rejects_output_path_escape(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
