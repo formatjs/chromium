@@ -6,11 +6,26 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.ci.local_cold import NORMAL_PROJECT_PCH_NAMES, eager_template_pch_producers, local_cold_report, main
+from tools.ci.local_cold import (NORMAL_PROJECT_PCH_NAMES, eager_template_pch_producers,
+                               local_cold_report, main, serialization_pch_producers)
 from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_serialization_manifest_requires_valid_nonempty_routes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            self.assertEqual(serialization_pch_producers(source), frozenset())
+            manifest = source / 'overlays/chromium/bcr/overlay/native/serialization_pch_data.bzl'
+            manifest.parent.mkdir(parents=True)
+            for mapping, expected in [({}, set()), ({'owner': ['source.cc']}, {'serialization_eager_pch'})]:
+                manifest.write_text('SERIALIZATION_SOURCES = ' + repr(mapping) + '\n')
+                self.assertEqual(serialization_pch_producers(source), expected)
+            for invalid in [[], {'owner': []}, {'owner': [None]}, {'': ['source.cc']}]:
+                manifest.write_text('SERIALIZATION_SOURCES = ' + repr(invalid) + '\n')
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    serialization_pch_producers(source)
+
     def test_eager_manifest_identifies_producers_and_rejects_invalid_entries(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary)
@@ -74,7 +89,8 @@ class LocalColdBuildTest(unittest.TestCase):
 
             def measure(changes=None, runners=None, fresh=True, success=True, compiles=16, client_command=None,
                         expected_pch_count=0, pch_count=0, validator_count=0,
-                        expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0, omitted_original=(), mutate_pch_files=None):
+                        expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
+                        additional_pchs=(), omitted_original=(), mutate_pch_files=None):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -98,9 +114,9 @@ class LocalColdBuildTest(unittest.TestCase):
                 native.mkdir(parents=True, exist_ok=True)
                 for path in native.glob('*.pch'):
                     path.unlink()
-                if eager_producers:
+                if eager_producers or additional_pchs:
                     produced = (NORMAL_PROJECT_PCH_NAMES - set(omitted_original)
-                                | {name + '_templates' for name in eager_producers})
+                                | {name + '_templates' for name in eager_producers} | set(additional_pchs))
                     for name in produced:
                         for suffix in ['.raw.pch', '.pch']:
                             (native / (name + suffix)).write_bytes(('fixture:' + name).encode())
@@ -111,7 +127,8 @@ class LocalColdBuildTest(unittest.TestCase):
                                            expected_pch_count=expected_pch_count,
                                            expected_prefix_count=expected_prefix_count,
                                            expected_base_bind_pch=base_bind_pch,
-                                           expected_eager_producers=eager_producers)
+                                           expected_eager_producers=eager_producers,
+                                           expected_additional_producers=additional_pchs)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
@@ -131,6 +148,22 @@ class LocalColdBuildTest(unittest.TestCase):
                              omitted_original=['base_bind_default_pch'])
             self.assertTrue(pruned['cold_result_verified'])
             self.assertEqual(pruned['pch_output_proof']['unused_original'], ['base_bind_default_pch'])
+            serialization = dict(base_bind_pch=True, eager_pchs=2,
+                                 additional_pchs=('serialization_eager_pch',),
+                                 pch_count=15, validator_count=15, prefix_count=1)
+            self.assertTrue(measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, **serialization)['cold_result_verified'])
+            for suffixes in [('.raw.pch', '.pch'), ('.pch',)]:
+                with self.subTest(missing_serialization=suffixes):
+                    invalid = measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, **serialization,
+                                      mutate_pch_files=lambda folder: [
+                                          (folder / ('serialization_eager_pch' + suffix)).unlink()
+                                          for suffix in suffixes])
+                    self.assertFalse(invalid['cold_result_verified'])
+            invalid = measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'}, **serialization,
+                              mutate_pch_files=lambda folder: (folder / 'serialization_eager_pch.pch').write_bytes(b'changed'))
+            self.assertFalse(invalid['cold_result_verified'])
+            self.assertFalse(measure({'define': 'CHROMIUM_BASE_BIND_PCH=1'},
+                                     **(serialization | {'validator_count': 14}))['cold_result_verified'])
             eager_name = sorted(NORMAL_PROJECT_PCH_NAMES)[0] + '_templates'
             mutations = {
                 'missing_eager': lambda folder: [(folder / (eager_name + suffix)).unlink()

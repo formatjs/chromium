@@ -91,10 +91,30 @@ def eager_template_pch_producers(source):
     return frozenset(producers)
 
 
-def pch_output_proof(directory, eager_producers):
+def serialization_pch_producers(source):
+    manifest = source / 'overlays/chromium/bcr/overlay/native/serialization_pch_data.bzl'
+    if not manifest.exists():
+        return frozenset()
+    assignments = [node.value for node in ast.parse(manifest.read_text()).body
+                   if isinstance(node, ast.Assign) and any(
+                       isinstance(target, ast.Name) and target.id == 'SERIALIZATION_SOURCES'
+                       for target in node.targets)]
+    if len(assignments) != 1:
+        raise ValueError('Expected one serialization source manifest')
+    owners = ast.literal_eval(assignments[0])
+    if not isinstance(owners, dict):
+        raise ValueError('Expected serialization owner mapping')
+    for owner, paths in owners.items():
+        if (not isinstance(owner, str) or not owner or not isinstance(paths, list) or not paths
+                or any(not isinstance(path, str) or not path for path in paths)):
+            raise ValueError('Invalid serialization source list')
+    return frozenset({'serialization_eager_pch'} if owners else ())
+
+
+def pch_output_proof(directory, eager_producers, additional_producers=()):
     native = directory / ('output-base/execroot/_main/bazel-out/k8-fastbuild/bin/'
                           'external/+chromium_dependencies+chromium/native')
-    required = {name + '_templates' for name in eager_producers}
+    required = {name + '_templates' for name in eager_producers} | set(additional_producers)
     allowed = NORMAL_PROJECT_PCH_NAMES | required
     raw = {path.name.removesuffix('.raw.pch'): path for path in native.glob('*.raw.pch')}
     validated = {path.name.removesuffix('.pch'): path for path in native.glob('*.pch')
@@ -111,13 +131,14 @@ def pch_output_proof(directory, eager_producers):
                     verified = False
                     break
     return {'verified': verified, 'produced': sorted(raw), 'validated': sorted(validated),
-            'required_eager': sorted(required),
+            'required_eager': sorted(name + '_templates' for name in eager_producers),
+            'required_additional': sorted(additional_producers),
             'unused_original': sorted(NORMAL_PROJECT_PCH_NAMES - raw.keys())}
 
 
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
-                      expected_eager_producers=()):
+                      expected_eager_producers=(), expected_additional_producers=()):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -179,13 +200,15 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     report['expected_prefix_count'] = expected_prefix_count
     report['expected_pch_count'] = expected_pch_count
     report['expected_eager_template_pch_count'] = len(expected_eager_producers)
-    if expected_eager_producers:
+    report['expected_additional_pch_count'] = len(expected_additional_producers)
+    if expected_eager_producers or expected_additional_producers:
         # Unused original variants may be pruned; eager outputs remain mandatory.
-        proof = pch_output_proof(directory, expected_eager_producers)
+        proof = pch_output_proof(directory, expected_eager_producers, expected_additional_producers)
         report['pch_output_proof'] = proof
         expected_pch_count = len(proof['produced'])
         report['expected_pch_count'] = expected_pch_count
-        report['max_expected_pch_count'] = len(NORMAL_PROJECT_PCH_NAMES) + len(expected_eager_producers)
+        report['max_expected_pch_count'] = (len(NORMAL_PROJECT_PCH_NAMES) + len(expected_eager_producers)
+                                            + len(expected_additional_producers))
     else:
         proof = {'verified': True}
     defines = dict(value.split('=', 1) for value in options.get('define', []) if '=' in value)
@@ -196,7 +219,7 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
          report['pch_closure_actions'] == expected_pch_count))
         and report['pch_prefix_actions'] == expected_prefix_count
         and proof['verified']
-        and (not expected_eager_producers or expected_base_bind_pch)
+        and (not (expected_eager_producers or expected_additional_producers) or expected_base_bind_pch)
         and (not expected_base_bind_pch or report['base_bind_pch_configuration_verified']))
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
@@ -287,6 +310,7 @@ def main():
     command = None
     compiler_dependency = None
     expected_eager_producers = ()
+    expected_additional_producers = ()
     try:
         bazel = args.bazel.resolve(strict=True)
         if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:
@@ -302,6 +326,7 @@ def main():
             raise ValueError('Source commit does not select Bazel 9.2.0')
         if args.base_bind_pch:
             expected_eager_producers = eager_template_pch_producers(source)
+            expected_additional_producers = serialization_pch_producers(source)
         if args.compiler_archive:
             from tools.ci.compiler_archive import configure_compiler
             compiler_dependency = configure_compiler(source, args.compiler_archive, args.compiler_profile)
@@ -397,7 +422,8 @@ def main():
                                    expected_pch_count=10 if args.project_pch else 3 if args.blink_pch else 0,
                                    expected_prefix_count=1 if args.project_pch else 0,
                                    expected_base_bind_pch=args.base_bind_pch,
-                                   expected_eager_producers=expected_eager_producers)
+                                   expected_eager_producers=expected_eager_producers,
+                                   expected_additional_producers=expected_additional_producers)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,

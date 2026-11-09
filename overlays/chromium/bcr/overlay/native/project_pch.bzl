@@ -7,7 +7,7 @@ load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":eager_template_pch_data.bzl", "EAGER_TEMPLATE_SOURCES")
 load(":pch_flags.bzl", "PCH_CONSUMER_FLAGS", "PCH_PRODUCER_FLAGS")
 
-ChromiumPchInfo = provider(fields = ["pch", "headers", "eager_pch", "eager_sources"])
+ChromiumPchInfo = provider(fields = ["pch", "headers", "eager_pch", "eager_sources", "alternate", "alternate_sources"])
 
 _NATIVE_LINUX = Label("//native/tool_configuration:native_linux_type")
 
@@ -51,8 +51,15 @@ def _pch_impl(ctx):
             fail("define must expand to one token: " + value)
         defines.append(tokens[0])
     eager_sources = {}
+    alternate = None
+    alternate_sources = {}
     if ctx.var.get("CHROMIUM_BASE_BIND_PCH") == "1" and ctx.var.get("COMPILATION_MODE") == "fastbuild":
         eager_sources = EAGER_TEMPLATE_SOURCES.get(ctx.label.name, {})
+        if ctx.attr.alternate_sources:
+            if not ctx.attr.alternate:
+                fail("Qualified alternate sources require a PCH producer")
+            alternate = ctx.attr.alternate[ChromiumPchInfo]
+            alternate_sources = ctx.attr.alternate_sources
     variants = {}
     for suffix in (["", "_templates"] if eager_sources else [""]):
         raw = ctx.actions.declare_file(ctx.label.name + suffix + ".raw.pch")
@@ -103,6 +110,8 @@ def _pch_impl(ctx):
             headers = depset(headers + ctx.files.extras),
             eager_pch = variants.get("_templates"),
             eager_sources = eager_sources,
+            alternate = alternate,
+            alternate_sources = alternate_sources,
         ),
     ]
 
@@ -116,6 +125,8 @@ chromium_project_pch = rule(
         "closure_inputs": attr.bool(default = False, doc = "Use only pinned headers after validating their sandbox directory layout."),
         "copts": attr.string_list(),
         "local_defines": attr.string_list(),
+        "alternate": attr.label(providers = [ChromiumPchInfo]),
+        "alternate_sources": attr.string_list_dict(),
         "_validator": attr.label(default = Label("//native:pch_validate.py"), allow_single_file = True),
         "_python": attr.label(default = "@rules_python//python:current_py_toolchain", cfg = "exec"),
     },
@@ -144,17 +155,30 @@ def _groups(ctx):
             continue
         producer = producers[name]
         qualified = {path: True for path in producer.eager_sources.get(ctx.label.name, [])}
+        alternate_paths = {path: True for path in producer.alternate_sources.get(ctx.label.name, [])}
         eager = []
         original = []
+        alternate_files = []
         for file in files:
-            (eager if _project_path(file.path) in qualified else original).append(file)
-        for pch, selected in [(producer.pch, original), (producer.eager_pch, eager)]:
+            path = _project_path(file.path)
+            if path in qualified and path in alternate_paths:
+                fail("Overlapping qualified PCH imports: " + file.path)
+            if path in alternate_paths:
+                alternate_files.append(file)
+            elif path in qualified:
+                eager.append(file)
+            else:
+                original.append(file)
+        variants = [(producer.pch, original, producer.headers), (producer.eager_pch, eager, producer.headers)]
+        if producer.alternate:
+            variants.append((producer.alternate.pch, alternate_files, producer.alternate.headers))
+        for pch, selected, headers in variants:
             if not selected:
                 continue
             options = ctx.attr.copts + ["-isysroot", ".", "-ffile-prefix-map=./="] + PCH_CONSUMER_FLAGS + ["-include-pch", pch.path]
-            inputs = ctx.files.extra_inputs + [pch] + producer.headers.to_list()
+            inputs = ctx.files.extra_inputs + [pch] + headers.to_list()
 
-            # Keep original object paths and archive order across both imports.
+            # Keep original object paths and archive order across imports.
             groups.append(("_" + name, selected, options, inputs))
 
     return groups

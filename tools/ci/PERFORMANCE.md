@@ -1335,3 +1335,38 @@ cleanup and frozen input checks pass. This warm correctness run uses cached
 prerequisites; it makes no cold timing claim. Complete strict-cold archive, ABI
 and rendering validation remain pending. Other four triples remain
 cold-unmeasured.
+
+### Serialization prefix qualification
+
+The eager-template revision `da01479` still hits the BB one-hour limit at
+3,601.20 seconds without an archive. Its incomplete trace contains 20,202
+completed C++ compile spans, versus 19,605 previously. The complete 248-source
+generated V8 cohort takes 0.5131 times its previous task duration; 244 unchanged
+native control cohorts take 0.9951 times. Task durations include scheduling and
+host variation. These partial traces do not establish total cold speedup.
+
+A Base/Mojo serialization prefix uses only existing public header dependencies,
+the complete SDK and standard eager template instantiation. Raw qualification
+checks all 8,263 naturally including consumers against their original sandbox
+objects: 8,142 match, 121 stay on their original PCH, and no original compile
+fails. Full raw/sandbox qualification uses D94, the earlier compiler built from
+the same pinned LLVM source. The manifest names matching sources explicitly.
+Other configurations keep their original imports.
+
+The exact pinned BB compiler reproduces both baseline and serialization PCH
+bytes. A separate 24-source ABBA replay keeps all 96 object hashes unchanged and
+uses 0.9225 times the baseline compiler CPU. This is a warm sample, excluding
+producer and sandbox costs.
+
+Configured-graph audit preserves 52,312 compile, 854 link and 5,784 archive
+commands, environments, object paths and archive member order after only the
+qualified imports and additional producer are normalized. All 19 PCH producers
+retain the original complete 1,729-file SDK input set; the original twelve
+producers retain their entire input sets. Actual Linux sandboxes then execute
+all 8,142 routed objects; every hash matches its frozen original. All twelve
+original PCH hashes stay unchanged, and the serialization PCH matches raw
+qualification. The run executes 12,683 C++ actions including prerequisites;
+only Linux sandbox and internal runners appear. Frozen-file and fixture cleanup
+checks pass. This warm correctness run reuses prerequisite outputs and makes no
+cold timing claim. Complete cold archive, ABI and rendering validation remain
+pending; other four triples remain cold-unmeasured.
