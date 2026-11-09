@@ -416,6 +416,24 @@ def deduplicate_source_sets(libraries):
         library['srcs'] = [source for source in library['srcs'] if source not in owned]
 
 
+def protobuf_plugin_dependencies(label, dependencies):
+    """Use compiler plugin APIs without linking every language generator."""
+    apis = {
+        '//third_party/protobuf-javascript:protoc-gen-js': [
+            '@protobuf//src/google/protobuf/compiler:code_generator',
+        ],
+        '//components/proto_extras:proto_extras_plugin': [
+            '@protobuf//src/google/protobuf/compiler:code_generator',
+            '@protobuf//src/google/protobuf/compiler:importer',
+            '@protobuf//src/google/protobuf/compiler/cpp:names',
+        ],
+    }.get(label.split('(', 1)[0])
+    if apis is None:
+        return dependencies
+    return [replacement for dependency in dependencies
+            for replacement in (apis if dependency == '@protobuf//:protoc_lib' else [dependency])]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('graph', type=Path)
@@ -1361,7 +1379,7 @@ def main():
         kind = 'group' if target['type'] in ('bundle_data', 'create_bundle') else target['type']
         libraries[label] = dict(name=name(label), kind=kind, srcs=sources,
                                 hdrs=sorted(set(headers)), copts=copts, defines=defines,
-                                includes=sorted(set(includes)), deps=sorted(set(dependencies)),
+                                includes=sorted(set(includes)), deps=sorted(set(protobuf_plugin_dependencies(label, dependencies))),
                                 linkopts=linkopts)
         if label.startswith('//third_party/ffmpeg:'):
             configurations = {path.removeprefix('//third_party/ffmpeg/').rstrip('/')

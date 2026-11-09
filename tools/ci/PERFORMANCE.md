@@ -1033,13 +1033,13 @@ the existing Isolate PCH, adds no producer, and keeps eleven compiler sources
 plain. Shared-cohort BB/cold performance and complete artifact ABI/rendering
 remain unverified.
 
-### Broad Bind.h routing preparation
+### Broad Bind.h routing
 
 A separate opt-in wrapper prepares 17,894 compatible Bind.h records across 2,616
 owners in 22 native declaration families. The membership file excludes the 41
 optimization-mode mismatches and 192 manual/binary-owner records. It includes
-both existing member-pointer language modes. These are prepared candidates,
-not executed or qualified rollout counts.
+both existing member-pointer language modes. The full archive graph routes
+17,881 records; thirteen unsupported records retain their original rules.
 
 The wrapper retains each original cc_library by default. With the explicit
 Base Bind flag, supported C++ owners use a separate compilation context and
@@ -1051,18 +1051,19 @@ implementation dependencies and nocopts remain on their original rules.
 Full native source-byte qualification passes against the actual Bazel PCH
 artifacts: 18,084 direct matches plus two matching infrastructure retries.
 All 18,086 original reference hashes are unchanged; 41 incompatible records
-stay plain. This is local compiler evidence, not Bazel sandbox or cold proof.
-Broad default/enabled compiler-context audits, reachable producer
-counts, complete object/link checks and cold timing remain pending. No broader
-source is copied into the fixture held by the existing combined correctness
-job. Other four triples remain cold-unmeasured.
+stay plain. All 52,516 unique compiler/header-check contexts preserve their flags,
+include order, defines and environment. All 6,780 unique link/archive commands
+preserve flags and ordering after cohort path substitutions. Actual Bazel builds
+also reproduce all 425 original Base objects. These are local correctness checks;
+other four triples remain cold-unmeasured.
 
 The three newer UI/Profile/public-RFH producers also prepare narrower declared
 inputs: pinned project header closures plus the complete SDK. The public RFH
 producer retains its forwarder directory anchor. Producer commands, effective
-environments and raw/validated PCH and depfile bytes must match the previous
-full-context producers in real sandbox executions. This gate is pending; no
-input-pruning performance claim is established.
+environments and raw/validated PCH and depfile bytes match their full-context
+predecessors in fresh sandbox executions. Inputs fall from 108,433 to 2,833 for
+UI, 108,504 to 2,003 for Profile, and 79,542 to 2,179 for public RFH. Each retains
+all 1,729 SDK inputs. No isolated cold speedup is claimed.
 
 An independent original V8 depfile survey finds 199 remaining Isolate.h records
 across native and host configurations, including previously known exceptions.
@@ -1071,7 +1072,7 @@ so directly reusing its Isolate PCH there would introduce a dependency cycle.
 The remaining builtin-generator candidates need their own context and byte
 qualification. No additional V8 source is routed from this survey.
 
-### Held broad Bind.h cold wiring
+### Broad Bind.h cold result
 
 The separate cold-run preparation accepts `--base-bind-pch` only with the existing
 project/Blink/native Linux configuration. Its proof requires the effective
@@ -1080,13 +1081,37 @@ twelve closure validators and the existing prefix guard. Missing flags, stale
 ten-producer results, missing validators and extra producers fail verification.
 Cache, sandbox, resource and elapsed-time policy remain unchanged.
 
-The unique `perf/strict-cold-base-bind-run` trigger remains held. Do not push that
-alias until source qualification, broad compiler contexts, producer input scope,
-complete object/link and artifact validation gates pass. Other four triples
-remain cold-unmeasured.
+The twelve-PCH candidate `4ea795f` ran in BuildBuddy invocation
+`ce4581b8-1d1e-4598-a54e-d66fff155837`. It hit the one-hour tier limit at
+3,601.903 seconds without an archive. The partial trace contains twelve completed
+producers and twelve closure validators. The under-one-hour goal remains unmet;
+other four triples remain cold-unmeasured. Plugin dependency pruning below was
+excluded from this run.
 
 The terminated ten-PCH trial's captured trace contains completed actions for
 seven producers and their validators; it contains no completion for the newer
 UI/Profile/public-RFH producers. The trace ends before outer termination, so
 this does not prove those producers never started. Narrower inputs target their
 availability; improvement requires a new measured cold result.
+
+### Compiler plugin dependencies
+
+The partial ten-PCH trace records 861 Protobuf compilations and 2,508.274
+CppCompile task-seconds across several configurations. Task time is not CPU
+time. Required bounds/RTTI settings differ, so collapsing configurations or
+using a prebuilt compiler without matching those settings is not justified.
+
+The change narrows only plugin library dependencies. The JavaScript
+plugin uses the public code_generator API; proto_extras also needs importer and
+C++ names. Perfetto plugins use a bounds/RTTI-configured code_generator/importer
+library. The full public protoc_lib target and actual protoc compiler remain
+available. The importer records the same consumer-specific mappings.
+
+Compiler mode, hardening and tool version stay pinned. The full archive graph
+removes 204 object compilation actions and adds none. All retained contexts match
+except unused include paths in seven plugin compilation contexts.
+
+Real sandbox builds compile and link all five plugins, then execute 159 existing
+generation actions across target and execution configurations. All 1,556 generated
+files and all seven plugin objects match baseline bytes. Plugin executables
+relink with different layouts. These are warm correctness checks, not cold timing.

@@ -538267,13 +538267,7 @@ LIBRARIES = {
             "gen/third_party/perfetto/",
             "gen/third_party/perfetto/build_config/",
         ],
-        "deps": [
-            ":base",
-            "@glib//glib",
-            "@glib//gmodule",
-            "@glib//gobject",
-            "@protobuf//:protoc_lib",
-        ],
+        "deps": [":base", "@glib//glib", "@glib//gmodule", "@glib//gobject", "@protobuf//src/google/protobuf/compiler/cpp:names", "@protobuf//src/google/protobuf/compiler:code_generator", "@protobuf//src/google/protobuf/compiler:importer"],
         "linkopts": [
             "-ldl",
             "-lpthread",

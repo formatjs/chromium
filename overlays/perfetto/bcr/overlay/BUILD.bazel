@@ -17,6 +17,20 @@ chromium_protobuf_library(
 )
 
 cc_library(
+    name = "_protoc_plugin_api",
+    visibility = ["//visibility:private"],
+    deps = [
+        "@protobuf//src/google/protobuf/compiler:code_generator",
+        "@protobuf//src/google/protobuf/compiler:importer",
+    ],
+)
+
+chromium_protobuf_library(
+    name = "protoc_plugin_api",
+    dep = ":_protoc_plugin_api",
+)
+
+cc_library(
     name = "host_base",
     srcs = SRC_BASE_BASE + PERFETTO_BASE_DEFAULT_PLATFORM,
     hdrs = INCLUDE_PERFETTO_BASE_BASE + INCLUDE_PERFETTO_EXT_BASE_BASE + INCLUDE_PERFETTO_PUBLIC_ABI_BASE + INCLUDE_PERFETTO_PUBLIC_BASE + [
@@ -46,7 +60,7 @@ cc_binary(
     srcs = ["src/protozero/protoc_plugin/protozero_plugin.cc"],
     deps = [
         ":host_base",
-        ":protoc_lib",
+        ":protoc_plugin_api",
     ],
 )
 
@@ -55,7 +69,7 @@ cc_binary(
     srcs = ["src/protozero/protoc_plugin/cppgen_plugin.cc"],
     deps = [
         ":host_base",
-        ":protoc_lib",
+        ":protoc_plugin_api",
     ],
 )
 
@@ -64,7 +78,7 @@ cc_binary(
     srcs = ["src/ipc/protoc_plugin/ipc_plugin.cc"],
     deps = [
         ":host_base",
-        ":protoc_lib",
+        ":protoc_plugin_api",
     ],
 )
 

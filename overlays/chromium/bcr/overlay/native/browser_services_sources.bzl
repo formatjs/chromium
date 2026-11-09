@@ -5015,9 +5015,7 @@ LIBRARIES = {
             "gen",
             "gen/",
         ],
-        "deps": [
-            "@protobuf//:protoc_lib",
-        ],
+        "deps": ["@protobuf//src/google/protobuf/compiler:code_generator"],
         "linkopts": [
             "-ldl",
             "-lpthread",
