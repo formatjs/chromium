@@ -76,6 +76,10 @@ analysis, compilation, linking, packaging and artifact copying. A successful
 archive still needs ABI, rendering and payload comparison before accepting
 the optimization. Each new cold trial needs a new directory.
 
+`--jvm-processors N` sets the JVM processor count for scheduling and GC; `--jobs`
+still controls compiler concurrency. An explicit count must match both the client
+command and canonical BEP. The default remains JVM detection.
+
 The original RAM-sandbox baseline at `4ad4231` finishes in 12,940.10s
 (3h35m40s), executing 75,286 C++ actions locally with no reused action results.
 No OOM kills occur. Its archive fails relocation: local sandbox input symlinks

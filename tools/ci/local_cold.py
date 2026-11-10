@@ -204,7 +204,7 @@ def set_timing_target(report, target_seconds):
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
                       expected_eager_producers=(), expected_additional_producers=(), expected_shared_producers=(), target_seconds=3600,
-                      expected_repository_cache_hardlinks=False):
+                      expected_repository_cache_hardlinks=False, expected_jvm_processors=None):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -252,6 +252,13 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     policy = client_verified and optional_rc and all(matches(name, allowed) for name, allowed in required.items())
     report['repository_cache_hardlinks_verified'] = (not expected_repository_cache_hardlinks or
         matches('experimental_repository_cache_hardlinks', {'true', '1'}))
+    processor_flag = '-XX:ActiveProcessorCount=' + str(expected_jvm_processors)
+    canonical_processors = [value for value in options.get('host_jvm_args', [])
+                            if value.startswith('-XX:ActiveProcessorCount')]
+    client_processors = [value.removeprefix('--host_jvm_args=') for value in startup
+                         if value.startswith('--host_jvm_args=-XX:ActiveProcessorCount')]
+    report['jvm_processors_verified'] = (expected_jvm_processors is None or
+        canonical_processors == client_processors == [processor_flag])
     runners = report.get('build_metrics', {}).get('actionSummary', {}).get('runnerCount', [])
     actual = {row.get('name') for row in runners if int(row.get('count', 0)) > 0}
     local = 'linux-sandbox' in actual and actual <= {'total', 'internal', 'linux-sandbox'}
@@ -306,7 +313,8 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
                                          and report['requested_pch_actions_verified']
-                                         and report['repository_cache_hardlinks_verified'])
+                                         and report['repository_cache_hardlinks_verified']
+                                         and report['jvm_processors_verified'])
     report['local_execution_verified'] = report['cold_result_verified']
     report['cache_state'].update({
         'local_action_cache': False if policy else 'unverified',
@@ -328,6 +336,8 @@ def main():
     parser.add_argument('--bazel', type=Path, required=True, help='Verified Bazel 9.2.0 Linux amd64 executable')
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--heap-gib', type=int, default=12)
+    parser.add_argument('--jvm-processors', type=int,
+                        help='Optional JVM processor count; compiler jobs remain independent')
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
     parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
@@ -372,6 +382,8 @@ def main():
         parser.error('--revision must be a full source commit SHA')
     if min(args.jobs, args.heap_gib, args.action_memory_mb, args.target_seconds) < 1 or args.max_seconds < 0:
         parser.error('Resource limits and --target-seconds must be positive; --max-seconds must be nonnegative')
+    if args.jvm_processors is not None and args.jvm_processors < 1:
+        parser.error('--jvm-processors must be positive')
     directory, cache = args.directory.resolve(), args.repository_cache.resolve()
     if directory.is_relative_to(cache) or cache.is_relative_to(directory):
         parser.error('Fetch cache and benchmark directory must be separate')
@@ -437,9 +449,12 @@ def main():
             environment[name] = str(path)
         environment.update({'CCACHE_DISABLE': '1', 'SCCACHE_DISABLE': '1'})
         label = '//tools/ci:' + args.platform + '_archive'
+        jvm_processor_flags = (['--host_jvm_args=-XX:ActiveProcessorCount=' + str(args.jvm_processors)]
+                               if args.jvm_processors is not None else [])
         command = [str(bazel), '--nosystem_rc', '--nohome_rc', '--noworkspace_rc',
                    '--bazelrc=' + str(source / '.bazelrc'), '--batch',
                    '--host_jvm_args=-Xmx' + str(args.heap_gib) + 'g',
+                   *jvm_processor_flags,
                    '--output_user_root=' + str(directory / 'bazel-root'),
                    '--output_base=' + str(directory / 'output-base'),
                    '--install_base=' + str(directory / 'install-base'),
@@ -531,10 +546,12 @@ def main():
                                    expected_additional_producers=expected_additional_producers,
                                    expected_shared_producers=expected_shared_producers,
                                    target_seconds=args.target_seconds,
-                                   expected_repository_cache_hardlinks=args.repository_cache_hardlinks)
+                                   expected_repository_cache_hardlinks=args.repository_cache_hardlinks,
+                                   expected_jvm_processors=args.jvm_processors)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
+                       'jvm_processors_requested': args.jvm_processors,
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,

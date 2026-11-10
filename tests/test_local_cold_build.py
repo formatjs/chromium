@@ -64,19 +64,20 @@ class LocalColdBuildTest(unittest.TestCase):
                                                                          'b.cc': ':shared_sdk_0_eager_pch'}})+'\n')
             self.assertEqual(shared_pch_producers(source), {'shared_sdk_0_eager_pch'})
 
-    def test_nonpositive_target_rejected_before_build_state_is_created(self):
+    def test_nonpositive_limits_rejected_before_build_state_is_created(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / 'build'
-            for seconds in ['0', '-1']:
+            for option, seconds in [('--target-seconds', '0'), ('--target-seconds', '-1'),
+                                    ('--jvm-processors', '0'), ('--jvm-processors', '-1')]:
                 arguments = ['local_cold', '--directory', str(directory),
                              '--repository-cache', str(Path(temporary) / 'fetch-cache'),
                              '--revision', 'a' * 40, '--bazel', '/verified-bazel',
-                             '--target-seconds', seconds]
-                with self.subTest(seconds=seconds), mock.patch('sys.argv', arguments), \
+                             option, seconds]
+                with self.subTest(option=option, value=seconds), mock.patch('sys.argv', arguments), \
                         redirect_stderr(io.StringIO()) as errors, self.assertRaises(SystemExit) as exit:
                     main()
                 self.assertEqual(exit.exception.code, 2)
-                self.assertIn('--target-seconds must be positive', errors.getvalue())
+                self.assertIn(option + ' must be positive', errors.getvalue())
                 self.assertFalse(directory.exists())
 
     def test_v8_manifest_requires_eager_subset_and_only_used_variants(self):
@@ -190,7 +191,7 @@ class LocalColdBuildTest(unittest.TestCase):
                         expected_pch_count=0, pch_count=0, validator_count=0,
                         expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
                         additional_pchs=(), shared_pchs=(), omitted_original=(), mutate_pch_files=None,
-                        elapsed=500, target_seconds=3600, repository_hardlinks=False):
+                        elapsed=500, target_seconds=3600, repository_hardlinks=False, jvm_processors=None):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -231,7 +232,8 @@ class LocalColdBuildTest(unittest.TestCase):
                                            expected_additional_producers=additional_pchs,
                                            expected_shared_producers=shared_pchs,
                                            target_seconds=target_seconds,
-                                           expected_repository_cache_hardlinks=repository_hardlinks)
+                                           expected_repository_cache_hardlinks=repository_hardlinks,
+                                           expected_jvm_processors=jvm_processors)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
@@ -270,6 +272,19 @@ class LocalColdBuildTest(unittest.TestCase):
 
             result = measure()
             self.assertTrue(result['cold_result_verified'])
+            jvm_command = command[:-1] + ['--host_jvm_args=-XX:ActiveProcessorCount=8', 'build']
+            jvm_arguments = {'host_jvm_args': ['-Xmx8g', '-XX:ActiveProcessorCount=8']}
+            verified_jvm = measure(jvm_arguments, client_command=jvm_command, jvm_processors=8)
+            self.assertTrue(verified_jvm['cold_result_verified'])
+            self.assertTrue(verified_jvm['jvm_processors_verified'])
+            for values in [None, ['-Xmx8g'], ['-XX:ActiveProcessorCount=16'],
+                           ['-XX:ActiveProcessorCount=8', '-XX:ActiveProcessorCount=16'],
+                           ['-XX:ActiveProcessorCount=8', '-XX:ActiveProcessorCount=8']]:
+                with self.subTest(jvm_arguments=values):
+                    invalid = measure({'host_jvm_args': values}, client_command=jvm_command, jvm_processors=8)
+                    self.assertFalse(invalid['cold_result_verified'])
+                    self.assertFalse(invalid['jvm_processors_verified'])
+            self.assertFalse(measure(jvm_arguments, jvm_processors=8)['cold_result_verified'])
             for value in [None, 'true', ['false', 'true']]:
                 with self.subTest(sandbox_stashes=value):
                     invalid = measure({'experimental_inmemory_sandbox_stashes': value})
