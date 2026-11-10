@@ -1969,6 +1969,15 @@ to the old alias on 9.2. The experimental command uses
 the existing output paths and `TARGET_CPU`; target constraints and qualified
 PCH routes stay unchanged. Native object, input and CPU qualification remain required.
 
+The newer runtime also changes default `PATH` and adds `LC_CTYPE`. The experimental
+command fixes target and host `PATH` to `/bin:/usr/bin:/usr/local/bin`, and uses
+supported `--action_env==LC_CTYPE` and `--host_action_env==LC_CTYPE` options to
+restore the original absence of that variable. All 1,000 metadata records then
+match the cold compiler arguments and environment exactly. This preflight runs
+zero selected compiles, but still executes 693 support-tool C++ actions; it is
+not an object, input-set or timing qualification. The earlier comparison with
+different environments is interrupted and retained, without a speed claim.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
