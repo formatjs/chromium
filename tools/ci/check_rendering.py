@@ -99,6 +99,19 @@ def browser_session(browser, flags, environment, directory, output, timeout):
                                                      timeout=timeout, suppress_origin=True)
             session = DevTools(connection)
             session.command('Page.enable')
+            window = session.command('Browser.getWindowForTarget')
+            viewport = session.command('Runtime.evaluate', {
+                'expression': '({width: innerWidth, height: innerHeight})',
+                'returnByValue': True,
+            })['result']['value']
+            # Size native surface before overriding renderer viewport.
+            session.command('Browser.setWindowBounds', {
+                'windowId': window['windowId'],
+                'bounds': {
+                    'width': window['bounds']['width'] + VIEWPORT[0] - viewport['width'],
+                    'height': window['bounds']['height'] + VIEWPORT[1] - viewport['height'],
+                },
+            })
             session.command('Emulation.setDeviceMetricsOverride', {
                 'width': VIEWPORT[0], 'height': VIEWPORT[1],
                 'deviceScaleFactor': 1, 'mobile': False,

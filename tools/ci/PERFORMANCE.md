@@ -6,7 +6,7 @@ registered actions are not executed compiles.
 
 ## Local cold-build target
 
-Target: complete local Chromium archive under one hour, reusing only fetched
+Target: complete local Chromium archive under 90 minutes, reusing only fetched
 dependency archives. Each proof run needs fresh output, install, extracted
 repository and auxiliary tool state; no action cache or remote execution.
 Keep hermetic toolchains, sandboxing, compiler semantics and artifact checks.
@@ -1792,4 +1792,24 @@ command comparison also preserves all 40,759 native actions and 779 registered
 execution-configuration actions, with no unexpected flag or environment changes.
 All 237 Python tests pass. Compiler measurements estimate 27,399 CPU seconds saved;
 added PCH generation, validation, Bazel overhead and scheduling still need the
-strict-cold measurement. No new cold build time is claimed yet.
+strict-cold measurement.
+
+The complete `shared-004` run at `6463e95` takes 5,483.33 seconds (91m23s),
+including setup through artifact copy. This misses 90 minutes by 83.33 seconds,
+but improves on 6,638.58 seconds by 17.4%. Hardware remains 16 CPUs and 48GiB;
+only dependency archives persist. All 48,768 C++ compiles execute locally with
+zero cached actions. Cgroup CPU falls from 104,030.80 to 85,049.47 seconds;
+C++ CPU falls from 78,202.30 to 58,304.77 seconds. Sampled Bazel CPU instead rises
+from 19,265.98 to 20,038.96 seconds. The complete execution log verifies every
+spawn; overlapping trace durations are not CPU measurements.
+
+All 40,759 native objects match the prior cold controls. The browser binary also
+matches exactly. Native JavaScript/CSS/Unicode/Intl smoke and both Qt GNU ABI
+checks pass. Initial rendering fails on 1,504 layout pixels; graphics matches.
+The screenshot repeats the page header below the native window's content edge.
+Viewport emulation reports 800×600 while the native surface can remain shorter.
+An explicit screenshot clip does not fix the stressed reproduction. Sizing the
+native window's content before viewport emulation passes eight fresh stressed
+sessions with zero changed pixels; the original fails two of four alternating
+controls. Baselines and thresholds remain unchanged. Initial failures remain
+recorded; these follow-up checks do not alter the cold timing.
