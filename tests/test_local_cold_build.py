@@ -7,11 +7,36 @@ import unittest
 from unittest import mock
 
 from tools.ci.local_cold import (NORMAL_PROJECT_PCH_NAMES, eager_template_pch_producers,
-                               local_cold_report, main, serialization_pch_producers, v8_objects_pch_producers)
+                               local_cold_report, main, serialization_pch_producers, shared_pch_producers, v8_objects_pch_producers)
 from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_shared_mode_requires_existing_pch_configuration_before_setup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / 'build'
+            arguments = ['local_cold', '--directory', str(directory),
+                         '--repository-cache', str(Path(temporary) / 'fetch-cache'),
+                         '--revision', 'a' * 40, '--bazel', '/verified-bazel', '--shared-pch']
+            with mock.patch('sys.argv', arguments), redirect_stderr(io.StringIO()) as errors, self.assertRaises(SystemExit):
+                main()
+            self.assertIn('--shared-pch requires --base-bind-pch', errors.getvalue())
+            self.assertFalse(directory.exists())
+
+    def test_shared_manifest_requires_qualified_local_producer_names(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)
+            manifest = source / 'overlays/chromium/bcr/overlay/native/qualified_shared_prefixes.bzl'
+            manifest.parent.mkdir(parents=True)
+            for invalid in [{}, [], {'owner': {}}, {'owner': {'a.cc': '@elsewhere//:prebuilt'}},
+                            {'owner': {'a.cc': ':shared_unknown_eager_pch'}}]:
+                manifest.write_text('SHARED_PREFIX_IMPORTS = ' + repr(invalid) + '\n')
+                with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                    shared_pch_producers(source)
+            manifest.write_text('SHARED_PREFIX_IMPORTS = '+repr({'owner': {'a.cc': ':shared_sdk_0_eager_pch',
+                                                                         'b.cc': ':shared_sdk_0_eager_pch'}})+'\n')
+            self.assertEqual(shared_pch_producers(source), {'shared_sdk_0_eager_pch'})
+
     def test_nonpositive_target_rejected_before_build_state_is_created(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / 'build'
@@ -136,14 +161,14 @@ class LocalColdBuildTest(unittest.TestCase):
             def measure(changes=None, runners=None, fresh=True, success=True, compiles=16, client_command=None,
                         expected_pch_count=0, pch_count=0, validator_count=0,
                         expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
-                        additional_pchs=(), omitted_original=(), mutate_pch_files=None,
+                        additional_pchs=(), shared_pchs=(), omitted_original=(), mutate_pch_files=None,
                         elapsed=500, target_seconds=3600):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
                         'sectionLabel': 'startup options', 'optionList': {'option': [
-                            {'optionName': name, 'optionValue': value} for name, value in values.items()
-                            if value is not None
+                            {'optionName': name, 'optionValue': item} for name, value in values.items()
+                            if value is not None for item in (value if isinstance(value, list) else [value])
                         ]}}]}},
                     {'buildMetrics': {'actionSummary': {
                         'actionData': [{'mnemonic': 'CppCompile', 'actionsExecuted': str(compiles)},
@@ -161,9 +186,9 @@ class LocalColdBuildTest(unittest.TestCase):
                 native.mkdir(parents=True, exist_ok=True)
                 for path in native.glob('*.pch'):
                     path.unlink()
-                if eager_producers or additional_pchs:
+                if eager_producers or additional_pchs or shared_pchs:
                     produced = (NORMAL_PROJECT_PCH_NAMES - set(omitted_original)
-                                | {name + '_templates' for name in eager_producers} | set(additional_pchs))
+                                | {name + '_templates' for name in eager_producers} | set(additional_pchs) | set(shared_pchs))
                     for name in produced:
                         for suffix in ['.raw.pch', '.pch']:
                             (native / (name + suffix)).write_bytes(('fixture:' + name).encode())
@@ -176,9 +201,43 @@ class LocalColdBuildTest(unittest.TestCase):
                                            expected_base_bind_pch=base_bind_pch,
                                            expected_eager_producers=eager_producers,
                                            expected_additional_producers=additional_pchs,
+                                           expected_shared_producers=shared_pchs,
                                            target_seconds=target_seconds)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
+
+            shared = ('shared_sdk_0_eager_pch', 'shared_global_plain_normal_pch')
+            shared_flags = ['CHROMIUM_' + name + '=1' for name in
+                            ['NATIVE_TOOLS', 'PROJECT_PCH', 'BLINK_PCH', 'BASE_BIND_PCH', 'SHARED_PCH']]
+            shared_arguments = dict(base_bind_pch=True, shared_pchs=shared,
+                                    omitted_original=NORMAL_PROJECT_PCH_NAMES,
+                                    pch_count=2, validator_count=2, prefix_count=1)
+            verified_shared = measure({'define': shared_flags}, **shared_arguments)
+            self.assertTrue(verified_shared['cold_result_verified'])
+            self.assertTrue(verified_shared['shared_pch_configuration_verified'])
+            self.assertEqual(verified_shared['pch_output_proof']['unused_original'], sorted(NORMAL_PROJECT_PCH_NAMES))
+            # Select the same eager producer ordering as the fixture.
+            def prune_optional(native):
+                for path in native.glob('*_templates*.pch'):
+                    path.unlink()
+                for suffix in ['.raw.pch', '.pch']:
+                    (native / ('serialization_eager_pch' + suffix)).unlink()
+            optional = measure({'define': shared_flags}, eager_pchs=2,
+                               additional_pchs=('serialization_eager_pch',),
+                               mutate_pch_files=prune_optional, **shared_arguments)
+            self.assertTrue(optional['cold_result_verified'])
+            for missing in shared_flags:
+                self.assertFalse(measure({'define': [flag for flag in shared_flags if flag != missing]},
+                                         **shared_arguments)['cold_result_verified'])
+            def remove_shared(native):
+                for suffix in ['.raw.pch', '.pch']:
+                    (native / (shared[0] + suffix)).unlink()
+            invalid_arguments = dict(shared_arguments, pch_count=1, validator_count=1)
+            self.assertFalse(measure({'define': shared_flags}, mutate_pch_files=remove_shared,
+                                     **invalid_arguments)['cold_result_verified'])
+            self.assertFalse(measure({'define': shared_flags}, mutate_pch_files=lambda native:
+                                     (native / (shared[0] + '.pch')).write_bytes(b'changed'),
+                                     **shared_arguments)['cold_result_verified'])
 
             result = measure()
             self.assertTrue(result['cold_result_verified'])

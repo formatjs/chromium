@@ -1752,3 +1752,13 @@ dynamic-library capability and atomic duplicate cohorts. All 235 Python tests pa
 A real partial planning check selects 19,166 of 20,889 completed contexts across
 2,861 owners, with 31 measured cost exclusions and no cycle exclusions. This is
 planning evidence; no production table or new cold result has been emitted.
+
+The local cold harness accepts `--shared-pch` only with existing native/PCH
+configuration. It derives mandatory producer names from the populated qualified
+source table and rejects an empty table. Old eager/additional variants may be
+pruned; selected shared producers must exist, retain raw/validated byte equality,
+and match executed producer/closure counts. Canonical BEP must contain all five
+enabling defines. Fresh-state, no-cache and Linux-sandbox checks remain unchanged.
+Tests reject missing shared outputs, changed validation bytes, missing flags and
+premature configuration; all 237 Python tests pass. Use `--target-seconds=5400`
+for the next complete benchmark.

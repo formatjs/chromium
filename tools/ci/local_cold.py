@@ -142,11 +142,34 @@ def v8_objects_pch_producers(source):
     return frozenset(required)
 
 
-def pch_output_proof(directory, eager_producers, additional_producers=()):
+def shared_pch_producers(source):
+    manifest = source / 'overlays/chromium/bcr/overlay/native/qualified_shared_prefixes.bzl'
+    values = [node.value for node in ast.parse(manifest.read_text()).body
+              if isinstance(node, ast.Assign) and any(
+                  isinstance(target, ast.Name) and target.id == 'SHARED_PREFIX_IMPORTS'
+                  for target in node.targets)]
+    if len(values) != 1:
+        raise ValueError('Expected one qualified shared-prefix table')
+    owners = ast.literal_eval(values[0])
+    if not isinstance(owners, dict) or not owners:
+        raise ValueError('Shared-prefix table must be populated')
+    producers = set()
+    for owner, imports in owners.items():
+        if not isinstance(owner, str) or not owner or not isinstance(imports, dict) or not imports:
+            raise ValueError('Invalid shared-prefix owner')
+        for path, label in imports.items():
+            if (not isinstance(path, str) or not path or not isinstance(label, str)
+                    or not re.fullmatch(r':shared_(?:global|component|sdk)_[A-Za-z0-9_]+_(?:normal|eager)_pch', label)):
+                raise ValueError('Invalid shared-prefix import')
+            producers.add(label[1:])
+    return frozenset(producers)
+
+
+def pch_output_proof(directory, eager_producers, additional_producers=(), optional_producers=()):
     native = directory / ('output-base/execroot/_main/bazel-out/k8-fastbuild/bin/'
                           'external/+chromium_dependencies+chromium/native')
     required = {name + '_templates' for name in eager_producers} | set(additional_producers)
-    allowed = NORMAL_PROJECT_PCH_NAMES | required
+    allowed = NORMAL_PROJECT_PCH_NAMES | required | set(optional_producers)
     raw = {path.name.removesuffix('.raw.pch'): path for path in native.glob('*.raw.pch')}
     validated = {path.name.removesuffix('.pch'): path for path in native.glob('*.pch')
                  if not path.name.endswith('.raw.pch')}
@@ -164,6 +187,7 @@ def pch_output_proof(directory, eager_producers, additional_producers=()):
     return {'verified': verified, 'produced': sorted(raw), 'validated': sorted(validated),
             'required_eager': sorted(name + '_templates' for name in eager_producers),
             'required_additional': sorted(additional_producers),
+            'optional_producers': sorted(optional_producers),
             'unused_original': sorted(NORMAL_PROJECT_PCH_NAMES - raw.keys())}
 
 
@@ -177,7 +201,7 @@ def set_timing_target(report, target_seconds):
 
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
-                      expected_eager_producers=(), expected_additional_producers=(), target_seconds=3600):
+                      expected_eager_producers=(), expected_additional_producers=(), expected_shared_producers=(), target_seconds=3600):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -240,7 +264,15 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     report['expected_pch_count'] = expected_pch_count
     report['expected_eager_template_pch_count'] = len(expected_eager_producers)
     report['expected_additional_pch_count'] = len(expected_additional_producers)
-    if expected_eager_producers or expected_additional_producers:
+    report['expected_shared_pch_count'] = len(expected_shared_producers)
+    if expected_shared_producers:
+        optional = {name + '_templates' for name in expected_eager_producers} | set(expected_additional_producers)
+        proof = pch_output_proof(directory, (), expected_shared_producers, optional)
+        report['pch_output_proof'] = proof
+        expected_pch_count = len(proof['produced'])
+        report['expected_pch_count'] = expected_pch_count
+        report['max_expected_pch_count'] = len(NORMAL_PROJECT_PCH_NAMES | optional | set(expected_shared_producers))
+    elif expected_eager_producers or expected_additional_producers:
         # Unused original variants may be pruned; eager outputs remain mandatory.
         proof = pch_output_proof(directory, expected_eager_producers, expected_additional_producers)
         report['pch_output_proof'] = proof
@@ -253,11 +285,16 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     defines = dict(value.split('=', 1) for value in options.get('define', []) if '=' in value)
     report['base_bind_pch_configuration_verified'] = (
         defines.get('CHROMIUM_BASE_BIND_PCH') == '1' if expected_base_bind_pch else None)
+    report['shared_pch_configuration_verified'] = (all(
+        defines.get('CHROMIUM_' + name) == '1'
+        for name in ['NATIVE_TOOLS', 'PROJECT_PCH', 'BLINK_PCH', 'BASE_BIND_PCH', 'SHARED_PCH']
+    ) if expected_shared_producers else None)
     report['requested_pch_actions_verified'] = ((not expected_pch_count or
         (report['project_pch_actions'] == expected_pch_count and
          report['pch_closure_actions'] == expected_pch_count))
         and report['pch_prefix_actions'] == expected_prefix_count
         and proof['verified']
+        and (not expected_shared_producers or (expected_base_bind_pch and report['shared_pch_configuration_verified']))
         and (not (expected_eager_producers or expected_additional_producers) or expected_base_bind_pch)
         and (not expected_base_bind_pch or report['base_bind_pch_configuration_verified']))
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
@@ -288,6 +325,7 @@ def main():
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
     parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
     parser.add_argument('--base-bind-pch', action='store_true', help='Opt into qualified shared Base Bind.h PCH cohorts')
+    parser.add_argument('--shared-pch', action='store_true', help='Opt into fully qualified shared-prefix imports')
     parser.add_argument('--blink-pch', action='store_true', help='Opt into validated native Blink PCH')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
     parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
@@ -301,6 +339,8 @@ def main():
     args = parser.parse_args()
     if args.max_seconds is None:
         args.max_seconds = args.target_seconds
+    if args.shared_pch and not args.base_bind_pch:
+        parser.error('--shared-pch requires --base-bind-pch')
     if args.base_bind_pch and not args.project_pch:
         parser.error('--base-bind-pch requires --project-pch')
     if args.compiler_profile != 'cxx' and not args.compiler_archive:
@@ -355,6 +395,7 @@ def main():
     compiler_dependency = None
     expected_eager_producers = ()
     expected_additional_producers = ()
+    expected_shared_producers = ()
     try:
         bazel = args.bazel.resolve(strict=True)
         if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:
@@ -371,6 +412,8 @@ def main():
         if args.base_bind_pch:
             expected_eager_producers = eager_template_pch_producers(source)
             expected_additional_producers = serialization_pch_producers(source) | v8_objects_pch_producers(source)
+        if args.shared_pch:
+            expected_shared_producers = shared_pch_producers(source)
         if args.compiler_archive:
             from tools.ci.compiler_archive import configure_compiler
             compiler_dependency = configure_compiler(source, args.compiler_archive, args.compiler_profile)
@@ -420,6 +463,8 @@ def main():
             command.append('--define=CHROMIUM_PROJECT_PCH=1')
         if args.base_bind_pch:
             command.append('--define=CHROMIUM_BASE_BIND_PCH=1')
+        if args.shared_pch:
+            command.append('--define=CHROMIUM_SHARED_PCH=1')
         if args.binding_workers != 1:
             command.append('--define=CHROMIUM_BINDINGS_WORKERS=' + str(args.binding_workers))
         if args.platform.startswith('windows-'):
@@ -469,6 +514,7 @@ def main():
                                    expected_base_bind_pch=args.base_bind_pch,
                                    expected_eager_producers=expected_eager_producers,
                                    expected_additional_producers=expected_additional_producers,
+                                   expected_shared_producers=expected_shared_producers,
                                    target_seconds=args.target_seconds)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
@@ -477,7 +523,7 @@ def main():
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,
                        'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
-                       'base_bind_pch_requested': args.base_bind_pch,
+                       'base_bind_pch_requested': args.base_bind_pch, 'shared_pch_requested': args.shared_pch,
                        'compiler_dependency': compiler_dependency,
                        'resource_initial': resource_initial, 'resource_final': resource_snapshot(),
                        'storage_initial': storage_initial, 'storage_final': filesystem_snapshot(storage_paths),
