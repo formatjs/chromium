@@ -1855,3 +1855,7 @@ exists only within the run. The cold report checks the requested effective flag.
 Restricting the devbox to one thread per core saves only 0.2% wall time and costs
 0.6% more CPU across three compiler pairs, so affinity stays unchanged. Reading
 the 247MB BEP three times takes only 1.6s; a parsing refactor is not worthwhile.
+
+The resource monitor waits on the process between samples. Build completion can
+wake it immediately instead of waiting out the five-second sampling interval.
+Artifact copy and verification remain inside the timer.

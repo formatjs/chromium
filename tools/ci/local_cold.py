@@ -500,7 +500,10 @@ def main():
                     cancelled = True
                     process.send_signal(signal.SIGINT)
                     break
-                time.sleep(5)
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pass
             code = process.wait()
         if code == 0:
             if compiler_dependency is not None:
