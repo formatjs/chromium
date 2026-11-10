@@ -6,12 +6,43 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.ci.local_cold import (EXPERIMENTAL_BAZEL_VERSION, NORMAL_PROJECT_PCH_NAMES, bazel_runtime_flags, eager_template_pch_producers,
+from tools.ci.local_cold import (EXPERIMENTAL_BAZEL_VERSION, NORMAL_PROJECT_PCH_NAMES, bazel_runtime_flags, eager_template_pch_producers, install_base_proof,
                                local_cold_report, main, pch_output_proof, serialization_pch_producers, shared_pch_producers, v8_objects_pch_producers)
 from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_install_manifest_rejects_missing_extra_changed_and_symlinked_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            installation = root / 'install-base'
+            java = installation / 'embedded_tools/jdk/bin/java'
+            java.parent.mkdir(parents=True)
+            java.write_bytes(b'java')
+            (installation / 'install_base_key').write_bytes(b'key')
+            pin = '85f2b44dd4f00a4bcc6206477419cc6da050ec81d870ab38b486cfe4fd102d59'
+            self.assertTrue(install_base_proof(installation, pin)['verified'])
+            java.write_bytes(b'changed')
+            self.assertFalse(install_base_proof(installation, pin)['verified'])
+            java.unlink()
+            self.assertFalse(install_base_proof(installation, pin)['verified'])
+            java.write_bytes(b'java')
+            extra = installation / 'extra'
+            extra.write_bytes(b'extra')
+            self.assertFalse(install_base_proof(installation, pin)['verified'])
+            extra.unlink()
+            outside = root / 'outside-java'
+            outside.write_bytes(b'java')
+            java.unlink()
+            java.symlink_to(outside)
+            self.assertFalse(install_base_proof(installation, pin)['verified'])
+            java.unlink()
+            java.write_bytes(b'java')
+            alias = root / 'alias'
+            alias.symlink_to(installation, target_is_directory=True)
+            self.assertFalse(install_base_proof(alias, pin)['verified'])
+            self.assertTrue(install_base_proof(installation, pin)['verified'])
+
     def test_pch_proof_checks_every_pair_and_rejects_invalid_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -356,6 +387,27 @@ class LocalColdBuildTest(unittest.TestCase):
                         self.assertFalse(measure(compatibility, **(experimental | {'client_command': client}))['cold_result_verified'])
             self.assertFalse(measure(compatibility, **(experimental | {'bazel_runtime': '9.2.0'}))['cold_result_verified'])
             self.assertFalse(measure(compatibility, **(experimental | {'bazel_runtime': 'unknown'}))['cold_result_verified'])
+            install_flag = '--install_base=' + str(root / 'install-base')
+            install_command = experimental_command.copy()
+            install_command.insert(install_command.index('build'), install_flag)
+            no_canonical_install = compatibility | {'install_base': None}
+            physical = experimental | {'client_command': install_command}
+            duplicate_install = install_command.copy()
+            duplicate_install.insert(duplicate_install.index('build'), install_flag)
+            with mock.patch('tools.ci.local_cold.install_base_proof', return_value={'verified': True}):
+                verified = measure(no_canonical_install, **physical)
+                self.assertTrue(verified['cold_result_verified'])
+                self.assertTrue(verified['install_base_verified'])
+                self.assertFalse(measure(no_canonical_install, fresh=False, **physical)['cold_result_verified'])
+                for invalid in [experimental_command, duplicate_install,
+                                [v.replace(install_flag, '--install_base=/other') for v in install_command]]:
+                    self.assertFalse(measure(no_canonical_install,
+                        **(physical | {'client_command': invalid}))['cold_result_verified'])
+                self.assertFalse(measure(no_canonical_install | {'install_base': '/other'},
+                                         **physical)['cold_result_verified'])
+                self.assertFalse(measure({'install_base': None})['cold_result_verified'])
+            with mock.patch('tools.ci.local_cold.install_base_proof', return_value={'verified': False}):
+                self.assertFalse(measure(no_canonical_install, **physical)['cold_result_verified'])
             for value in [None, 'false', ['true', 'false']]:
                 with self.subTest(repository_hardlinks=value):
                     invalid = measure({'experimental_repository_cache_hardlinks': value}, repository_hardlinks=True)

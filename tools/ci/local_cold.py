@@ -27,10 +27,43 @@ BAZEL_RUNTIMES = {
     '9.2.0': {'sha256': BAZEL_SHA256, 'url': BAZEL_URL},
     EXPERIMENTAL_BAZEL_VERSION: {
         'sha256': 'ba42bb1e14c228859dfb545eaa56e4c03691f9526d140a6db22f743a0adb5936',
+        'install_manifest_sha256': '36298abe5f0af745934f81b140664fecb141745d5b73a560bc85f089df2b0f2a',
         'url': ('https://releases.bazel.build/11.0.0/rolling/11.0.0-pre.20261028.2/'
                 'bazel-11.0.0-pre.20261028.2-linux-x86_64'),
     },
 }
+
+
+def install_base_proof(path, expected_manifest_sha256):
+    """Check every installed file against the pinned executable's embedded archive."""
+    proof = {'verified': False, 'expected_manifest_sha256': expected_manifest_sha256}
+    if not path.is_dir() or path.is_symlink():
+        return proof
+    records = {}
+    try:
+        for directory, directories, files in os.walk(path, followlinks=False):
+            for name in directories[:]:
+                if (Path(directory) / name).is_symlink():
+                    directories.remove(name)
+                    files.append(name)
+            for name in files:
+                item = Path(directory) / name
+                relative = item.relative_to(path).as_posix()
+                if item.is_symlink():
+                    content = os.readlink(item).encode()
+                    records[relative] = ['symlink', len(content), hashlib.sha256(content).hexdigest()]
+                else:
+                    if not item.is_file():
+                        return proof
+                    with item.open('rb') as stream:
+                        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+                    records[relative] = ['file', item.stat().st_size, digest]
+        digest = hashlib.sha256(json.dumps(records, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        proof.update(files=len(records), actual_manifest_sha256=digest,
+                     verified=digest == expected_manifest_sha256)
+    except OSError as error:
+        proof['error'] = type(error).__name__
+    return proof
 
 
 def bazel_runtime_flags(version):
@@ -262,7 +295,6 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
         'remote_upload_local_results': disabled, 'use_action_cache': disabled,
         'batch': {'true', '1'}, 'spawn_strategy': {'linux-sandbox'},
         'experimental_inmemory_sandbox_stashes': ({'true', '1'} if expected_inmemory_sandbox_stashes else disabled),
-        'install_base': {str(directory / 'install-base')},
         'output_user_root': {str(directory / 'bazel-root')},
         'repository_cache': {str(repository_cache)},
     }
@@ -275,7 +307,20 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
                        and not any(value.startswith('--ignore_all_rc_files') for value in startup))
     optional_rc = all(name not in options or matches(name, disabled)
                       for name in ['system_rc', 'home_rc', 'workspace_rc'])
-    policy = client_verified and optional_rc and all(matches(name, allowed) for name, allowed in required.items())
+    install_verified = matches('install_base', {str(directory / 'install-base')})
+    report['install_base_proof'] = {'method': 'canonical BEP', 'verified': install_verified}
+    if expected_bazel_runtime == EXPERIMENTAL_BAZEL_VERSION and 'install_base' not in options:
+        proof = install_base_proof(directory / 'install-base',
+                                   BAZEL_RUNTIMES[expected_bazel_runtime]['install_manifest_sha256'])
+        client_install = [value for value in startup if re.match(r'^--install_base(?:=|$)', value)]
+        client_install_verified = client_install == ['--install_base=' + str(directory / 'install-base')]
+        install_verified = fresh and proof['verified'] and client_install_verified
+        report['install_base_proof'] = dict(proof, method='pinned embedded archive',
+                                          client_flag_verified=client_install_verified,
+                                          fresh_state_verified=fresh)
+    report['install_base_verified'] = bool(install_verified)
+    policy = (client_verified and optional_rc and install_verified and
+              all(matches(name, allowed) for name, allowed in required.items()))
     report['repository_cache_hardlinks_verified'] = (not expected_repository_cache_hardlinks or
         matches('experimental_repository_cache_hardlinks', {'true', '1'}))
     processor_flag = '-XX:ActiveProcessorCount=' + str(expected_jvm_processors)

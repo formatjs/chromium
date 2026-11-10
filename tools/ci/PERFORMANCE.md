@@ -2015,6 +2015,14 @@ repository and harness default, with in-memory metadata disabled. Cache policy,
 full profiles and compact execution logs stay required. Complete cold timing,
 archive, native object, ABI and rendering proof remain outstanding.
 
+Trial 009 completed its archive in 5,328.41s (88m48s). Initial verification
+rejected a missing canonical `install_base` field. The pinned runtime omits
+that field; its 365 extracted files match the embedded executable archive.
+The verifier now requires the exact client install path, fresh state and a
+pinned whole-install manifest when that field is absent. Missing, changed,
+extra or symlink-substituted files fail verification. Reverification and
+remaining native, ABI, rendering and complete-profile audits are pending.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
