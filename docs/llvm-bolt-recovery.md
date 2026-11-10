@@ -15,3 +15,8 @@ step starts, in a sibling artifact directory. Compiler failure still propagates.
 A measured cold Chromium run still needs fresh checkout, install/output/user
 state and tool caches, disabled RBE/action caches, complete timing/profile proof,
 and native object, archive ABI and rendering validation.
+
+Recovery workflow reached LLVM profile preparation, then retried internally. Its
+last attempt failed fetching the pinned Chromium archive with `Read timed out`.
+Preparation now uses Bazel’s `--http_timeout_scaling=3`; source URLs, checksums
+and compiler flags stay pinned. This does not change the strict-cold harness.

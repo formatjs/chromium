@@ -42,6 +42,7 @@ def main():
     bazel = os.environ.get('BAZEL', 'bazel')
     startup = [bazel, '--host_jvm_args=-Xmx8g']
     flags = ['--config=browser', '--config=buildbuddy', '--noannounce_rc',
+             '--http_timeout_scaling=3',
              '--define=CHROMIUM_NATIVE_TOOLS=1', '--define=CHROMIUM_BINDINGS_WORKERS=4',
              '--define=CHROMIUM_COMPILE_PROBE_SCAN=1',
              '--extra_toolchains=@chromium//native/tool_configuration:native_linux_execution']
