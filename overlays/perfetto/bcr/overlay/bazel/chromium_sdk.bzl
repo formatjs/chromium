@@ -3,7 +3,7 @@
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load(":sdk_sources.bzl", "SDK_COPTS", "SDK_DEFINES", "SDK_SOURCES")
 
-def chromium_sdk(name, protocol_library, generated_sources, generated_headers, **kwargs):
+def chromium_sdk(name, protocol_library, generated_sources, generated_headers, library_rule = cc_library, **kwargs):
     """Build real browser tracing, service, IPC and minimal storage code.
 
     Args:
@@ -11,9 +11,10 @@ def chromium_sdk(name, protocol_library, generated_sources, generated_headers, *
         protocol_library: Matching generated C++ protocol library.
         generated_sources: Generated IPC implementation files.
         generated_headers: Table and descriptor headers.
+        library_rule: Caller-owned library constructor.
         **kwargs: Common rule attributes.
     """
-    cc_library(
+    library_rule(
         name = name,
         srcs = SDK_SOURCES + generated_sources,
         hdrs = generated_headers,
