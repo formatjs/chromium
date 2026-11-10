@@ -421,6 +421,7 @@ def main():
     resource_initial = resource_snapshot()
     storage_initial = filesystem_snapshot(storage_paths)
     storage_minimum = {name: row['available_bytes'] for name, row in storage_initial.items()}
+    inode_minimum = {name: row['available_inodes'] for name, row in storage_initial.items()}
     success, code, error, cancelled = False, None, None, False
     process = None
     command = None
@@ -520,9 +521,11 @@ def main():
                 storage = filesystem_snapshot(storage_paths)
                 for name, row in storage.items():
                     storage_minimum[name] = min(storage_minimum[name], row['available_bytes'])
+                    inode_minimum[name] = min(inode_minimum[name], row['available_inodes'])
                 resources = resource_snapshot(process.pid)
                 with resource_log.open('a') as samples:
-                    samples.write(json.dumps({'elapsed_seconds': elapsed, 'resources': resources}) + '\n')
+                    samples.write(json.dumps({'elapsed_seconds': elapsed, 'resources': resources,
+                                              'storage': storage}) + '\n')
                 (directory / 'progress.json').write_text(json.dumps({'elapsed_seconds': elapsed,
                     'platform': args.platform, 'bazel_pid_in_namespace': process.pid,
                     'storage': storage, 'resources': resources, 'profile_bytes': profile.stat().st_size if profile.exists() else 0}) + '\n')
@@ -577,6 +580,7 @@ def main():
                        'resource_initial': resource_initial, 'resource_final': resource_snapshot(),
                        'storage_initial': storage_initial, 'storage_final': filesystem_snapshot(storage_paths),
                        'minimum_sampled_available_bytes': storage_minimum,
+                       'minimum_sampled_available_inodes': inode_minimum,
                        'source_checkout': 'fresh git archive from local fetched objects',
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
                        'sandbox_capacity_bytes': (shutil.disk_usage(args.sandbox_base).total

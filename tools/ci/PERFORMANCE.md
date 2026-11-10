@@ -1913,6 +1913,20 @@ Applying the whole-JVM ratio instead gives 4,446 CPU-seconds. These are projecti
 the warm graph is cached, the CPU model differs, and analysis overlaps execution.
 They justify another strict-cold trial, not a claim that 90 minutes is achieved.
 
+The first combined strict-cold trial, `shared-007` at `2059e82`, fails after
+4,347.99s (72m28s). This is not a successful timing result. There are 131 sandbox
+input-staging `No space left on device` errors; BEP records 42,029 C++ action executions.
+Its 12GiB scratch mount reaches a sampled minimum of 67.6MiB free, while the
+output disk still has 23.8GiB available. No OOM kills occur. All 4,145 fetched
+blobs remain unchanged after failure. Logs, profile and failed state are retained.
+
+Storage snapshots now persist bytes and inode counts in every resource sample,
+and retain both sampled minima. The bounded scratch ceiling needs more headroom;
+CPU and physical RAM limits stay 16 CPUs and 48GiB. The original `da01479-002`
+archive remains a legacy timing reference: its saved `cold_result_verified` is
+false. Its archive and all metadata remain retained when reclaiming generated
+Bazel output state. New cold results must pass the current complete proof.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
