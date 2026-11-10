@@ -1990,8 +1990,17 @@ reuses one physical sandbox per 24-step mode and removes every stale input and
 undeclared write. Trace files contain 988–995 selected action spans; window
 attribution instead uses all 1,000 raw spawn timestamps aligned to the profile
 clock. These warm, different-hardware results do not establish a cold gain or
-justify changing repository defaults. Complete profile and audit-log costs still
-need separate measurement.
+justify changing repository defaults.
+
+Three further 1,000-context pairs compare compact execution logging with logging
+disabled, retaining full build profiles. Without logging, median CPU rises from
+4,426.71s to 4,439.31s (0.28%); wall time changes from 319.05s to 318.89s (0.05%).
+Compiler CPU is effectively unchanged. All 6,000 measured objects, original
+arguments and environments match their cold controls. Exact input identities
+match across the three logged batches; unlogged input sets cannot be audited.
+Each measured batch runs only 1,000 uncached sandboxed probes, 1,000 metadata
+writes and one workspace-status action. There is no useful measured gain from
+removing the log. Keep audit logging; this warm comparison gives no cold forecast.
 
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
