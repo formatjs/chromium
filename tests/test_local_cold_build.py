@@ -179,6 +179,7 @@ class LocalColdBuildTest(unittest.TestCase):
                 'remote_executor': '', 'remote_cache': '', 'disk_cache': '', 'repo_contents_cache': '',
                 'remote_accept_cached': 'false', 'remote_upload_local_results': '0',
                 'use_action_cache': '0', 'spawn_strategy': 'linux-sandbox',
+                'experimental_inmemory_sandbox_stashes': 'false',
                 'remote_header': 'DO_NOT_EXPORT',
             }
 
@@ -189,7 +190,7 @@ class LocalColdBuildTest(unittest.TestCase):
                         expected_pch_count=0, pch_count=0, validator_count=0,
                         expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
                         additional_pchs=(), shared_pchs=(), omitted_original=(), mutate_pch_files=None,
-                        elapsed=500, target_seconds=3600, inmemory_stashes=False, repository_hardlinks=False):
+                        elapsed=500, target_seconds=3600, repository_hardlinks=False):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -230,7 +231,6 @@ class LocalColdBuildTest(unittest.TestCase):
                                            expected_additional_producers=additional_pchs,
                                            expected_shared_producers=shared_pchs,
                                            target_seconds=target_seconds,
-                                           expected_inmemory_sandbox_stashes=inmemory_stashes,
                                            expected_repository_cache_hardlinks=repository_hardlinks)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
@@ -270,14 +270,11 @@ class LocalColdBuildTest(unittest.TestCase):
 
             result = measure()
             self.assertTrue(result['cold_result_verified'])
-            for value in [None, 'false', ['true', 'false']]:
+            for value in [None, 'true', ['false', 'true']]:
                 with self.subTest(sandbox_stashes=value):
-                    invalid = measure({'experimental_inmemory_sandbox_stashes': value}, inmemory_stashes=True)
+                    invalid = measure({'experimental_inmemory_sandbox_stashes': value})
                     self.assertFalse(invalid['cold_result_verified'])
-                    self.assertFalse(invalid['inmemory_sandbox_stashes_verified'])
-            valid = measure({'experimental_inmemory_sandbox_stashes': 'true'}, inmemory_stashes=True)
-            self.assertTrue(valid['cold_result_verified'])
-            self.assertTrue(valid['inmemory_sandbox_stashes_verified'])
+                    self.assertFalse(invalid['local_policy_verified'])
             for value in [None, 'false', ['true', 'false']]:
                 with self.subTest(repository_hardlinks=value):
                     invalid = measure({'experimental_repository_cache_hardlinks': value}, repository_hardlinks=True)

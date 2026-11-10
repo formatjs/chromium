@@ -204,7 +204,7 @@ def set_timing_target(report, target_seconds):
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
                       expected_eager_producers=(), expected_additional_producers=(), expected_shared_producers=(), target_seconds=3600,
-                      expected_inmemory_sandbox_stashes=False, expected_repository_cache_hardlinks=False):
+                      expected_repository_cache_hardlinks=False):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -235,6 +235,7 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
         'repo_contents_cache': {''}, 'remote_accept_cached': disabled,
         'remote_upload_local_results': disabled, 'use_action_cache': disabled,
         'batch': {'true', '1'}, 'spawn_strategy': {'linux-sandbox'},
+        'experimental_inmemory_sandbox_stashes': disabled,
         'install_base': {str(directory / 'install-base')},
         'output_user_root': {str(directory / 'bazel-root')},
         'repository_cache': {str(repository_cache)},
@@ -249,8 +250,6 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     optional_rc = all(name not in options or matches(name, disabled)
                       for name in ['system_rc', 'home_rc', 'workspace_rc'])
     policy = client_verified and optional_rc and all(matches(name, allowed) for name, allowed in required.items())
-    report['inmemory_sandbox_stashes_verified'] = (not expected_inmemory_sandbox_stashes or
-        matches('experimental_inmemory_sandbox_stashes', {'true', '1'}))
     report['repository_cache_hardlinks_verified'] = (not expected_repository_cache_hardlinks or
         matches('experimental_repository_cache_hardlinks', {'true', '1'}))
     runners = report.get('build_metrics', {}).get('actionSummary', {}).get('runnerCount', [])
@@ -307,7 +306,6 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
                                          and report['requested_pch_actions_verified']
-                                         and report['inmemory_sandbox_stashes_verified']
                                          and report['repository_cache_hardlinks_verified'])
     report['local_execution_verified'] = report['cold_result_verified']
     report['cache_state'].update({
@@ -337,8 +335,6 @@ def main():
     parser.add_argument('--shared-pch', action='store_true', help='Opt into fully qualified shared-prefix imports')
     parser.add_argument('--blink-pch', action='store_true', help='Opt into validated native Blink PCH')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
-    parser.add_argument('--inmemory-sandbox-stashes', action='store_true',
-                        help='Track reused sandbox contents in memory within this run')
     parser.add_argument('--repository-cache-hardlinks', action='store_true',
                         help='Hardlink immutable fetched dependencies into fresh repositories')
     parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
@@ -451,6 +447,7 @@ def main():
                    '--local_resources=cpu=' + str(args.jobs),
                    '--local_resources=memory=' + str(args.action_memory_mb),
                    '--spawn_strategy=linux-sandbox', '--nouse_action_cache',
+                   '--experimental_inmemory_sandbox_stashes=false',
                    '--curses=no', '--color=no', '--terminal_columns=10000',
                    '--remote_executor=', '--remote_cache=', '--remote_accept_cached=false',
                    '--noremote_upload_local_results', '--disk_cache=', '--repo_contents_cache=',
@@ -480,8 +477,6 @@ def main():
             command.append('--define=CHROMIUM_SHARED_PCH=1')
         if args.binding_workers != 1:
             command.append('--define=CHROMIUM_BINDINGS_WORKERS=' + str(args.binding_workers))
-        if args.inmemory_sandbox_stashes:
-            command.append('--experimental_inmemory_sandbox_stashes=true')
         if args.repository_cache_hardlinks:
             command.append('--experimental_repository_cache_hardlinks=true')
         if args.platform.startswith('windows-'):
@@ -536,7 +531,6 @@ def main():
                                    expected_additional_producers=expected_additional_producers,
                                    expected_shared_producers=expected_shared_producers,
                                    target_seconds=args.target_seconds,
-                                   expected_inmemory_sandbox_stashes=args.inmemory_sandbox_stashes,
                                    expected_repository_cache_hardlinks=args.repository_cache_hardlinks)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
@@ -544,7 +538,6 @@ def main():
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,
-                       'inmemory_sandbox_stashes_requested': args.inmemory_sandbox_stashes,
                        'repository_cache_hardlinks_requested': args.repository_cache_hardlinks,
                        'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
                        'base_bind_pch_requested': args.base_bind_pch, 'shared_pch_requested': args.shared_pch,
