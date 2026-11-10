@@ -2,6 +2,7 @@
 
 import argparse
 import ast
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -174,16 +175,17 @@ def pch_output_proof(directory, eager_producers, additional_producers=(), option
     validated = {path.name.removesuffix('.pch'): path for path in native.glob('*.pch')
                  if not path.name.endswith('.raw.pch')}
     verified = bool(required <= raw.keys() and raw.keys() == validated.keys() and raw.keys() <= allowed)
+    def matching_pair(item):
+        name, path = item
+        other = validated[name]
+        if path.is_symlink() or other.is_symlink() or not path.stat().st_size:
+            return False
+        with path.open('rb') as first, other.open('rb') as second:
+            return hashlib.file_digest(first, 'sha256').digest() == hashlib.file_digest(second, 'sha256').digest()
+
     if verified:
-        for name, path in raw.items():
-            other = validated[name]
-            if path.is_symlink() or other.is_symlink() or not path.stat().st_size:
-                verified = False
-                break
-            with path.open('rb') as first, other.open('rb') as second:
-                if hashlib.file_digest(first, 'sha256').digest() != hashlib.file_digest(second, 'sha256').digest():
-                    verified = False
-                    break
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            verified = all(executor.map(matching_pair, raw.items()))
     return {'verified': verified, 'produced': sorted(raw), 'validated': sorted(validated),
             'required_eager': sorted(name + '_templates' for name in eager_producers),
             'required_additional': sorted(additional_producers),

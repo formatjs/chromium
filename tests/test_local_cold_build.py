@@ -7,11 +7,38 @@ import unittest
 from unittest import mock
 
 from tools.ci.local_cold import (NORMAL_PROJECT_PCH_NAMES, eager_template_pch_producers,
-                               local_cold_report, main, serialization_pch_producers, shared_pch_producers, v8_objects_pch_producers)
+                               local_cold_report, main, pch_output_proof, serialization_pch_producers, shared_pch_producers, v8_objects_pch_producers)
 from tools.ci.bb_cold import main as bb_main
 
 
 class LocalColdBuildTest(unittest.TestCase):
+    def test_pch_proof_checks_every_pair_and_rejects_invalid_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            native = directory / ('output-base/execroot/_main/bazel-out/k8-fastbuild/bin/'
+                                  'external/+chromium_dependencies+chromium/native')
+            native.mkdir(parents=True)
+            self.assertTrue(pch_output_proof(directory, ())['verified'])
+            names = tuple('shared_test_' + str(index) for index in range(17))
+            for name in names:
+                for suffix in ('.raw.pch', '.pch'):
+                    (native / (name + suffix)).write_bytes(name.encode())
+            self.assertTrue(pch_output_proof(directory, (), names)['verified'])
+            for index, name in enumerate(names):
+                validated = native / (name + '.pch')
+                validated.write_bytes(b'x' * len(name))
+                with self.subTest(corrupt_pair=index):
+                    self.assertFalse(pch_output_proof(directory, (), names)['verified'])
+                validated.write_bytes(name.encode())
+            raw = native / (names[-1] + '.raw.pch')
+            raw.write_bytes(b'')
+            self.assertFalse(pch_output_proof(directory, (), names)['verified'])
+            raw.write_bytes(names[-1].encode())
+            validated = native / (names[-1] + '.pch')
+            validated.unlink()
+            validated.symlink_to(raw)
+            self.assertFalse(pch_output_proof(directory, (), names)['verified'])
+
     def test_shared_mode_requires_existing_pch_configuration_before_setup(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary) / 'build'

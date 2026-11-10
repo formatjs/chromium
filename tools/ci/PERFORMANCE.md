@@ -1826,3 +1826,9 @@ Parallel GC takes 151.51s and 1,957.82 CPU-seconds. Supporting C++ recompilation
 zero in every measured phase. Parallel costs 2.1% more CPU, so G1 stays selected.
 This warm diagnostic retains cached graph checks and uses a different CPU model
 with the same 16-CPU/48GiB limits; it is not a cold timing prediction.
+
+Post-build PCH verification now hashes pairs with eight threads. Three paired
+measurements on the original devbox check all 63 pairs (14.0GB total), preserving
+every SHA256 comparison. Median wall time falls from 10.99s to 1.55s with similar
+CPU work. These warm read-only measurements suggest about 9.4s saved; they do
+not establish a new cold result. Verification remains inside the measured build.
