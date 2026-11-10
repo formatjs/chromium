@@ -36,10 +36,14 @@ class ChromiumPreparationArtifactsTest(unittest.TestCase):
                         path.write_bytes(content)
                         originals[path] = content
                 artifacts = root / 'artifacts'
+                retained = root / 'artifacts-training-inputs/toolchain/bootstrap/stage3/chromium_training'
 
                 def run(command, **kwargs):
-                    if command[:3] == [sys.executable, '-m', 'tools.ci.prepare_llvm_bolt'] and failed:
-                        raise subprocess.CalledProcessError(23, command)
+                    if command[:3] == [sys.executable, '-m', 'tools.ci.prepare_llvm_bolt']:
+                        self.assertTrue((retained / 'provenance.json').is_file())
+                        self.assertTrue((retained / 'llvm_training_v8.ii').is_file())
+                        if failed:
+                            raise subprocess.CalledProcessError(23, command)
                     return subprocess.CompletedProcess(command, 0)
 
                 query = '\n'.join(str(path.relative_to(root)) for path in originals)
@@ -55,7 +59,6 @@ class ChromiumPreparationArtifactsTest(unittest.TestCase):
                     else:
                         prepare_chromium_llvm.main()
 
-                retained = artifacts / 'training-inputs/toolchain/bootstrap/stage3/chromium_training'
                 for path, content in originals.items():
                     self.assertEqual(path.read_bytes(), content)
                     self.assertEqual((retained / path.name).read_bytes(), content)

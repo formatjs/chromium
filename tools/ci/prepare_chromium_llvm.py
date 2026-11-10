@@ -15,8 +15,8 @@ TARGET = '@chromium//native:llvm_training_inputs'
 
 
 def retain_training_inputs(paths, directory):
-    """Retain replayable inputs even when compiler preparation fails."""
-    workspace = directory / 'training-inputs'
+    """Retain replayable inputs before long compiler preparation."""
+    workspace = directory
     stage = workspace / 'toolchain/bootstrap/stage3'
     stage.mkdir(parents=True, exist_ok=False)
     install_inputs(paths[0].parent, workspace)
@@ -62,12 +62,11 @@ def main():
         mode.append('--relocations')
     if args.bolt_merge_fdata:
         mode.append('--merge-fdata')
-    try:
-        subprocess.run([sys.executable, '-m', preparation, *mode,
-                        '--training-inputs', str(parents.pop()), '--directory', str(args.directory)],
-                       cwd=ROOT, check=True)
-    finally:
-        retain_training_inputs(paths, args.directory)
+    retained = args.directory.with_name(args.directory.name + '-training-inputs')
+    retain_training_inputs(paths, retained)
+    subprocess.run([sys.executable, '-m', preparation, *mode,
+                    '--training-inputs', str(parents.pop()), '--directory', str(args.directory)],
+                   cwd=ROOT, check=True)
 
 
 if __name__ == '__main__':

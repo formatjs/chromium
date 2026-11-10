@@ -9,8 +9,8 @@ The relocation input guard stays unchanged. It previously rejected LLD moving
 `.eh_frame` before `.rodata`; recovery does not turn that failure into acceptance.
 Retain the failed report and fetch artifacts from the preparation child builds
 for independent validation. Retain both preprocessing inputs, original metadata
-and dependencies, normalized replay flags and checksums after preparation exits,
-including failure. No optimized compiler is adopted by this change.
+and dependencies, normalized replay flags and checksums before the long compiler
+step starts, in a sibling artifact directory. Compiler failure still propagates. No optimized compiler is adopted by this change.
 
 A measured cold Chromium run still needs fresh checkout, install/output/user
 state and tool caches, disabled RBE/action caches, complete timing/profile proof,
