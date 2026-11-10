@@ -1,6 +1,6 @@
 """Opt-in Blink core PCH with the original native compilation context."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":blink_idl_pch_data.bzl", "IDL_HEADER", "IDL_HEADER_PATHS")
 load(":blink_pch_data.bzl", "DOCUMENT_HEADER", "DOCUMENT_HEADER_PATHS", "DOCUMENT_SOURCES", "STRING_HEADER", "STRING_HEADER_PATHS", "STRING_SOURCES")
 load(":project_pch.bzl", "chromium_pch_compile", "chromium_project_pch")

@@ -1,6 +1,6 @@
 """Blink's original Rust font-format and crash CXX bridges."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":blink_rust_sources.bzl", "BRIDGES", "LIBRARIES", "SHARED_HEADERS")
 load(":cxx_bridge.bzl", "chromium_cxx_bridge")
 

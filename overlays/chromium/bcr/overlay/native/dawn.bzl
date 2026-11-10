@@ -1,7 +1,7 @@
 """Chromium's Dawn API generators, common support and dispatch library."""
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":dawn_sources.bzl", "ACTIONS", "LIBRARIES", "METADATA", "SHARED_HEADERS")
 load(":generated_files.bzl", "CAPTURED_FILES")
 load(":python_action.bzl", "chromium_python_action")

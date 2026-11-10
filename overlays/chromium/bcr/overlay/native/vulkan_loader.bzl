@@ -1,8 +1,8 @@
 """Captured Vulkan loader shared library and its native link interface."""
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":vulkan_loader_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_vulkan_loader():

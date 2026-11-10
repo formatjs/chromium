@@ -1,6 +1,6 @@
 """Native Variations protocol generation; run tools/import_proto_actions.py."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":protobuf_config.bzl", "chromium_protobuf_library", "chromium_protoc")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")

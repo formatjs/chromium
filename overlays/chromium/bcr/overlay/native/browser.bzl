@@ -1,6 +1,6 @@
 """Native Chromium executable, host generators and browser assets."""
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
 load("@rules_python//python:defs.bzl", "py_binary")
 load(":base_bind_consumers.bzl", cc_library = "base_bind_library")

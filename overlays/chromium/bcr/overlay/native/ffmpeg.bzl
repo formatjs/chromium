@@ -1,6 +1,6 @@
 """Chromium FFmpeg profile and native SIMD assembly."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":ffmpeg_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":public_dependency.bzl", "chromium_public_dependency")
 load(":python_action.bzl", "chromium_python_action")

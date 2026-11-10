@@ -1,9 +1,9 @@
 """Captured ANGLE EGL/GLES libraries and native backend dependencies."""
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
 load("@rules_cc//cc:cc_import.bzl", "cc_import")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":angle_runtime_sources.bzl", "ACTIONS", "LIBRARIES", "RUNTIME_DEPS", "SHARED_HEADERS")
 load(":python_action.bzl", "chromium_python_action")
 

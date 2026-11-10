@@ -1,6 +1,6 @@
 """Original Linux crypto, NSS utilities and CBOR."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":crypto_sources.bzl", "COPTS", "DEFINES", "HEADERS", "SOURCES")
 
 def native_crypto():

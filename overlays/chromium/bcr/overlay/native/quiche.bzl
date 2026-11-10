@@ -1,6 +1,6 @@
 """Complete Chromium QUICHE with original platform overrides and URL library."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":quiche_sources.bzl", "COPTS", "DEFINES", "HEADERS", "SOURCES")
 
 _PREFIX = "net/third_party/quiche/src/"

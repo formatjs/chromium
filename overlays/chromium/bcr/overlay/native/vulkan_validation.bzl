@@ -1,7 +1,7 @@
 """Captured Vulkan validation shared library and original runtime JSON."""
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":python_action.bzl", "chromium_python_action")
 load(":vulkan_validation_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS")
 

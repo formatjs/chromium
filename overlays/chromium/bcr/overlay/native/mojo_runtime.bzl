@@ -1,6 +1,6 @@
 """Native Linux Mojo core, bindings and system libraries."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":mojo_runtime_sources.bzl", "COPTS", "DEFINES", "GENERATED_HEADERS", "HEADERS", "SOURCES")
 
 def native_mojo_runtime():

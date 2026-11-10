@@ -1,6 +1,6 @@
 """Captured browser metrics, tracing, variations and preference services."""
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
 load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":browser_services_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":python_action.bzl", "chromium_python_action")

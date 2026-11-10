@@ -1,6 +1,6 @@
 """Complete Linux network closure, native generators, DNS and SQL support."""
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
 load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":network_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":protobuf_config.bzl", "chromium_protobuf_library")

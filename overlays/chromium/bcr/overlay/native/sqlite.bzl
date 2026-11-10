@@ -1,6 +1,6 @@
 """Chromium SQLite amalgamation with original symbol names and safety flags."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":sqlite_sources.bzl", "COPTS", "DEFINES")
 
 # Consumers include the same public SQLite configuration as original GN graph.

@@ -1,6 +1,6 @@
 """Original URL parser, canonicalizer, origins and Mojo traits."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":url_sources.bzl", "COPTS", "DEFINES", "GENERATED_HEADERS", "HEADERS", "SOURCES")
 
 def native_url():

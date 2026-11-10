@@ -6,6 +6,7 @@ load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("@rules_cc//cc/common:cc_info.bzl", "CcInfo")
 load(":eager_template_pch_data.bzl", "EAGER_TEMPLATE_SOURCES")
 load(":pch_flags.bzl", "PCH_CONSUMER_FLAGS", "PCH_PRODUCER_FLAGS")
+load(":shared_prefix_imports.bzl", "SHARED_PREFIX_ENABLED", "qualified_shared_imports", "shared_import_attributes")
 
 ChromiumPchInfo = provider(fields = ["pch", "headers", "eager_pch", "eager_sources", "alternate", "alternate_sources"])
 
@@ -304,7 +305,7 @@ def _compile_impl(ctx):
         OutputGroupInfo(archive = archives),
     ]
 
-chromium_pch_compile = rule(
+_chromium_pch_compile = rule(
     implementation = _compile_impl,
     attrs = {
         "sources": attr.label_keyed_string_dict(allow_files = [".cc", ".cpp", ".cxx"]),
@@ -323,3 +324,12 @@ chromium_pch_compile = rule(
     fragments = ["cpp"],
     toolchains = ["@bazel_tools//tools/cpp:toolchain_type", _NATIVE_LINUX],
 )
+
+
+def chromium_pch_compile(name, **kwargs):
+    """Keep existing cohorts; import only qualified native source prefixes."""
+    imports = qualified_shared_imports(name)
+    if imports and "shared_sources" not in kwargs and "shared_pchs" not in kwargs:
+        for key, value in shared_import_attributes(imports).items():
+            kwargs[key] = select({SHARED_PREFIX_ENABLED: value, "//conditions:default": {}})
+    _chromium_pch_compile(name = name, **kwargs)

@@ -1732,3 +1732,23 @@ wall time. Three alternating baseline/candidate compiler pairs confirm all 31
 regressions, with both outputs matching cold object digests. Final routing must
 retain original imports for these sources. Direct compiler timing uses a read-only qualified execroot;
 it does not measure sandbox setup, action caches or cold elapsed time.
+
+Native aliases now resolve a pure qualified-import table for ordinary libraries,
+binaries and existing PCH cohorts. Lookup checks both repository and package;
+explicit caller imports remain supported. The table stays empty until full
+qualification completes. Actual native-package tests cover generated `.cc`
+outputs, replacement of existing imports, disabled mode and unrelated callers
+with matching target names. Ordinary object bytes, public context and both
+linked executables remain identical; existing cohort arguments change only the
+selected PCH path.
+
+`tools.ci.compile.emit_shared_prefix_imports` refuses incomplete population reports.
+It validates every command/environment signature, cold object digest and full SDK
+count, then applies measured cost exclusions, static-library restrictions,
+duplicate-stem cohorts and the combined cycle guard. An unqualified `.cxx` peer
+keeps its colliding cohort original. The emitted report records input/output
+SHA256 digests. Tests include corrupt proofs, partial populations, cost exclusions,
+dynamic-library capability and atomic duplicate cohorts. All 235 Python tests pass.
+A real partial planning check selects 19,166 of 20,889 completed contexts across
+2,861 owners, with 31 measured cost exclusions and no cycle exclusions. This is
+planning evidence; no production table or new cold result has been emitted.

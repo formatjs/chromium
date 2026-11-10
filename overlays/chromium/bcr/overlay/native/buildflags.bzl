@@ -1,6 +1,6 @@
 """Generated from pinned Linux x86_64 graph; run tools/import_buildflags.py."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":python_action.bzl", "chromium_python_action")
 
 def native_buildflags(name):

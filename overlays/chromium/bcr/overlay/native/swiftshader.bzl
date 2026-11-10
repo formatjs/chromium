@@ -1,7 +1,7 @@
 """Captured SwiftShader Vulkan driver with its original Subzero JIT."""
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":python_action.bzl", "chromium_python_action")
 load(":swiftshader_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS")
 

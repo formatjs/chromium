@@ -1,6 +1,6 @@
 """Manual Content PCH candidate with original source set linking semantics."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":base_bind_consumers.bzl", "base_bind_partition")
 load(":content_pch_data.bzl", "FRAME_HOST_HEADER", "FRAME_HOST_HEADER_PATHS", "FRAME_HOST_SOURCES")
 load(":content_public_pch_data.bzl", "PUBLIC_FRAME_HOST_HEADER", "PUBLIC_FRAME_HOST_HEADER_PATHS", "PUBLIC_FRAME_HOST_SOURCES")

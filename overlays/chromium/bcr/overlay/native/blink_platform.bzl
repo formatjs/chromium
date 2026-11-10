@@ -1,7 +1,7 @@
 """Blink platform and its captured native dependency closure."""
 
 load("@bazel_skylib//rules:write_file.bzl", "write_file")
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
 load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":blink_platform_sources.bzl", "ACTIONS", "LIBRARIES", "METADATA", "SHARED_HEADERS", "TOOLS")
 load(":generated_files.bzl", "CAPTURED_FILES")

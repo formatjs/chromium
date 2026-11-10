@@ -3,8 +3,9 @@
 load("@rules_cc//cc:cc_binary.bzl", original_cc_binary = "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", original_cc_library = "cc_library")
 load(":project_pch.bzl", "chromium_pch_compile")
+load(":shared_prefix_imports.bzl", "SHARED_PREFIX_ENABLED", "qualified_shared_imports", "shared_import_attributes")
 
-_ENABLED = Label("//native/tool_configuration:shared_pch")
+_ENABLED = SHARED_PREFIX_ENABLED
 _LINUX = ["@platforms//os:linux", "@platforms//cpu:x86_64", "@llvm//constraints/libc:gnu.2.31"]
 
 # Header checks retain the owner's compiler options and private definitions.
@@ -48,16 +49,15 @@ def _replacement(name, imports, binary, common):
         tags = ["manual"],
         **attributes
     )
-    labels = sorted({label: True for label in imports.values()})
-    producers = {label: "shared_" + str(index) for index, label in enumerate(labels)}
+    shared = shared_import_attributes(imports)
     replacement = name + "_shared_pch"
     chromium_pch_compile(
         name = replacement,
         sources = {source: "" for source in cpp},
         object_suffixes = {"": ""},
         object_order = _object_order(cpp),
-        shared_sources = {source: producers[label] for source, label in imports.items()},
-        shared_pchs = producers,
+        shared_sources = shared["shared_sources"],
+        shared_pchs = shared["shared_pchs"],
         context = ":" + context,
         expose_context = False,
         alwayslink = True if binary else common.get("alwayslink", False),
@@ -73,6 +73,8 @@ def _replacement(name, imports, binary, common):
 
 def _consume(name, imports, binary, common):
     original = original_cc_binary if binary else original_cc_library
+    if imports == None:
+        imports = qualified_shared_imports(name)
     if not imports:
         original(name = name, **common)
         return
@@ -83,10 +85,10 @@ def _consume(name, imports, binary, common):
         common["deps"] = select({_ENABLED: [":" + replacement], "//conditions:default": []}) + common.get("deps", [])
     original(name = name, **common)
 
-def shared_prefix_library(name, imports = {}, **kwargs):
+def shared_prefix_library(name, imports = None, **kwargs):
     """Import qualified PCHs into static libraries without exposing private dependencies."""
     _consume(name, imports, False, kwargs)
 
-def shared_prefix_binary(name, imports = {}, **kwargs):
+def shared_prefix_binary(name, imports = None, **kwargs):
     """Keep every original binary object when linking replacement source groups."""
     _consume(name, imports, True, kwargs)

@@ -1,6 +1,6 @@
 """Captured TFLite, XNNPACK and matrix kernels."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":ml_sources.bzl", "ACTIONS", "COPIES", "LIBRARIES", "PUBLIC_DEFINES", "SHARED_HEADERS", "TOOLS")
 load(":python_action.bzl", "chromium_python_action")
 load(":resource_copy.bzl", "chromium_resource_copy")

@@ -1,6 +1,6 @@
 """Manual Bind.h PCH producers with original consumer language modes."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":base_bind_pch_data.bzl", "BASE_BIND_HEADER_PATHS")
 load(":project_pch.bzl", "chromium_project_pch")
 load(":serialization_pch_data.bzl", "SERIALIZATION_HEADER_PATHS", "SERIALIZATION_SOURCES")

@@ -1,6 +1,6 @@
 """Original Linux font stack, PNG support and Chromium XML configuration."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":fonts_sources.bzl", "LIBRARIES", "SHARED_HEADERS")
 
 def native_fonts():

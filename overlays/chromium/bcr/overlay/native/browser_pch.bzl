@@ -1,6 +1,6 @@
 """Opt-in Chrome PCHs with original compiler contexts and source-set linking."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":base_bind_consumers.bzl", "base_bind_partition")
 load(":browser_pch_data.bzl", "BROWSER_HEADER", "BROWSER_HEADER_PATHS", "BROWSER_SOURCES", "PROFILE_HEADER", "PROFILE_HEADER_PATHS", "PROFILE_SOURCES")
 load(":project_pch.bzl", "chromium_pch_compile", "chromium_project_pch")

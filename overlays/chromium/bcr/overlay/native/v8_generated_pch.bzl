@@ -1,6 +1,6 @@
 """Share generated V8 opening includes after checking their order."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":project_pch.bzl", "chromium_pch_compile", "chromium_project_pch")
 load(":v8_generated_pch_data.bzl", "GENERATED_HEADER_PATHS", "GENERATED_SOURCES")
 

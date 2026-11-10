@@ -1,6 +1,6 @@
 """Manual V8 isolate PCH candidate with original source set linking semantics."""
 
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":project_pch.bzl", "chromium_pch_compile", "chromium_project_pch")
 load(":v8_compiler_pch_data.bzl", "COMPILER_SOURCES")
 load(":v8_objects_pch_data.bzl", "V8_OBJECTS_EAGER_SOURCES", "V8_OBJECTS_HEADER_PATHS", "V8_OBJECTS_PARENT", "V8_OBJECTS_SOURCES")

@@ -1,6 +1,6 @@
 """Manual shared project PCH cohorts with original compiler and archive contexts."""
 
-load("@rules_cc//cc:cc_library.bzl", original_cc_library = "cc_library")
+load(":shared_prefix_consumers.bzl", original_cc_library = "shared_prefix_library")
 load(":base_bind_consumer_data.bzl", "BASE_BIND_CONSUMERS")
 load(":project_pch.bzl", "chromium_pch_compile")
 load(":shared_project_pch_data.bzl", "SHARED_PROJECT_PCH_CONSUMERS")

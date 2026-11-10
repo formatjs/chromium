@@ -1,7 +1,7 @@
 """Chromium's captured V8 profile, host generators and external snapshot."""
 
-load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
-load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load(":shared_prefix_consumers.bzl", cc_binary = "shared_prefix_binary")
+load(":shared_prefix_consumers.bzl", cc_library = "shared_prefix_library")
 load(":browser_v8_sources.bzl", "ACTIONS", "LIBRARIES", "PUBLIC_DEFINES", "SHARED_HEADERS", "TOOLS")
 load(":masm.bzl", "chromium_masm")
 load(":public_dependency.bzl", "chromium_snapshot_dependencies")
