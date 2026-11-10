@@ -44,6 +44,24 @@ chromium_header_dependency = rule(
     attrs = {"dependency": attr.label(providers = [CcInfo])},
 )
 
+def _public_source_header_file_impl(ctx):
+    headers = [
+        header
+        for header in ctx.attr.dependency[CcInfo].compilation_context.direct_public_headers
+        if header.is_source and header.basename == ctx.attr.header
+    ]
+    if len(headers) != 1:
+        fail("Expected one public source header %s, got %d" % (ctx.attr.header, len(headers)))
+    return [DefaultInfo(files = depset(headers))]
+
+chromium_public_source_header_file = rule(
+    implementation = _public_source_header_file_impl,
+    attrs = {
+        "dependency": attr.label(mandatory = True, providers = [CcInfo]),
+        "header": attr.string(mandatory = True),
+    },
+)
+
 def _snapshot_dependencies_impl(ctx):
     merged = cc_common.merge_cc_infos(cc_infos = [dep[CcInfo] for dep in ctx.attr.deps])
     inputs = []

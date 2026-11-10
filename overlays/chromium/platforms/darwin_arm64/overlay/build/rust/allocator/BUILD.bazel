@@ -2,7 +2,11 @@ load("//native:host_support.bzl", cc_library = "platform_cc_library")
 
 package(default_visibility = ["//visibility:public"])
 
-exports_files(["BUILD.bazel"])
+exports_files([
+    "BUILD.bazel",
+    "alloc_error_handler_impl.h",
+    "allocator_impls.h",
+])
 
 cc_library(
     name = "allocator_impls",

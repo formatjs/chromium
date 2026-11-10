@@ -1960,6 +1960,15 @@ SDK staging reproducer, not full Chromium qualification or the timing goal.
 Require native object, declared-input and CPU checks before changing the cold
 harness policy. Repository defaults remain unchanged.
 
+Native analysis on that build needs explicit allocator and Quiche header exports,
+and a Snappy adapter that forwards its original source `File` through public
+`CcInfo`. Separate Bazel 9.2 queries confirm the adapter and original target
+return the same file. Git dependencies use `git_repository`, already identical
+to the old alias on 9.2. The experimental command uses
+`--override_platform_cpu_name=@llvm//platforms:linux_x86_64_gnu.2.31=k8` to retain
+the existing output paths and `TARGET_CPU`; target constraints and qualified
+PCH routes stay unchanged. Native object, input and CPU qualification remain required.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits

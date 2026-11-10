@@ -5,15 +5,21 @@ load(":base_bind_consumers.bzl", cc_library = "base_bind_library")
 load(":browser_services_sources.bzl", "ACTIONS", "LIBRARIES", "SHARED_HEADERS", "TOOLS")
 load(":python_action.bzl", "chromium_python_action")
 load(":tool_inputs.bzl", "chromium_tool_inputs")
+load(":public_dependency.bzl", "chromium_public_source_header_file")
 
 def native_browser_services():
     for name, tool in TOOLS.items():
         chromium_tool_inputs(name = name, **tool)
     for action in ACTIONS:
         chromium_python_action(**action)
+    chromium_public_source_header_file(
+        name = "browser_services_snappy_header_file",
+        dependency = "@snappy//:snappy",
+        header = "snappy.h",
+    )
     cc_library(
         name = "browser_services_snappy_headers",
-        hdrs = ["@snappy//:snappy.h"],
+        hdrs = [":browser_services_snappy_header_file"],
         include_prefix = "snappy",
         strip_include_prefix = "/",
         deps = ["@snappy//:snappy"],
