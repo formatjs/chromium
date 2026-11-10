@@ -1853,6 +1853,23 @@ explicitly disables it and rejects an enabled or unverified canonical setting.
 Normal sandbox directory reuse remains enabled. All 4,145 fetched dependency blobs
 pass the post-failure integrity audit.
 
+The corrected `shared-006` run at `4555683` completes in 5,653.06s (94m13s),
+253.06s over target and 169.73s slower than `shared-004`. It retains the same
+16-CPU/48GiB limits and fresh build state. All 48,783 C++ compiles and every
+other recorded spawn execute in Linux sandboxes without cache hits. All 40,759
+native objects and the browser binary match their cold controls. Native smoke,
+Qt GNU ABI and rendering pass; both screenshot cases have zero changed pixels.
+All 4,145 dependency blobs pass before and after the run.
+
+Cgroup CPU is 88,654.53s, versus 85,049.47s in `shared-004`. C++ CPU rises from
+58,304.77s to 60,693.20s; sampled Bazel CPU rises from 20,038.96s to 20,548.72s.
+These runs do not isolate the cause of that increase. Payload compression takes
+2.63s wall and 15.80s CPU in the complete run, so packaging is no longer the
+large remaining budget. At observed utilization, meeting 90 minutes needs about
+3,969 fewer CPU-seconds. Require a measured candidate budget of 5,000 CPU-seconds,
+equivalent outputs and complete declared-input/sandbox proof before another cold run.
+The goal remains unmet; the other four triples remain strict-cold unmeasured.
+
 Restricting the devbox to one thread per core saves only 0.2% wall time and costs
 0.6% more CPU across three compiler pairs, so affinity stays unchanged. Reading
 the 247MB BEP three times takes only 1.6s; a parsing refactor is not worthwhile.
