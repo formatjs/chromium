@@ -1841,3 +1841,17 @@ tar bytes match the old payload; repeated compressed bytes match within each
 compressor. Inherited `GZIP` and `PIGZ` options are ignored. Sandbox archive-rule
 checks and roundtrips of all five target formats pass. These warm measurements
 do not establish a new cold result; other targets keep their existing compressor.
+
+The local harness can opt into Bazel's in-memory sandbox metadata with
+`--inmemory-sandbox-stashes`. Three alternating 256-source pairs reduce median
+process CPU from 1,995.42s to 1,959.84s and wall time from 163.40s to 157.07s.
+Results vary; this warm comparison on the workspace CPU does not predict a cold
+time on the devbox. All 1,536 compiler objects, arguments, environments and input
+identities match. Supporting C++ recompilation is zero. A separate 24-action
+chain in each mode reuses one actual sandbox directory while changing inputs;
+prior inputs and undeclared writes disappear before each clean action. Metadata
+exists only within the run. The cold report checks the requested effective flag.
+
+Restricting the devbox to one thread per core saves only 0.2% wall time and costs
+0.6% more CPU across three compiler pairs, so affinity stays unchanged. Reading
+the 247MB BEP three times takes only 1.6s; a parsing refactor is not worthwhile.

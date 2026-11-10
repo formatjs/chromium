@@ -203,7 +203,8 @@ def set_timing_target(report, target_seconds):
 
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
-                      expected_eager_producers=(), expected_additional_producers=(), expected_shared_producers=(), target_seconds=3600):
+                      expected_eager_producers=(), expected_additional_producers=(), expected_shared_producers=(), target_seconds=3600,
+                      expected_inmemory_sandbox_stashes=False):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -248,6 +249,8 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
     optional_rc = all(name not in options or matches(name, disabled)
                       for name in ['system_rc', 'home_rc', 'workspace_rc'])
     policy = client_verified and optional_rc and all(matches(name, allowed) for name, allowed in required.items())
+    report['inmemory_sandbox_stashes_verified'] = (not expected_inmemory_sandbox_stashes or
+        matches('experimental_inmemory_sandbox_stashes', {'true', '1'}))
     runners = report.get('build_metrics', {}).get('actionSummary', {}).get('runnerCount', [])
     actual = {row.get('name') for row in runners if int(row.get('count', 0)) > 0}
     local = 'linux-sandbox' in actual and actual <= {'total', 'internal', 'linux-sandbox'}
@@ -301,7 +304,8 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
         and (not expected_base_bind_pch or report['base_bind_pch_configuration_verified']))
     report['cold_result_verified'] = bool(success and report['output_base_verified'] and policy and local
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
-                                         and report['requested_pch_actions_verified'])
+                                         and report['requested_pch_actions_verified']
+                                         and report['inmemory_sandbox_stashes_verified'])
     report['local_execution_verified'] = report['cold_result_verified']
     report['cache_state'].update({
         'local_action_cache': False if policy else 'unverified',
@@ -330,6 +334,8 @@ def main():
     parser.add_argument('--shared-pch', action='store_true', help='Opt into fully qualified shared-prefix imports')
     parser.add_argument('--blink-pch', action='store_true', help='Opt into validated native Blink PCH')
     parser.add_argument('--binding-workers', type=int, choices=[1, 2, 4], default=1)
+    parser.add_argument('--inmemory-sandbox-stashes', action='store_true',
+                        help='Track reused sandbox contents in memory within this run')
     parser.add_argument('--compiler-profile', choices=['cxx', 'chromium'], default='cxx')
     parser.add_argument('--compiler-archive', type=Path, help='Explicit SHA-pinned experimental compiler dependency')
     parser.add_argument('--profile', type=Path, help='Optional private profile path outside disposable build state')
@@ -469,6 +475,8 @@ def main():
             command.append('--define=CHROMIUM_SHARED_PCH=1')
         if args.binding_workers != 1:
             command.append('--define=CHROMIUM_BINDINGS_WORKERS=' + str(args.binding_workers))
+        if args.inmemory_sandbox_stashes:
+            command.append('--experimental_inmemory_sandbox_stashes=true')
         if args.platform.startswith('windows-'):
             command.extend(['--repo_env=BAZEL_MSVC_RUNTIME_VISUAL_STUDIO_EULA=1',
                             '--repo_env=BAZEL_WINDOWS_SDK_EULA=1'])
@@ -517,13 +525,15 @@ def main():
                                    expected_eager_producers=expected_eager_producers,
                                    expected_additional_producers=expected_additional_producers,
                                    expected_shared_producers=expected_shared_producers,
-                                   target_seconds=args.target_seconds)
+                                   target_seconds=args.target_seconds,
+                                   expected_inmemory_sandbox_stashes=args.inmemory_sandbox_stashes)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,
+                       'inmemory_sandbox_stashes_requested': args.inmemory_sandbox_stashes,
                        'blink_pch_requested': args.blink_pch, 'project_pch_requested': args.project_pch,
                        'base_bind_pch_requested': args.base_bind_pch, 'shared_pch_requested': args.shared_pch,
                        'compiler_dependency': compiler_dependency,

@@ -189,7 +189,7 @@ class LocalColdBuildTest(unittest.TestCase):
                         expected_pch_count=0, pch_count=0, validator_count=0,
                         expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
                         additional_pchs=(), shared_pchs=(), omitted_original=(), mutate_pch_files=None,
-                        elapsed=500, target_seconds=3600):
+                        elapsed=500, target_seconds=3600, inmemory_stashes=False):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -229,7 +229,8 @@ class LocalColdBuildTest(unittest.TestCase):
                                            expected_eager_producers=eager_producers,
                                            expected_additional_producers=additional_pchs,
                                            expected_shared_producers=shared_pchs,
-                                           target_seconds=target_seconds)
+                                           target_seconds=target_seconds,
+                                           expected_inmemory_sandbox_stashes=inmemory_stashes)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
@@ -268,6 +269,14 @@ class LocalColdBuildTest(unittest.TestCase):
 
             result = measure()
             self.assertTrue(result['cold_result_verified'])
+            for value in [None, 'false', ['true', 'false']]:
+                with self.subTest(sandbox_stashes=value):
+                    invalid = measure({'experimental_inmemory_sandbox_stashes': value}, inmemory_stashes=True)
+                    self.assertFalse(invalid['cold_result_verified'])
+                    self.assertFalse(invalid['inmemory_sandbox_stashes_verified'])
+            valid = measure({'experimental_inmemory_sandbox_stashes': 'true'}, inmemory_stashes=True)
+            self.assertTrue(valid['cold_result_verified'])
+            self.assertTrue(valid['inmemory_sandbox_stashes_verified'])
             self.assertTrue(result['local_execution_verified'])
             longer_target = measure(elapsed=4000, target_seconds=5400)
             self.assertTrue(longer_target['cold_result_verified'])
