@@ -1859,3 +1859,12 @@ the 247MB BEP three times takes only 1.6s; a parsing refactor is not worthwhile.
 The resource monitor waits on the process between samples. Build completion can
 wake it immediately instead of waiting out the five-second sampling interval.
 Artifact copy and verification remain inside the timer.
+
+`--repository-cache-hardlinks` uses Bazel's archive-cache hardlinks while keeping
+fresh extraction. Three source-only pairs reduce median setup from 40.16s to
+38.27s and CPU from 62.05s to 60.79s. All 511,283 source entries match in every
+run, including file bytes, permissions and symlink targets. Extracted repositories
+and action outputs are not reused. The cold report verifies the effective flag.
+
+The BSD tar extraction prototype is not adopted: its permissions and one
+symlink target differ from Bazel's output. The source-fidelity gate stays intact.
