@@ -204,7 +204,8 @@ def set_timing_target(report, target_seconds):
 def local_cold_report(events, elapsed, success, directory, repository_cache, fresh, client_command=None,
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
                       expected_eager_producers=(), expected_additional_producers=(), expected_shared_producers=(), target_seconds=3600,
-                      expected_repository_cache_hardlinks=False, expected_jvm_processors=None):
+                      expected_repository_cache_hardlinks=False, expected_jvm_processors=None,
+                      expected_discard_analysis_cache=False):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -259,6 +260,13 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
                          if value.startswith('--host_jvm_args=-XX:ActiveProcessorCount')]
     report['jvm_processors_verified'] = (expected_jvm_processors is None or
         canonical_processors == client_processors == [processor_flag])
+    build_arguments = (client_command[client_command.index('build') + 1:]
+                       if client_command and 'build' in client_command else [])
+    client_discard = [value for value in build_arguments
+                      if re.match(r'^--(?:no)?discard_analysis_cache(?:=|$)', value)]
+    report['discard_analysis_cache_verified'] = (not expected_discard_analysis_cache or
+        (matches('discard_analysis_cache', {'true', '1'})
+         and client_discard == ['--discard_analysis_cache=true']))
     runners = report.get('build_metrics', {}).get('actionSummary', {}).get('runnerCount', [])
     actual = {row.get('name') for row in runners if int(row.get('count', 0)) > 0}
     local = 'linux-sandbox' in actual and actual <= {'total', 'internal', 'linux-sandbox'}
@@ -314,7 +322,8 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
                                          and report['cached_actions'] == 0 and report['cpp_compile_actions'] > 0
                                          and report['requested_pch_actions_verified']
                                          and report['repository_cache_hardlinks_verified']
-                                         and report['jvm_processors_verified'])
+                                         and report['jvm_processors_verified']
+                                         and report['discard_analysis_cache_verified'])
     report['local_execution_verified'] = report['cold_result_verified']
     report['cache_state'].update({
         'local_action_cache': False if policy else 'unverified',
@@ -338,6 +347,8 @@ def main():
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--jvm-processors', type=int,
                         help='Optional JVM processor count; compiler jobs remain independent')
+    parser.add_argument('--discard-analysis-cache', action='store_true',
+                        help='Discard Bazel analysis cache before execution; benchmark opt-in')
     parser.add_argument('--action-memory-mb', type=int, default=24000)
     parser.add_argument('--native-tools', action='store_true', help='Opt into matching native Linux tool configurations')
     parser.add_argument('--project-pch', action='store_true', help='Opt into validated V8, Content and module PCH candidates')
@@ -477,6 +488,8 @@ def main():
                    '--experimental_record_metrics_for_all_mnemonics',
                    '--execution_log_compact_file=' + str(directory / 'execution.log'),
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
+        if args.discard_analysis_cache:
+            command += ['--discard_analysis_cache=true']
         if args.sandbox_base:
             command.append('--sandbox_base=' + str(args.sandbox_base))
         if args.native_tools:
@@ -547,11 +560,13 @@ def main():
                                    expected_shared_producers=expected_shared_producers,
                                    target_seconds=args.target_seconds,
                                    expected_repository_cache_hardlinks=args.repository_cache_hardlinks,
-                                   expected_jvm_processors=args.jvm_processors)
+                                   expected_jvm_processors=args.jvm_processors,
+                                   expected_discard_analysis_cache=args.discard_analysis_cache)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
                        'jvm_processors_requested': args.jvm_processors,
+                       'discard_analysis_cache_requested': args.discard_analysis_cache,
                        'action_memory_mb': args.action_memory_mb,
                        'native_tool_sharing_requested': args.native_tools,
                        'binding_workers': args.binding_workers,

@@ -191,7 +191,8 @@ class LocalColdBuildTest(unittest.TestCase):
                         expected_pch_count=0, pch_count=0, validator_count=0,
                         expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
                         additional_pchs=(), shared_pchs=(), omitted_original=(), mutate_pch_files=None,
-                        elapsed=500, target_seconds=3600, repository_hardlinks=False, jvm_processors=None):
+                        elapsed=500, target_seconds=3600, repository_hardlinks=False, jvm_processors=None,
+                        discard_analysis_cache=False):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -233,7 +234,8 @@ class LocalColdBuildTest(unittest.TestCase):
                                            expected_shared_producers=shared_pchs,
                                            target_seconds=target_seconds,
                                            expected_repository_cache_hardlinks=repository_hardlinks,
-                                           expected_jvm_processors=jvm_processors)
+                                           expected_jvm_processors=jvm_processors,
+                                           expected_discard_analysis_cache=discard_analysis_cache)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
@@ -272,6 +274,24 @@ class LocalColdBuildTest(unittest.TestCase):
 
             result = measure()
             self.assertTrue(result['cold_result_verified'])
+            discard_command = command + ['--discard_analysis_cache=true']
+            for value in ['true', '1']:
+                verified_discard = measure({'discard_analysis_cache': value},
+                                           client_command=discard_command, discard_analysis_cache=True)
+                self.assertTrue(verified_discard['cold_result_verified'])
+                self.assertTrue(verified_discard['discard_analysis_cache_verified'])
+            for value in [None, 'false', '0', ['true', 'false'], ['true', 'true']]:
+                with self.subTest(discard_analysis_cache=value):
+                    invalid = measure({'discard_analysis_cache': value},
+                                      client_command=discard_command, discard_analysis_cache=True)
+                    self.assertFalse(invalid['cold_result_verified'])
+                    self.assertFalse(invalid['discard_analysis_cache_verified'])
+            for client in [command, command + ['--discard_analysis_cache=false'],
+                           discard_command + ['--discard_analysis_cache=true'],
+                           discard_command + ['--nodiscard_analysis_cache']]:
+                with self.subTest(discard_client=client):
+                    self.assertFalse(measure({'discard_analysis_cache': 'true'},
+                                             client_command=client, discard_analysis_cache=True)['cold_result_verified'])
             jvm_command = command[:-1] + ['--host_jvm_args=-XX:ActiveProcessorCount=8', 'build']
             jvm_arguments = {'host_jvm_args': ['-Xmx8g', '-XX:ActiveProcessorCount=8']}
             verified_jvm = measure(jvm_arguments, client_command=jvm_command, jvm_processors=8)

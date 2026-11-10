@@ -1891,6 +1891,15 @@ compile runs uncached in a Linux sandbox, with no supporting C++ recompilation.
 The earlier 256-context execution-window improvement does not hold at that scale.
 The flag stays unchanged; these results do not justify another cold run.
 
+A separate 1,000-context pair tests `--discard_analysis_cache=true`, retaining
+incremental-state tracking and 16 JVM processors. Total CPU falls from 4,916.14s
+to 4,726.76s (3.85%); sampled execution-window JVM CPU falls 20.5%, while setup
+CPU is nearly unchanged. Wall time rises from 383.14s to 384.89s. All 2,000
+measured objects and exact compiler input sets match, with no supporting C++
+recompilation. This remains a warm, different-CPU diagnostic, not a cold forecast.
+The cold harness offers `--discard-analysis-cache` for experiments; defaults stay
+unchanged. Requested discard must match both client arguments and canonical BEP.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
