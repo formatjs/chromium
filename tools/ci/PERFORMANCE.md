@@ -1952,6 +1952,14 @@ staging on its first in-memory-metadata phase, before Autoconf checks execute.
 Its newer sandbox fixes do not resolve our reproducer. In-memory sandbox
 metadata remains disabled; no compiler flags or repository defaults change.
 
+Official `11.0.0-pre.20261028.2` contains upstream's full-timestamp precision fix.
+Its isolated replay passes all three metadata runs and all three filesystem
+controls, with 135 Autoconf checks per run. All six NASM binaries also match
+the three successful Bazel 9.2 controls byte for byte. This clears the retained
+SDK staging reproducer, not full Chromium qualification or the timing goal.
+Require native object, declared-input and CPU checks before changing the cold
+harness policy. Repository defaults remain unchanged.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
