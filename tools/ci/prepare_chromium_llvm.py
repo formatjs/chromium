@@ -3,13 +3,27 @@
 import argparse
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
 from tools.ci.chromium import ROOT
+from tools.ci.compiler_training_inputs import install_inputs
 
 
 TARGET = '@chromium//native:llvm_training_inputs'
+
+
+def retain_training_inputs(paths, directory):
+    """Retain replayable inputs even when compiler preparation fails."""
+    workspace = directory / 'training-inputs'
+    stage = workspace / 'toolchain/bootstrap/stage3'
+    stage.mkdir(parents=True, exist_ok=False)
+    install_inputs(paths[0].parent, workspace)
+    destination = stage / 'chromium_training'
+    for path in paths:
+        if path.suffix in {'.d', '.json'}:
+            shutil.copyfile(path, destination / path.name)
 
 
 def main():
@@ -48,9 +62,12 @@ def main():
         mode.append('--relocations')
     if args.bolt_merge_fdata:
         mode.append('--merge-fdata')
-    subprocess.run([sys.executable, '-m', preparation, *mode,
-                    '--training-inputs', str(parents.pop()), '--directory', str(args.directory)],
-                   cwd=ROOT, check=True)
+    try:
+        subprocess.run([sys.executable, '-m', preparation, *mode,
+                        '--training-inputs', str(parents.pop()), '--directory', str(args.directory)],
+                       cwd=ROOT, check=True)
+    finally:
+        retain_training_inputs(paths, args.directory)
 
 
 if __name__ == '__main__':
