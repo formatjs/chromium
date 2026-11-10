@@ -33,7 +33,7 @@ def _replacement(name, imports, binary, common):
     if not binary and common.get("linkstatic") != True:
         return None
     sources = common.get("srcs", [])
-    if type(sources) != "list" or type(common.get("copts", [])) != "list" or common.get("nocopts"):
+    if type(sources) != "list" or common.get("nocopts"):
         return None
     cpp = [source for source in sources if _filename(source).endswith((".cc", ".cpp", ".cxx"))]
     headers = [source for source in sources if _filename(source).endswith((".h", ".hh", ".hpp", ".inc"))]

@@ -2,7 +2,6 @@
 
 load("@perfetto//bazel:chromium_sdk.bzl", "chromium_sdk")
 load(":python_action.bzl", "chromium_python_action")
-load(":shared_prefix_consumers.bzl", "shared_prefix_library")
 
 def native_perfetto_runtime(name):
     """Generate tables/descriptors and compile real browser tracing runtime.
@@ -52,7 +51,6 @@ def native_perfetto_runtime(name):
     )
     chromium_sdk(
         name = name,
-        library_rule = shared_prefix_library,
         protocol_library = ":perfetto_proto_cpp",
         generated_sources = [":gen/third_party/perfetto/protos/perfetto/ipc/consumer_port.ipc.cc", ":gen/third_party/perfetto/protos/perfetto/ipc/producer_port.ipc.cc", ":gen/third_party/perfetto/protos/perfetto/ipc/relay_port.ipc.cc"],
         generated_headers = [":gen/third_party/perfetto/protos/perfetto/ipc/consumer_port.ipc.h", ":gen/third_party/perfetto/protos/perfetto/ipc/producer_port.ipc.h", ":gen/third_party/perfetto/protos/perfetto/ipc/relay_port.ipc.h", ":gen/third_party/perfetto/src/trace_processor/importers/proto/android_track_event.descriptor.h", ":gen/third_party/perfetto/src/trace_processor/importers/proto/chrome_track_event.descriptor.h", ":gen/third_party/perfetto/src/trace_processor/importers/proto/track_event.descriptor.h", ":gen/third_party/perfetto/src/trace_processor/tables/android_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/counter_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/etm_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/flow_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/jit_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/memory_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/metadata_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/perf_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/profiler_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/sched_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/slice_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/trace_proto_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/track_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/v8_tables_py.h", ":gen/third_party/perfetto/src/trace_processor/tables/winscope_tables_py.h"],

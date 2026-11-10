@@ -303,6 +303,7 @@ native_webui(name = "webui_assets")
 
 ipcz_library(
     name = "ipcz",
+    library_rule = cc_library,
     chromium_base = ":base",
 )
 

@@ -12,15 +12,16 @@ _DRIVER_SOURCES = [
 ]
 _DRIVER_HEADERS = [path[:-3] + ".h" for path in _DRIVER_SOURCES]
 
-def ipcz_library(name, chromium_base = None, **kwargs):
+def ipcz_library(name, chromium_base = None, library_rule = cc_library, **kwargs):
     """Build original core using the selected upstream support implementation.
 
     Args:
         name: Library target.
         chromium_base: Chromium base target; None selects upstream standalone support.
+        library_rule: Caller-owned library constructor.
         **kwargs: Common cc_library attributes.
     """
-    cc_library(
+    library_rule(
         name = name,
         srcs = [Label("//:" + path) for path in CORE_SOURCES],
         copts = _COPTS,

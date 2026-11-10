@@ -154,7 +154,7 @@ def main():
             ['import_generated_files.py', str(graph)],
             ['import_buildflags.py', str(graph)],
             ['import_perfetto_proto.py', str(graph)],
-            ['import_perfetto_runtime.py', str(graph), str(source / 'third_party/perfetto')],
+            ['import_perfetto_runtime.py', str(graph), str(source / 'third_party/perfetto'), '--select-platform-sources'],
             ['import_rust_crates.py', str(graph), '--source-root', str(source),
              '--root', 'rust_logger', '--root', 'serde_json_wrapper', '--root', 'cxxbridge'],
         ]
