@@ -1900,12 +1900,30 @@ recompilation. This remains a warm, different-CPU diagnostic, not a cold forecas
 The cold harness offers `--discard-analysis-cache` for experiments; defaults stay
 unchanged. Requested discard must match both client arguments and canonical BEP.
 
+A combined 1,000-context pair uses eight JVM processors plus analysis-cache
+discard, keeping 16 compiler jobs. Total CPU falls from 4,786.89s to 4,416.25s
+(7.74%); wall time falls from 350.40s to 343.83s. Sampled execution-window JVM
+CPU falls 27.3%, setup CPU 15.4%; compiler CPU changes by only 0.55%.
+All 2,000 objects and exact compiler input sets match; both phases execute
+uncached in Linux sandboxes with zero supporting C++ recompilation.
+
+Applying those phase ratios to `shared-006`'s sampled JVM CPU gives a planning
+budget of about 5,491 CPU-seconds, versus 3,969 needed at observed utilization.
+Applying the whole-JVM ratio instead gives 4,446 CPU-seconds. These are projections:
+the warm graph is cached, the CPU model differs, and analysis overlaps execution.
+They justify another strict-cold trial, not a claim that 90 minutes is achieved.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
 nestable async header spans, which the earlier complete-span-only analysis missed.
 Reconstructing every begin/end pair exposes CSS/generated headers and V8 inline
 headers as remaining hotspots. Inclusive header times overlap and are not CPU savings.
+
+An eight-context chained `css_identifier_value.h` PCH probe preserves every
+baseline object. Only `cssom_keywords.cc` preserves candidate bytes in both
+normal and eager modes; seven contexts differ in symbols, strings or relocations.
+No broader semantic equivalence is claimed, and no new prefix routing is adopted.
 
 Restricting the devbox to one thread per core saves only 0.2% wall time and costs
 0.6% more CPU across three compiler pairs, so affinity stays unchanged. Reading
