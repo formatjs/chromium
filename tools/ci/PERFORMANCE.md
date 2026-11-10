@@ -1927,6 +1927,31 @@ archive remains a legacy timing reference: its saved `cold_result_verified` is
 false. Its archive and all metadata remain retained when reclaiming generated
 Bazel output state. New cold results must pass the current complete proof.
 
+The corrected `shared-008` run at `33d3296` completes in 5,556.08s (92m36s),
+156.08s over target. It uses eight JVM processors, analysis-cache discard,
+16 compiler jobs and a 16GiB scratch ceiling on the same 16-CPU/48GiB devbox.
+Bazel 9.2.0 keeps its bundled OpenJDK 25.0.2. Scratch retains at least 8.57GiB
+free in samples; no OOM kills occur. All 48,783 C++ compiles and every other
+recorded spawn run uncached in Linux sandboxes. All 4,145 fetched blobs remain
+unchanged. All 40,759 native objects and the browser match their controls;
+native smoke, both Qt GNU ABI checks and both rendering cases pass with zero
+changed pixels. The full profile, resource samples and archive are retained.
+
+This saves 96.98s against `shared-006`, but remains 72.75s slower than
+`shared-004`. It improves on completed `ec52236-003` by 1,082.50s (16.3%).
+Cgroup CPU is 87,012.92s: C++ uses 60,790.86s, Chromium Python 5,280.53s,
+and sampled Bazel CPU reaches 19,381.67s. Against `shared-006`, total CPU falls
+1,641.61s and sampled Bazel CPU falls only 1,167.05s; C++ CPU rises 97.66s.
+The warm projection of 4,446–5,491 JVM CPU-seconds saved does not hold in this
+cold run. Keep these controls optional; do not treat warm phase ratios as a
+reliable whole-build forecast. At this run's utilization, about 2,445 more
+CPU-seconds must be removed to reach 90 minutes. The goal remains unmet.
+
+An isolated replay with official Bazel 9.3.2 still fails LLVM resource-directory
+staging on its first in-memory-metadata phase, before Autoconf checks execute.
+Its newer sandbox fixes do not resolve our reproducer. In-memory sandbox
+metadata remains disabled; no compiler flags or repository defaults change.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
