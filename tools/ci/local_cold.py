@@ -22,6 +22,30 @@ from tools.ci.compile.local import verify_ram_sandbox
 BAZEL_SHA256 = '7668a95db1250f12c40407251e4e203b4ec8bf39bc495d2f485b2d8c99048694'
 BAZEL_URL = 'https://releases.bazel.build/9.2.0/release/bazel-9.2.0-linux-x86_64'
 
+EXPERIMENTAL_BAZEL_VERSION = '11.0.0-pre.20261028.2'
+BAZEL_RUNTIMES = {
+    '9.2.0': {'sha256': BAZEL_SHA256, 'url': BAZEL_URL},
+    EXPERIMENTAL_BAZEL_VERSION: {
+        'sha256': 'ba42bb1e14c228859dfb545eaa56e4c03691f9526d140a6db22f743a0adb5936',
+        'url': ('https://releases.bazel.build/11.0.0/rolling/11.0.0-pre.20261028.2/'
+                'bazel-11.0.0-pre.20261028.2-linux-x86_64'),
+    },
+}
+
+
+def bazel_runtime_flags(version):
+    """Preserve qualified compiler paths and environments on the experimental runtime."""
+    if version == '9.2.0':
+        return []
+    if version != EXPERIMENTAL_BAZEL_VERSION:
+        raise ValueError('Unsupported benchmark Bazel runtime')
+    return [
+        '--override_platform_cpu_name=@llvm//platforms:linux_x86_64_gnu.2.31=k8',
+        '--action_env=PATH=/bin:/usr/bin:/usr/local/bin', '--action_env==LC_CTYPE',
+        '--host_action_env=PATH=/bin:/usr/bin:/usr/local/bin', '--host_action_env==LC_CTYPE',
+        '--reuse_sandbox_directories=true',
+    ]
+
 
 def machine_limits():
     affinity_cpus = len(os.sched_getaffinity(0))
@@ -205,7 +229,8 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
                       expected_pch_count=0, expected_prefix_count=0, expected_base_bind_pch=False,
                       expected_eager_producers=(), expected_additional_producers=(), expected_shared_producers=(), target_seconds=3600,
                       expected_repository_cache_hardlinks=False, expected_jvm_processors=None,
-                      expected_discard_analysis_cache=False):
+                      expected_discard_analysis_cache=False, expected_bazel_runtime='9.2.0',
+                      expected_inmemory_sandbox_stashes=False):
     if expected_base_bind_pch:
         expected_pch_count, expected_prefix_count = 12, 1
     report = cold_build_report(events, elapsed, success,
@@ -236,7 +261,7 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
         'repo_contents_cache': {''}, 'remote_accept_cached': disabled,
         'remote_upload_local_results': disabled, 'use_action_cache': disabled,
         'batch': {'true', '1'}, 'spawn_strategy': {'linux-sandbox'},
-        'experimental_inmemory_sandbox_stashes': disabled,
+        'experimental_inmemory_sandbox_stashes': ({'true', '1'} if expected_inmemory_sandbox_stashes else disabled),
         'install_base': {str(directory / 'install-base')},
         'output_user_root': {str(directory / 'bazel-root')},
         'repository_cache': {str(repository_cache)},
@@ -262,6 +287,18 @@ def local_cold_report(events, elapsed, success, directory, repository_cache, fre
         canonical_processors == client_processors == [processor_flag])
     build_arguments = (client_command[client_command.index('build') + 1:]
                        if client_command and 'build' in client_command else [])
+    runtime_verified = expected_bazel_runtime == '9.2.0' and not expected_inmemory_sandbox_stashes
+    if expected_bazel_runtime == EXPERIMENTAL_BAZEL_VERSION:
+        runtime_verified = (
+            all(build_arguments.count(flag) == 1 for flag in bazel_runtime_flags(expected_bazel_runtime))
+            and matches('override_platform_cpu_name', {'@llvm//platforms:linux_x86_64_gnu.2.31=k8'})
+            and matches('reuse_sandbox_directories', {'true', '1'})
+            and all(sorted(options.get(name, [])) == ['=LC_CTYPE', 'PATH=/bin:/usr/bin:/usr/local/bin']
+                    for name in ['action_env', 'host_action_env']))
+    report['bazel_runtime_configuration_verified'] = runtime_verified
+    report['inmemory_sandbox_stashes_verified'] = matches(
+        'experimental_inmemory_sandbox_stashes', {'true', '1'} if expected_inmemory_sandbox_stashes else disabled) and runtime_verified
+    policy = policy and runtime_verified
     client_discard = [value for value in build_arguments
                       if re.match(r'^--(?:no)?discard_analysis_cache(?:=|$)', value)]
     report['discard_analysis_cache_verified'] = (not expected_discard_analysis_cache or
@@ -342,7 +379,11 @@ def main():
     parser.add_argument('--repository-cache', type=Path, required=True)
     parser.add_argument('--revision', required=True)
     parser.add_argument('--platform', choices=sorted(PLATFORMS), default='linux-amd64')
-    parser.add_argument('--bazel', type=Path, required=True, help='Verified Bazel 9.2.0 Linux amd64 executable')
+    parser.add_argument('--bazel', type=Path, required=True, help='SHA-verified Linux amd64 Bazel executable')
+    parser.add_argument('--bazel-runtime', choices=sorted(BAZEL_RUNTIMES), default='9.2.0',
+                        help='Pinned runtime; repository default stays Bazel 9.2.0')
+    parser.add_argument('--inmemory-sandbox-stashes', action='store_true',
+                        help='Opt into qualified metadata handling on the experimental runtime')
     parser.add_argument('--jobs', type=int, default=16)
     parser.add_argument('--heap-gib', type=int, default=12)
     parser.add_argument('--jvm-processors', type=int,
@@ -369,6 +410,8 @@ def main():
     args = parser.parse_args()
     if args.max_seconds is None:
         args.max_seconds = args.target_seconds
+    if args.inmemory_sandbox_stashes and args.bazel_runtime != EXPERIMENTAL_BAZEL_VERSION:
+        parser.error('--inmemory-sandbox-stashes requires the pinned experimental Bazel runtime')
     if args.shared_pch and not args.base_bind_pch:
         parser.error('--shared-pch requires --base-bind-pch')
     if args.base_bind_pch and not args.project_pch:
@@ -426,13 +469,17 @@ def main():
     process = None
     command = None
     compiler_dependency = None
+    runtime = BAZEL_RUNTIMES[args.bazel_runtime]
+    actual_bazel_sha256 = None
     expected_eager_producers = ()
     expected_additional_producers = ()
     expected_shared_producers = ()
     try:
         bazel = args.bazel.resolve(strict=True)
-        if hashlib.sha256(bazel.read_bytes()).hexdigest() != BAZEL_SHA256:
-            raise ValueError('Bazel executable does not match the pinned 9.2.0 Linux amd64 release')
+        with bazel.open('rb') as stream:
+            actual_bazel_sha256 = hashlib.file_digest(stream, 'sha256').hexdigest()
+        if actual_bazel_sha256 != runtime['sha256']:
+            raise ValueError('Bazel executable does not match pinned runtime ' + args.bazel_runtime)
         source.mkdir()
         with subprocess.Popen(['git', '-C', str(ROOT), 'archive', '--format=tar', args.revision],
                               stdout=subprocess.PIPE) as checkout:
@@ -474,7 +521,7 @@ def main():
                    '--local_resources=cpu=' + str(args.jobs),
                    '--local_resources=memory=' + str(args.action_memory_mb),
                    '--spawn_strategy=linux-sandbox', '--nouse_action_cache',
-                   '--experimental_inmemory_sandbox_stashes=false',
+                   '--experimental_inmemory_sandbox_stashes=' + str(args.inmemory_sandbox_stashes).lower(),
                    '--curses=no', '--color=no', '--terminal_columns=10000',
                    '--remote_executor=', '--remote_cache=', '--remote_accept_cached=false',
                    '--noremote_upload_local_results', '--disk_cache=', '--repo_contents_cache=',
@@ -489,6 +536,7 @@ def main():
                    '--experimental_record_metrics_for_all_mnemonics',
                    '--execution_log_compact_file=' + str(directory / 'execution.log'),
                    '--experimental_profile_include_primary_output', '--experimental_profile_include_target_label']
+        command += bazel_runtime_flags(args.bazel_runtime)
         if args.discard_analysis_cache:
             command += ['--discard_analysis_cache=true']
         if args.sandbox_base:
@@ -564,7 +612,9 @@ def main():
                                    target_seconds=args.target_seconds,
                                    expected_repository_cache_hardlinks=args.repository_cache_hardlinks,
                                    expected_jvm_processors=args.jvm_processors,
-                                   expected_discard_analysis_cache=args.discard_analysis_cache)
+                                   expected_discard_analysis_cache=args.discard_analysis_cache,
+                                   expected_bazel_runtime=args.bazel_runtime,
+                                   expected_inmemory_sandbox_stashes=args.inmemory_sandbox_stashes)
         report.update({'revision': args.revision, 'platform': args.platform, 'exit_code': code,
                        'cancelled_after_limit': cancelled, 'error': error,
                        'jobs': args.jobs, 'heap_gib': args.heap_gib,
@@ -585,7 +635,9 @@ def main():
                        'sandbox_base': str(args.sandbox_base) if args.sandbox_base else 'fresh output-base sandbox',
                        'sandbox_capacity_bytes': (shutil.disk_usage(args.sandbox_base).total
                                                   if args.sandbox_base else None),
-                       'bazel_sha256': BAZEL_SHA256,
+                       'bazel_sha256': actual_bazel_sha256, 'expected_bazel_sha256': runtime['sha256'],
+                       'bazel_runtime': args.bazel_runtime,
+                       'inmemory_sandbox_stashes_requested': args.inmemory_sandbox_stashes,
                        'build_uid': os.geteuid(), 'machine': machine_limits()})
         report['elapsed_seconds'] = time.monotonic() - started
         set_timing_target(report, args.target_seconds)

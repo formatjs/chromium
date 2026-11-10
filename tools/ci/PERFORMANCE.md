@@ -2002,6 +2002,19 @@ Each measured batch runs only 1,000 uncached sandboxed probes, 1,000 metadata
 writes and one workspace-status action. There is no useful measured gain from
 removing the log. Keep audit logging; this warm comparison gives no cold forecast.
 
+A complete configured-command query on the pinned upstream runtime also matches
+all 41,538 reference C++ contexts: 40,759 native and 779 execution contexts.
+Every argument and environment matches; no source command is missing or added.
+This is analysis-only compatibility evidence, with C04's binary hash checked.
+
+The cold harness now permits explicit `--bazel-runtime 11.0.0-pre.20261028.2`
+and `--inmemory-sandbox-stashes` experiments. It pins the executable SHA and
+requires the qualified platform-name mapping, target/host environments and
+sandbox reuse in both client commands and canonical BEP. Bazel 9.2 remains the
+repository and harness default, with in-memory metadata disabled. Cache policy,
+full profiles and compact execution logs stay required. Complete cold timing,
+archive, native object, ABI and rendering proof remain outstanding.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tools.ci.local_cold import (NORMAL_PROJECT_PCH_NAMES, eager_template_pch_producers,
+from tools.ci.local_cold import (EXPERIMENTAL_BAZEL_VERSION, NORMAL_PROJECT_PCH_NAMES, bazel_runtime_flags, eager_template_pch_producers,
                                local_cold_report, main, pch_output_proof, serialization_pch_producers, shared_pch_producers, v8_objects_pch_producers)
 from tools.ci.bb_cold import main as bb_main
 
@@ -157,6 +157,16 @@ class LocalColdBuildTest(unittest.TestCase):
             self.assertEqual(stopped.exception.code, 2)
             self.assertIn('--base-bind-pch requires --project-pch', error.getvalue())
 
+    def test_metadata_opt_in_rejects_affected_runtime_before_creating_state(self):
+        command = ['local-cold', '--directory', '/unused-trial', '--repository-cache', '/unused-cache',
+                   '--revision', 'a' * 40, '--bazel', '/unused-bazel', '--inmemory-sandbox-stashes']
+        error = io.StringIO()
+        with mock.patch('sys.argv', command), redirect_stderr(error):
+            with self.assertRaises(SystemExit) as stopped:
+                main()
+        self.assertEqual(stopped.exception.code, 2)
+        self.assertIn('requires the pinned experimental Bazel runtime', error.getvalue())
+
     def test_pch_requires_matching_native_linux_configuration(self):
         command = ['local-cold', '--directory', '/unused-trial', '--repository-cache', '/unused-cache',
                    '--revision', 'a' * 40, '--bazel', '/unused-bazel', '--blink-pch']
@@ -192,7 +202,7 @@ class LocalColdBuildTest(unittest.TestCase):
                         expected_prefix_count=0, prefix_count=0, base_bind_pch=False, eager_pchs=0,
                         additional_pchs=(), shared_pchs=(), omitted_original=(), mutate_pch_files=None,
                         elapsed=500, target_seconds=3600, repository_hardlinks=False, jvm_processors=None,
-                        discard_analysis_cache=False):
+                        discard_analysis_cache=False, bazel_runtime='9.2.0', inmemory_stashes=False):
                 values = options | (changes or {})
                 records = [
                     {'structuredCommandLine': {'commandLineLabel': 'canonical', 'sections': [{
@@ -235,7 +245,9 @@ class LocalColdBuildTest(unittest.TestCase):
                                            target_seconds=target_seconds,
                                            expected_repository_cache_hardlinks=repository_hardlinks,
                                            expected_jvm_processors=jvm_processors,
-                                           expected_discard_analysis_cache=discard_analysis_cache)
+                                           expected_discard_analysis_cache=discard_analysis_cache,
+                                           expected_bazel_runtime=bazel_runtime,
+                                           expected_inmemory_sandbox_stashes=inmemory_stashes)
                 self.assertNotIn('DO_NOT_EXPORT', json.dumps(result))
                 return result
 
@@ -310,6 +322,40 @@ class LocalColdBuildTest(unittest.TestCase):
                     invalid = measure({'experimental_inmemory_sandbox_stashes': value})
                     self.assertFalse(invalid['cold_result_verified'])
                     self.assertFalse(invalid['local_policy_verified'])
+            compatibility = {
+                'override_platform_cpu_name': '@llvm//platforms:linux_x86_64_gnu.2.31=k8',
+                'reuse_sandbox_directories': 'true',
+                'action_env': ['=LC_CTYPE', 'PATH=/bin:/usr/bin:/usr/local/bin'],
+                'host_action_env': ['=LC_CTYPE', 'PATH=/bin:/usr/bin:/usr/local/bin'],
+                'experimental_inmemory_sandbox_stashes': 'true',
+            }
+            experimental_command = command + bazel_runtime_flags(EXPERIMENTAL_BAZEL_VERSION)
+            experimental_command += ['--experimental_inmemory_sandbox_stashes=true']
+            experimental = dict(client_command=experimental_command,
+                                bazel_runtime=EXPERIMENTAL_BAZEL_VERSION, inmemory_stashes=True)
+            accepted = measure(compatibility, **experimental)
+            self.assertTrue(accepted['cold_result_verified'])
+            self.assertTrue(accepted['bazel_runtime_configuration_verified'])
+            self.assertTrue(accepted['inmemory_sandbox_stashes_verified'])
+            rejected_compatibility = [
+                {'override_platform_cpu_name': None},
+                {'override_platform_cpu_name': '@llvm//platforms:linux_x86_64_gnu.2.31=other'},
+                {'reuse_sandbox_directories': None}, {'reuse_sandbox_directories': 'false'},
+                {'action_env': ['PATH=/bin:/usr/bin:/usr/local/bin']},
+                {'host_action_env': ['=LC_CTYPE', 'PATH=/usr/bin']},
+                {'experimental_inmemory_sandbox_stashes': 'false'},
+                {'remote_cache': 'grpcs://cache.example'},
+            ]
+            for changes in rejected_compatibility:
+                with self.subTest(runtime_compatibility=changes):
+                    self.assertFalse(measure(compatibility | changes, **experimental)['cold_result_verified'])
+            for flag in bazel_runtime_flags(EXPERIMENTAL_BAZEL_VERSION):
+                for client in [experimental_command + [flag],
+                               [value for value in experimental_command if value != flag]]:
+                    with self.subTest(runtime_client=client):
+                        self.assertFalse(measure(compatibility, **(experimental | {'client_command': client}))['cold_result_verified'])
+            self.assertFalse(measure(compatibility, **(experimental | {'bazel_runtime': '9.2.0'}))['cold_result_verified'])
+            self.assertFalse(measure(compatibility, **(experimental | {'bazel_runtime': 'unknown'}))['cold_result_verified'])
             for value in [None, 'false', ['true', 'false']]:
                 with self.subTest(repository_hardlinks=value):
                     invalid = measure({'experimental_repository_cache_hardlinks': value}, repository_hardlinks=True)
