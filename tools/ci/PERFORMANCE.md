@@ -1781,5 +1781,15 @@ remain present. Only qualified PCH flags and ordinary replacement object,
 dependency and random-seed paths change. All 779 registered execution-configuration
 actions remain identical. The older analysis capture contains 38,848 commands and
 predates existing serialization-prefix choices; it is not an exact cold reference.
-Full 35,393-context qualification and the next strict-cold measurement remain
-pending. This command check establishes compatibility, not a build-time result.
+Full qualification now covers all 35,393 contexts. Three alternating pairs check
+73 suspected regressions; all remain on their original route. The final input
+audit rehashes 157,758 logical files and finds exactly the five documented generator
+metadata/comment differences. Actual cold PCH choices are checked for every cost
+sample, including the earlier 31 direct measurements.
+
+The emitted production table selects 33,380 imports across 3,801 owners. Its complete
+command comparison also preserves all 40,759 native actions and 779 registered
+execution-configuration actions, with no unexpected flag or environment changes.
+All 237 Python tests pass. Compiler measurements estimate 27,399 CPU seconds saved;
+added PCH generation, validation, Bazel overhead and scheduling still need the
+strict-cold measurement. No new cold build time is claimed yet.
