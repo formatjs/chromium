@@ -1707,3 +1707,28 @@ The 4,002-owner catalog contains 2,350 PCH cohorts, 1,629 ordinary libraries and
 23 binaries. Ordinary cases need private header inputs, two implementation
 dependencies and eleven `.cxx` fallbacks; no mixed C/assembly handling is needed.
 Full-population qualification is still running. Production routing remains off.
+
+Ordinary static libraries and binaries now have opt-in shared-prefix wrappers.
+They preserve private header inputs and implementation dependencies, keep the
+original public context, and retain every binary object with `alwayslink`.
+Dynamic-capable ordinary libraries retain their original rules. The new flag is
+limited to GNU Linux x86-64 fastbuild with existing native/PCH flags enabled.
+Actual macro tests preserve disabled-mode compiler actions, enabled-mode object
+and archive bytes, executable bytes and global initialization sequence `623415`.
+Two dependencies contain real objects; one binary source contains only a global
+constructor. Mixed `.cc`/`.cpp` names sharing an object stem keep their original
+numbered paths and reject split imports. These checks exercise link order and
+object retention.
+
+The full qualification invocation exhausted its 8 GiB Java heap after 18,889
+contexts. Recovery verifies recorded commands/environments, all 1,729 SDK inputs,
+accepted on-disk object hashes and all 70 producer pairs. Only the remaining
+16,504 contexts are queued in batches of 2,000 with independent Bazel invocations.
+This is warm qualification overhead, not a cold build result. Future batches use
+an immutable source snapshot while integration work continues.
+
+A partial cost audit identified 31 imports slower than their original cold spawn
+wall time. Three alternating baseline/candidate compiler pairs confirm all 31
+regressions, with both outputs matching cold object digests. Final routing must
+retain original imports for these sources. Direct compiler timing uses a read-only qualified execroot;
+it does not measure sandbox setup, action caches or cold elapsed time.

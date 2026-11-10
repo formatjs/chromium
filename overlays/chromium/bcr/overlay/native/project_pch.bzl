@@ -217,9 +217,10 @@ def _route_groups(ctx, groups):
         basenames = {}
         for source in sources:
             name = ctx.attr.shared_sources.get(source.path)
-            if source.basename in basenames and basenames[source.basename] != name:
-                fail("Duplicate basenames must retain one shared PCH group: " + source.basename)
-            basenames[source.basename] = name
+            basename = source.basename.rsplit(".", 1)[0]
+            if basename in basenames and basenames[basename] != name:
+                fail("Duplicate basenames must retain one shared PCH group: " + basename)
+            basenames[basename] = name
             key = (index, name)
             if key not in routed:
                 flags = list(options)
