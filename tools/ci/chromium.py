@@ -2,6 +2,7 @@
 """Build, package and smoke-test the same Chromium artifact on every target."""
 
 import argparse
+from contextlib import contextmanager
 import gzip
 import hashlib
 import json
@@ -56,7 +57,29 @@ def checksum(path):
         return hashlib.file_digest(source, 'sha256').hexdigest()
 
 
-def package_payload(bundle, payload, target, *, compression_level=1):
+@contextmanager
+def gzip_stream(raw, compression_level, compressor):
+    if compressor is None:
+        with gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0,
+                           compresslevel=compression_level) as compressed:
+            yield compressed
+        return
+    environment = {name: value for name, value in os.environ.items() if name not in ('GZIP', 'PIGZ')}
+    command = [str(compressor), '-n', '-' + str(compression_level), '-p', '16', '-c']
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=raw, env=environment)
+    try:
+        with process.stdin:
+            yield process.stdin
+        returncode = process.wait()
+        if returncode:
+            raise subprocess.CalledProcessError(returncode, command)
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+
+
+def package_payload(bundle, payload, target, *, compression_level=1, compressor=None):
     bundle = bundle.resolve()
     executable = validate_binary(bundle, target)
     runtime_root = executable.resolve()
@@ -88,8 +111,7 @@ def package_payload(bundle, payload, target, *, compression_level=1):
         member.mode = 0o755 if member.isdir() or member.mode & 0o111 else 0o644
         return member
 
-    with payload.open('wb') as raw, gzip.GzipFile(
-            filename='', mode='wb', fileobj=raw, mtime=0, compresslevel=compression_level) as compressed:
+    with payload.open('wb') as raw, gzip_stream(raw, compression_level, compressor) as compressed:
         with tarfile.open(fileobj=compressed, mode='w|', format=tarfile.PAX_FORMAT,
                           dereference=False) as output:
             output.add(bundle, arcname='bundle', filter=normalize)
@@ -372,6 +394,7 @@ def main():
     parser.add_argument('--directory', type=Path)
     parser.add_argument('--artifact', type=Path)
     parser.add_argument('--payload', type=Path)
+    parser.add_argument('--compressor', type=Path, help='Declared pigz executable for payload compression')
     parser.add_argument('--screenshots', type=Path, help='Rendering evidence directory for smoke tests')
     parser.add_argument('--buildbuddy-hosted', action='store_true',
                         help='Use credentials injected by the BuildBuddy workflow runner')
@@ -390,7 +413,7 @@ def main():
     if args.command == 'package-payload':
         if not args.platform or not args.bundle or not args.payload:
             parser.error('--platform, --bundle and --payload are required')
-        print(package_payload(args.bundle, args.payload, PLATFORMS[args.platform]))
+        print(package_payload(args.bundle, args.payload, PLATFORMS[args.platform], compressor=args.compressor))
         return
     if not args.platform or not args.revision or not args.directory:
         parser.error('--platform, --revision and --directory are required')

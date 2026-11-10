@@ -16,6 +16,14 @@ load(
 
 package(default_visibility = ["//visibility:public"])
 
+py_test(
+    name = "parallel_compression_test",
+    srcs = ["compression_test.py", "chromium.py"],
+    main = "compression_test.py",
+    args = ["--compressor", "$(rootpath @pigz//:pigz)"],
+    data = ["platforms.json", "@pigz//:pigz"],
+)
+
 linux_amd64_browser(
     name = "linux-amd64",
     srcs = ["@chromium//native:browser_bundle"],
@@ -265,6 +273,7 @@ exports_files([
 chromium_archive(
     name = "linux-amd64_archive",
     bundle = ":linux-amd64",
+    compressor = "@pigz//:pigz",
     platform = "linux-amd64",
 )
 

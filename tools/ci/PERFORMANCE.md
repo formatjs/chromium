@@ -1832,3 +1832,12 @@ measurements on the original devbox check all 63 pairs (14.0GB total), preservin
 every SHA256 comparison. Median wall time falls from 10.99s to 1.55s with similar
 CPU work. These warm read-only measurements suggest about 9.4s saved; they do
 not establish a new cold result. Verification remains inside the measured build.
+
+Linux amd64 payload packaging uses BCR pigz 2.8.bcr.2 as a declared execution
+tool, with 16 workers and 16 CPUs reserved by the action. Three alternating
+actual-bundle measurements with the original pinned Python reduce median wall
+time from 22.58s to 1.15s and CPU from 22.58s to 12.65s. Complete decompressed
+tar bytes match the old payload; repeated compressed bytes match within each
+compressor. Inherited `GZIP` and `PIGZ` options are ignored. Sandbox archive-rule
+checks and roundtrips of all five target formats pass. These warm measurements
+do not establish a new cold result; other targets keep their existing compressor.
