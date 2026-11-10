@@ -1882,6 +1882,15 @@ in the selected-action window instead rises 13.7%, with variable GC timing.
 The cached supporting graph and different CPU model prevent a whole-cold forecast;
 the setting stays optional and does not justify another full cold run yet.
 
+A larger 1,000-context pair tests `--track_incremental_state=false` with 16 JVM
+processors. Both use Bazel 9.2.0's bundled OpenJDK 25.0.2. Measured total CPU falls
+only 0.65% (4,744.20s to 4,713.15s); wall time is 338.88s versus 337.94s.
+Sampled execution-window JVM CPU falls 10.6%, while setup CPU rises 7.0%.
+All 2,000 measured objects and exact compiler input sets match; every selected
+compile runs uncached in a Linux sandbox, with no supporting C++ recompilation.
+The earlier 256-context execution-window improvement does not hold at that scale.
+The flag stays unchanged; these results do not justify another cold run.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
