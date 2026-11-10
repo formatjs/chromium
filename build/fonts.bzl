@@ -1,6 +1,6 @@
 """Pinned font sources for Chromium's native renderer graph."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 def chromium_font_sources():
     for name, remote, commit in [
@@ -8,7 +8,7 @@ def chromium_font_sources():
         ("harfbuzz", "https://chromium.googlesource.com/external/github.com/harfbuzz/harfbuzz.git", "7d936359a27abb2d7cb14ecc102463bb15c11843"),
         ("fontconfig", "https://chromium.googlesource.com/external/fontconfig.git", "f0ed9c3f43161d3555f6f7a5234b22fe7ca60727"),
     ]:
-        new_git_repository(
+        git_repository(
             name = "chromium_" + name,
             remote = remote,
             commit = commit,

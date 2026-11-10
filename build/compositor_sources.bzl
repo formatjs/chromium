@@ -1,6 +1,6 @@
 """Exact Chromium compositor dependencies absent from BCR."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def chromium_compositor_sources(ctx):
@@ -9,7 +9,7 @@ def chromium_compositor_sources(ctx):
         ("libsrtp", "https://chromium.googlesource.com/chromium/deps/libsrtp.git", "a52756acb1c5e133089c798736dd171567df11f5", "third_party/libsrtp"),
         ("federated_compute", "https://chromium.googlesource.com/external/github.com/google-parfait/federated-compute.git", "e51058dfe7888094ecc09cda38bfceffd4d4664b", "third_party/federated_compute/src"),
     ]:
-        new_git_repository(
+        git_repository(
             name = "chromium_" + name,
             remote = remote,
             commit = commit,

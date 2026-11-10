@@ -1,6 +1,6 @@
 """Exact Blink dependency sources absent from BCR."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def chromium_blink_sources(ctx):
@@ -23,7 +23,7 @@ def chromium_blink_sources(ctx):
         ("libphonenumber", "https://chromium.googlesource.com/external/libphonenumber.git", "140dfeb81b753388e8a672900fb7a971e9a0d362", "third_party/libphonenumber/dist"),
         ("crabbyavif", "https://chromium.googlesource.com/external/github.com/webmproject/CrabbyAvif.git", "3ba05863e84fd3acb4f4af2b4545221b317a2e55", "third_party/crabbyavif/src"),
     ]:
-        new_git_repository(
+        git_repository(
             name = "chromium_" + name,
             remote = remote,
             commit = commit,

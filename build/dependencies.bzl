@@ -1,6 +1,6 @@
 """One dependency setup for the combined Chromium workspace."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load(":angle_repository.bzl", "chromium_angle_repository", "chromium_angle_support")
 load(":blink_sources.bzl", "chromium_blink_sources")
@@ -188,7 +188,7 @@ def _dependencies_impl(ctx):
         build_file_content = 'exports_files(["gpu_shader_cache.bin"])',
     )
     chromium_quiche_repository(name = "chromium_quiche", catalog = Label("//:overlays.json"))
-    new_git_repository(
+    git_repository(
         name = "chromium_sqlite",
         remote = "https://chromium.googlesource.com/chromium/deps/sqlite",
         commit = "7d348fc79216a09b864ff881d8561a6222301666",

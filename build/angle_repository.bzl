@@ -1,6 +1,6 @@
 """Expose cached ANGLE sources at Chromium paths."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 
 def _impl(ctx):
@@ -27,7 +27,7 @@ def chromium_angle_support():
         strip_prefix = "pciutils-3.7.0",
         build_file = Label("//build:pciutils.BUILD.bazel"),
     )
-    new_git_repository(
+    git_repository(
         name = "chromium_vma",
         remote = "https://chromium.googlesource.com/external/github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git",
         commit = "cb0597213b0fcb999caa9ed08c2f88dc45eb7d50",

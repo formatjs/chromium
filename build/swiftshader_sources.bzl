@@ -1,9 +1,9 @@
 """Pinned SwiftShader source for Chromium's native Vulkan runtime."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 def chromium_swiftshader_sources():
-    new_git_repository(
+    git_repository(
         name = "chromium_swiftshader",
         remote = "https://swiftshader.googlesource.com/SwiftShader.git",
         commit = "5f1c459a11bb4899301e89609cbf7547f9f31e20",

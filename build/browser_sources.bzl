@@ -1,6 +1,6 @@
 """Exact browser dependency sources absent from BCR."""
 
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 def chromium_browser_sources(ctx):
     for name, remote, commit, prefix in [
@@ -16,7 +16,7 @@ def chromium_browser_sources(ctx):
         ("libaddressinput", "https://chromium.googlesource.com/external/libaddressinput.git", "2610f7b1043d6784ada41392fc9392d1ea09ea07", "third_party/libaddressinput/src"),
         ("xdg_utils", "https://chromium.googlesource.com/chromium/deps/xdg-utils.git", "cb54d9db2e535ee4ef13cc91b65a1e2741a94a44", "third_party/xdg-utils"),
     ]:
-        new_git_repository(
+        git_repository(
             name = "chromium_" + name,
             remote = remote,
             commit = commit,
