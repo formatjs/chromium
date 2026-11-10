@@ -41,11 +41,19 @@ def _replacement(name, imports, binary, common):
         return None
     context = name + "_shared_context"
     attributes = {key: common[key] for key in _CONTEXT_ATTRIBUTES if key in common}
-    original_cc_library(
+    if binary:
+        # Retain native binary runtime headers, including custom malloc settings.
+        attributes["srcs"] = headers
+        for key in ["malloc", "link_extra_lib", "linkshared", "linkstatic"]:
+            if key in common:
+                attributes[key] = common[key]
+    else:
+        attributes["hdrs"] = common.get("hdrs", []) + headers
+        attributes["linkstatic"] = True
+    context_rule = original_cc_binary if binary else original_cc_library
+    context_rule(
         name = context,
-        hdrs = common.get("hdrs", []) + headers,
         deps = common.get("deps", []) + common.get("implementation_deps", []),
-        linkstatic = True,
         tags = ["manual"],
         **attributes
     )
@@ -63,7 +71,7 @@ def _replacement(name, imports, binary, common):
         alwayslink = True if binary else common.get("alwayslink", False),
         copts = common.get("copts", []),
         local_defines = common.get("local_defines", []),
-        extra_inputs = common.get("additional_compiler_inputs", []),
+        extra_inputs = common.get("additional_compiler_inputs", []) + (headers if binary else []),
         features = common.get("features", []),
         testonly = common.get("testonly", False),
         target_compatible_with = common.get("target_compatible_with", []) + _LINUX,
