@@ -1874,6 +1874,21 @@ large remaining budget. At observed utilization, meeting 90 minutes needs about
 equivalent outputs and complete declared-input/sandbox proof before another cold run.
 The goal remains unmet; the other four triples remain strict-cold unmeasured.
 
+Three alternating 256-source pairs compare 8 and 16 JVM processors while keeping
+16 compiler jobs. Median total CPU falls from 2,001.38s to 1,707.82s (14.7%);
+all 1,536 objects and exact compiler input identities match. Supporting C++
+recompilation is zero. Most savings occur during graph setup. Sampled JVM CPU
+in the selected-action window instead rises 13.7%, with variable GC timing.
+The cached supporting graph and different CPU model prevent a whole-cold forecast;
+the setting stays optional and does not justify another full cold run yet.
+
+Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
+All objects match their actual native controls and prior cold digests. Exact child
+CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
+nestable async header spans, which the earlier complete-span-only analysis missed.
+Reconstructing every begin/end pair exposes CSS/generated headers and V8 inline
+headers as remaining hotspots. Inclusive header times overlap and are not CPU savings.
+
 Restricting the devbox to one thread per core saves only 0.2% wall time and costs
 0.6% more CPU across three compiler pairs, so affinity stays unchanged. Reading
 the 247MB BEP three times takes only 1.6s; a parsing refactor is not worthwhile.
