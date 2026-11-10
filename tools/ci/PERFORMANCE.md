@@ -1978,6 +1978,21 @@ zero selected compiles, but still executes 693 support-tool C++ actions; it is
 not an object, input-set or timing qualification. The earlier comparison with
 different environments is interrupted and retained, without a speed claim.
 
+Three alternating 1,000-context pairs on the pinned newer runtime reduce median
+total CPU from 4,428.80s to 4,367.46s (1.39%), and wall time from 326.29s to
+318.80s (2.30%) with in-memory sandbox metadata. Compiler CPU is unchanged;
+sampled execution-window JVM CPU falls 10.78%, while setup CPU rises 1.91%.
+All 6,000 measured objects, compiler arguments, environments and exact input
+identities match. Each measured batch executes only 1,000 probes, 1,000 metadata
+writes and one workspace-status action; no support compilation or generation.
+All probes run uncached in Linux sandboxes. A separate 48-action isolation check
+reuses one physical sandbox per 24-step mode and removes every stale input and
+undeclared write. Trace files contain 988–995 selected action spans; window
+attribution instead uses all 1,000 raw spawn timestamps aligned to the profile
+clock. These warm, different-hardware results do not establish a cold gain or
+justify changing repository defaults. Complete profile and audit-log costs still
+need separate measurement.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
