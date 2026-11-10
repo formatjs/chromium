@@ -1762,3 +1762,24 @@ enabling defines. Fresh-state, no-cache and Linux-sandbox checks remain unchange
 Tests reject missing shared outputs, changed validation bytes, missing flags and
 premature configuration; all 237 Python tests pass. Use `--target-seconds=5400`
 for the next complete benchmark.
+
+Perfetto and ipcz accept a caller-owned library constructor. The native adapters
+use the shared-prefix wrapper. Perfetto exposes its existing Linux source list;
+Linux amd64 and arm64 contain the same 159 sources. All five platform source and
+compiler configurations remain unchanged. Compiler-option selectors resolve at
+rule analysis; platform imports retain their selected source lists.
+
+Binary compile contexts use native `cc_binary` with no C++ sources. Its `CcInfo`
+retains implicit runtime headers and custom malloc configuration. The executable
+is never requested. Native sandbox checks preserve ordinary objects, public
+contexts and linked executables, including generated sources and a private header
+listed only in binary `srcs`.
+
+A fixture table selecting 27,078 imports across 3,396 owners passes a complete
+comparison against the actual ec52236-003 cold commands: all 40,759 native actions
+remain present. Only qualified PCH flags and ordinary replacement object,
+dependency and random-seed paths change. All 779 registered execution-configuration
+actions remain identical. The older analysis capture contains 38,848 commands and
+predates existing serialization-prefix choices; it is not an exact cold reference.
+Full 35,393-context qualification and the next strict-cold measurement remain
+pending. This command check establishes compatibility, not a build-time result.
