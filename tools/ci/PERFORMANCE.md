@@ -1813,3 +1813,16 @@ native window's content before viewport emulation passes eight fresh stressed
 sessions with zero changed pixels; the original fails two of four alternating
 controls. Baselines and thresholds remain unchanged. Initial failures remain
 recorded; these follow-up checks do not alter the cold timing.
+
+Dropping replaced PCH header closures passes the full command comparison, but
+2,155 common native compiles show no reduction in actual sandbox inputs. Their
+objects still match the cold controls. Switching the rule globally also rebuilds
+supporting tools, invalidating the attempted paired timing. The change is reverted;
+these observations do not establish a benefit for unmeasured contexts.
+
+Three alternating 256-source GC comparisons preserve all 1,536 cold object hashes
+and identical input identities. G1 takes a median 152.83s and 1,917.59 CPU-seconds;
+Parallel GC takes 151.51s and 1,957.82 CPU-seconds. Supporting C++ recompilation is
+zero in every measured phase. Parallel costs 2.1% more CPU, so G1 stays selected.
+This warm diagnostic retains cached graph checks and uses a different CPU model
+with the same 16-CPU/48GiB limits; it is not a cold timing prediction.
