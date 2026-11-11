@@ -2012,8 +2012,8 @@ and `--inmemory-sandbox-stashes` experiments. It pins the executable SHA and
 requires the qualified platform-name mapping, target/host environments and
 sandbox reuse in both client commands and canonical BEP. Bazel 9.2 remains the
 repository and harness default, with in-memory metadata disabled. Cache policy,
-full profiles and compact execution logs stay required. Complete cold timing,
-archive, native object, ABI and rendering proof remain outstanding.
+full profiles and compact execution logs stay required. The complete pinned-source
+trial below preserves artifact identity but narrowly misses the timing target.
 
 Trial 009 completed its archive in 5,328.41s (88m48s). Initial verification
 rejected a missing canonical `install_base` field. The pinned runtime omits
@@ -2025,8 +2025,27 @@ All 40,759 native objects match controls; JS/CSS/Intl, both rendering scenes
 and Qt 5.15.2/6.4.2 ABI smoke pass. Browser identity still fails: exact link
 commands, environments and input sets match except RE2's `bitstate.pic.o`.
 Bazel 11 selected RE2 `2025-11-05.bcr.1` instead of `2025-08-12.bcr.1`.
-The root override now pins the original release. Complete cold qualification
-with that pin is pending; trial 009 is not the final accepted result.
+The root override now pins the original release; trial 009 is not the final
+accepted result.
+
+
+Trial 010 at `237fe90` completes in **5,405.90s (90m05.9s)**, missing the
+5,400s target by 5.90s. Fresh checkout, install/output/user roots and auxiliary
+caches pass verification; only fetched dependencies persist. All 58,862 recorded
+spawns execute uncached in Linux sandboxes, including 48,783 C++ compiles.
+All 40,759 native objects and the final browser match controls byte for byte.
+Qt 5.15.2/6.4.2 GNU ABI, JS/CSS/Intl and both rendering scenes pass with zero
+changed pixels. The archive SHA-256 is
+`5094bc3754877d6c5c870f550595d165869c48b9659fbfedfe6832b1b9ccefdf`.
+
+The complete trace and execution log record 84,079.67 cgroup CPU-seconds:
+59,873.89 in C++ actions, 5,458.88 in Chromium Python actions and 16,668.53
+sampled JVM CPU-seconds. No OOM kills occur. Compared with trial 008, wall time
+falls 150.18s and JVM CPU falls 2,713.14s; compared with 009, wall time rises
+77.49s and total CPU rises 998.02s. Host variation and the restored RE2 dependency
+prevent attributing that difference to one change. Runtime/metadata gains remain
+useful, but this run does not meet the goal. Next qualification targets measured
+Bazel overhead before another full cold run; timer and artifact gates stay intact.
 
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
