@@ -2020,8 +2020,13 @@ rejected a missing canonical `install_base` field. The pinned runtime omits
 that field; its 365 extracted files match the embedded executable archive.
 The verifier now requires the exact client install path, fresh state and a
 pinned whole-install manifest when that field is absent. Missing, changed,
-extra or symlink-substituted files fail verification. Reverification and
-remaining native, ABI, rendering and complete-profile audits are pending.
+extra or symlink-substituted files fail verification. Reverification passes.
+All 40,759 native objects match controls; JS/CSS/Intl, both rendering scenes
+and Qt 5.15.2/6.4.2 ABI smoke pass. Browser identity still fails: exact link
+commands, environments and input sets match except RE2's `bitstate.pic.o`.
+Bazel 11 selected RE2 `2025-11-05.bcr.1` instead of `2025-08-12.bcr.1`.
+The root override now pins the original release. Complete cold qualification
+with that pin is pending; trial 009 is not the final accepted result.
 
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
