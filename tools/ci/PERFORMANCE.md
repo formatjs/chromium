@@ -88,6 +88,48 @@ files while preserving relative framework links. A separate repack of the same
 compiled output passes ABI and both rendering pages with zero changed pixels;
 this repack is correctness evidence, not a replacement cold timing result.
 
+### Upstream main cold comparison
+
+Upstream `main` at `429e7e76bd285545537a9fccd30180af42e09633` completes
+trial `main-013` in **10,534.36s (2h55m34.36s)**. Shared-prefix trial 011 takes
+**5,124.36s (1h25m24.36s)**: 5,410.00s saved, **51.36% less elapsed time**
+(2.06 times the throughput). Both use the same devbox2 Xeon Platinum 8488C,
+16-CPU quota, 48GiB memory limit, 16 compiler jobs, eight JVM processors,
+8GiB heap and private 16GiB RAM sandbox. Setup through artifact copy is timed;
+native validation follows the timer.
+
+Main keeps its checked-in LLVM configuration and Bazel 9.2/bundled JVM, with
+native tool sharing enabled as in its normal Linux workflow. No project/shared
+PCH or trained-compiler override is applied. The optimized result uses its
+qualified PCH/generator configuration, pinned C04 compiler and experimental
+Bazel 11/bundled JVM. This compares complete configurations; it does not isolate
+PCH savings or runtime improvements.
+
+Main executes 59,139 successful uncached Linux-sandbox spawns, including 49,166
+C++ compiles, versus 58,862/48,783 in trial 011. Cgroup CPU falls from
+166,354.56s to 80,001.47s; C++ CPU falls from 137,236.46s to 57,889.26s
+(**57.82%**). Average CPU usage is 15.79 versus 15.61. The main trace contains
+787,144 events; complete traces, unmerged execution logs and resource samples
+remain retained. Only the same 4,206 fetched dependency blobs persist, with no
+changes or additions. Checkout, Bazel install/output/user state and auxiliary
+caches are fresh; RBE and action caches are disabled. OS page cache is uncontrolled.
+
+Main's exact archive passes JS/CSS/Unicode/Intl smoke, Qt 5.15.2 and 6.4.2 GNU
+ABI/load checks, and both rendering scenes with zero changed pixels. Its browser
+SHA-256 matches trial 011 exactly:
+`21089926f88ecf518a8e5d53fa367df8b1ea76967c5b0b59491a83a9edf19294`.
+Main archive SHA-256 is
+`7f50943bbcdb764baf9301ad9ab996bfecfbdea6ba2689c3a090b6eb6fb621df`.
+
+The measurement controller is `237fe90`, outside the timed main checkout. Its
+only compatibility patch omits the downloader-config flag when that older source
+has no config file. An earlier `main-012` startup fails after 8.18s before any
+compilation because of that missing file; its report stays separate. The final
+trial uses entirely fresh roots and leaves main's committed build inputs intact.
+These are individual Linux AMD64 measurements, not medians or other-platform
+cold results. Trial 010's identical optimized configuration took 90m05.9s;
+retain that variability when assessing the margin.
+
 ## Strict BuildBuddy cold target
 
 Target: complete Linux AMD64 archive under one hour on a BuildBuddy workflow
