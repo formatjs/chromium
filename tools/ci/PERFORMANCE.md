@@ -2047,6 +2047,17 @@ prevent attributing that difference to one change. Runtime/metadata gains remain
 useful, but this run does not meet the goal. Next qualification targets measured
 Bazel overhead before another full cold run; timer and artifact gates stay intact.
 
+
+A six-phase, 1,000-context comparison of four versus eight JVM processors keeps
+16 compiler jobs and Bazel 11's bundled JDK 27. Exact arguments, environments,
+input identities and all 6,000 measured objects match; supporting C++ recompiles
+are zero. Four processors reduce median process-tree CPU 3.78%, but wall time
+rises from 332.95s to 345.10s (3.65%). Sampled setup JVM CPU falls 27.71%; execution
+JVM CPU rises 1.91%. Keep eight JVM processors; this does not qualify another
+cold run. The excluded first warmup's JFR records 51.29 GC CPU-seconds and 7.22s
+of pauses. Scheduling, nested-set traversal and hashing dominate sampled Java
+hot methods. These are warm diagnostic samples, not whole-cold CPU attribution.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
