@@ -2066,9 +2066,34 @@ are zero. Median wall time rises 3.11% (332.31s to 342.65s), total CPU rises
 0.11%, and sampled execution JVM CPU rises 0.36%. Keep the default 50,000 entries.
 Neither this change nor four JVM processors qualifies for the next cold run.
 
-Trial 011 repeats trial 010's exact `237fe90` source and controls, with fresh
-checkout, install/output/user roots and tool caches. It measures repeatability;
-no new optimization is attributed to it, and trial 010's 90m05.9s remains recorded.
+Trial 011 repeats trial 010's exact `237fe90` source and controls, completing
+in **5,124.36s (85m24.36s)**: 275.64s under the 5,400s goal. All 61 recorded
+Bazel arguments match after substituting fresh paths and scratch directory.
+Fresh checkout, install/output/user roots and tool caches pass verification;
+only the same 4,206 fetched dependency blobs persist. All 58,862 spawns run
+uncached in Linux sandboxes, including 48,783 C++ compiles. The complete trace
+contains 592,484 events; the unmerged execution log and resource samples remain
+retained. CPU totals 80,001.47s (15.61 CPUs average), with 57,889.26 C++ CPU-seconds,
+5,020.20 Python CPU-seconds and 15,686.13 sampled JVM CPU-seconds. No OOM kills occur.
+
+All 40,759 native objects and the final browser match controls byte for byte.
+JS/CSS/Intl, Qt 5.15.2/6.4.2 GNU ABI and both rendering scenes pass; changed pixels
+are zero. Archive SHA-256 is
+`ee0bb2b0a5ca5850ca66571e8bf395b7592357b45295dba2ee9440d1d1c48135`.
+Compared with 010, every member, metadata field and order matches except the
+four existing randomized NSS integrity files. The pinned verifier validates
+all eight signatures against unchanged modules and parameters; every other tar
+byte matches. Original archives and signing behavior remain untouched.
+
+This verified Linux AMD64 run is 22.81% faster than valid trial 003 (6,638.58s).
+It is 26.33% faster than legacy trial 002 (6,955.77s), whose saved cold-policy
+verification is false and serves only as a timing reference. Trial 010's
+90m05.9s remains recorded: the unchanged-control repeat measures variability,
+not another optimization. One successful result does not guarantee every cold
+run stays under 90 minutes. OS page cache remains uncontrolled; no prior Bazel,
+compiler-output or auxiliary tool cache is reused. Other four triples remain
+strict-cold unmeasured. Repository defaults stay Bazel 9.2; this opt-in experiment
+uses pinned Bazel 11 with its bundled JDK 27 and the unchanged C04 compiler.
 
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
