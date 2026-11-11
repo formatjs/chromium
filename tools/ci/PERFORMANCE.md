@@ -2058,6 +2058,18 @@ cold run. The excluded first warmup's JFR records 51.29 GC CPU-seconds and 7.22s
 of pauses. Scheduling, nested-set traversal and hashing dominate sampled Java
 hot methods. These are warm diagnostic samples, not whole-cold CPU attribution.
 
+
+A separate six-phase comparison raises Bazel's in-run file-digest cache from
+50,000 to 500,000 entries, keeping eight JVM processors and full profiling.
+All 6,000 objects and exact input identities match; supporting C++ recompiles
+are zero. Median wall time rises 3.11% (332.31s to 342.65s), total CPU rises
+0.11%, and sampled execution JVM CPU rises 0.36%. Keep the default 50,000 entries.
+Neither this change nor four JVM processors qualifies for the next cold run.
+
+Trial 011 repeats trial 010's exact `237fe90` source and controls, with fresh
+checkout, install/output/user roots and tool caches. It measures repeatability;
+no new optimization is attributed to it, and trial 010's 90m05.9s remains recorded.
+
 Current shared-PCH traces cover 128 contexts from that cohort, not the whole build.
 All objects match their actual native controls and prior cold digests. Exact child
 CPU totals 446.72s; the CPU-weighted frontend wall share is 85.7%. Clang emits
