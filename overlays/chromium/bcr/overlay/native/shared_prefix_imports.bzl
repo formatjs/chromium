@@ -3,7 +3,7 @@
 load(":qualified_shared_prefixes.bzl", "SHARED_PREFIX_IMPORTS")
 
 SHARED_PREFIX_ENABLED = Label("//native/tool_configuration:shared_pch")
-_REPOSITORY = Label("//native:BUILD.bazel").repo_name
+_REPOSITORY = Label("@chromium//native:BUILD.bazel").repo_name
 
 def qualified_shared_imports(name):
     owner = native.package_relative_label(":" + name)

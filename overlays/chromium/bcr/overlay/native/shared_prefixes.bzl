@@ -4,6 +4,8 @@ load("@rules_cc//cc:cc_library.bzl", original_cc_library = "cc_library")
 load(":project_pch.bzl", "chromium_project_pch")
 load(":shared_prefix_data.bzl", "BASE_HEADERS", "COMPONENT_HEADERS", "COMPONENT_INCLUDES", "FULL_INCLUDES", "GLOBAL_HEADERS", "ORIGINAL_PRODUCERS", "SAFE_INCLUDES", "SDK_DEFINES", "SDK_OWNERS", "STD_INCLUDES", "V8_HEADERS")
 
+_QUALIFIED_REPOSITORY = Label("@chromium//native:BUILD.bazel").repo_name
+
 _LINUX = ["@platforms//os:linux", "@platforms//cpu:x86_64", "@llvm//constraints/libc:gnu.2.31"]
 _SDK_INCLUDES = "".join(["#include <" + header + ">\n" for header in [
     "algorithm", "array", "chrono", "deque", "functional", "limits", "map", "memory",
@@ -34,6 +36,8 @@ def _attributes(original):
 
 def shared_prefixes(scoped = True):
     """Declare candidates after original producers; callers choose qualified imports."""
+    if native.package_relative_label(":BUILD.bazel").repo_name != _QUALIFIED_REPOSITORY:
+        return
     for group, original_name in ORIGINAL_PRODUCERS.items():
         original = native.existing_rule(original_name)
         if not original:
